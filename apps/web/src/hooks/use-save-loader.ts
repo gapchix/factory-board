@@ -14,14 +14,20 @@ import type { ParseResponse } from '@/workers/parse-save.worker';
 export function useSaveLoader() {
   const { dispatch } = useBoard();
   const workerRef = useRef<Worker | null>(null);
+  const lastFileName = useRef<string>('save');
 
   useEffect(() => {
     let worker: Worker | null = null;
     try {
       worker = new Worker(new URL('../workers/parse-save.worker.ts', import.meta.url));
       worker.onmessage = (event: MessageEvent<ParseResponse>) => {
-        if (event.data.ok) dispatch({ type: 'loaded', snapshot: event.data.snapshot });
-        else dispatch({ type: 'failed', message: event.data.error });
+        if (event.data.ok) {
+          dispatch({
+            type: 'loaded',
+            snapshot: event.data.snapshot,
+            source: { kind: 'file', name: lastFileName.current },
+          });
+        } else dispatch({ type: 'failed', message: event.data.error });
       };
       worker.onerror = () => dispatch({ type: 'failed', message: 'The save parser crashed.' });
       workerRef.current = worker;
@@ -37,6 +43,7 @@ export function useSaveLoader() {
   return useCallback(
     async (file: File) => {
       dispatch({ type: 'parsing', fileName: file.name });
+      lastFileName.current = file.name;
       const name = file.name.replace(/\.sav$/i, '');
       try {
         const buffer = await file.arrayBuffer();
@@ -47,7 +54,11 @@ export function useSaveLoader() {
           return;
         }
         const { parseSaveFile } = await import('@factory-board/save-reader');
-        dispatch({ type: 'loaded', snapshot: parseSaveFile(name, buffer) });
+        dispatch({
+          type: 'loaded',
+          snapshot: parseSaveFile(name, buffer),
+          source: { kind: 'file', name: file.name },
+        });
       } catch (error) {
         dispatch({
           type: 'failed',

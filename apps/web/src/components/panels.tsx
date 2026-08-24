@@ -76,7 +76,9 @@ export function TargetEditor({ db }: { db: GameDatabase }) {
 
   const options = Object.values(db.items)
     .filter((item) => !item.isRaw)
-    .filter((item) => Object.values(db.recipes).some((r) => r.outputs.some((o) => o.item === item.id)))
+    .filter((item) =>
+      Object.values(db.recipes).some((r) => r.outputs.some((o) => o.item === item.id)),
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const submit = () => {
@@ -266,10 +268,7 @@ export function Summary({
   if (snapshot) {
     stats.push(['Built machines', String(actualMachines)]);
     stats.push(['Built power', `${Math.round(actualPowerMW)} MW`]);
-    stats.push([
-      'Still to build',
-      String(Math.max(0, result.totalMachines - actualMachines)),
-    ]);
+    stats.push(['Still to build', String(Math.max(0, result.totalMachines - actualMachines))]);
   }
 
   return (
@@ -366,8 +365,8 @@ export function Balance({ db, result }: { db: GameDatabase; result: SolveResult 
       ) : null}
 
       <Text fontSize="13px" color="fg.subtle" mt={2.5}>
-        Node counts assume a Mk.1 miner on a normal node (60/min). Byproducts are listed as
-        surplus but not credited back into the plan — feed them somewhere or sink them.
+        Node counts assume a Mk.1 miner on a normal node (60/min). Byproducts are listed as surplus
+        but not credited back into the plan — feed them somewhere or sink them.
       </Text>
     </>
   );
@@ -468,7 +467,12 @@ export function Progress({ db, snapshot }: { db: GameDatabase; snapshot: WorldSn
                 {done ? '✓' : ''}
               </Flex>
               <Box>
-                <Text fontWeight="500" fontSize="14px" lineHeight="1.3" color={done ? 'fg.subtle' : undefined}>
+                <Text
+                  fontWeight="500"
+                  fontSize="14px"
+                  lineHeight="1.3"
+                  color={done ? 'fg.subtle' : undefined}
+                >
                   T{milestone.tier} · {milestone.name}
                 </Text>
                 <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" mt={0.5}>
@@ -482,8 +486,12 @@ export function Progress({ db, snapshot }: { db: GameDatabase; snapshot: WorldSn
       </Grid>
 
       <Text fontSize="13px" color="fg.subtle" mt={2.5}>
-        {researched.size} of {milestones.length} milestones researched. Costs come straight from
-        your installed game files.
+        {/* Count the intersection, not the raw set: a save's purchased
+            schematics also include tutorials and customiser unlocks, which are
+            not milestones and would inflate this past the denominator. */}
+        {milestones.filter((milestone) => researched.has(milestone.id)).length} of{' '}
+        {milestones.length} milestones researched. Costs come straight from your installed game
+        files.
       </Text>
     </>
   );

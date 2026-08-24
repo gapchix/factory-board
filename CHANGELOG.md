@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
   extracted database.
 - Project documentation: spec, architecture, roadmap and four ADRs.
 
+- Web app: Overview, Planner and Progression views with hand-built bar and meter
+  charts, validated for contrast in both themes.
+- Default save auto-loading via `SATISFACTORY_SAVE` / `SATISFACTORY_SAVES_DIR`, plus a
+  dev-time watcher that re-reads the save on every autosave.
+
 ### Fixed
 
 - Solver no longer manufactures raw ore through late-game Converter recipes. It answered a
@@ -32,3 +37,9 @@ All notable changes to this project are documented here. The format follows
   key-completeness check in both directions so a schema can't omit a domain field again.
 - Building ids in `WorldSnapshot` now match machine ids in `GameDatabase`; the `Build_`
   prefix was only being stripped on one of the two paths.
+- Progression no longer reports more milestones researched than exist. It counted every
+  purchased schematic — tutorials and customiser unlocks included — against a
+  denominator of numbered milestones only.
+- Uptime values are no longer printed in their status colour. Contrast for the warning
+  step falls below the 4.5:1 text threshold in light mode; the bar carries the state
+  and the number stays in text ink.

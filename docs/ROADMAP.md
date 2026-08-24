@@ -18,15 +18,22 @@ clock, building census, milestones and Space Elevator progress. Browser-safe.
 **Verification** — an integration test proves Space Elevator Phase 2 solves to exactly
 44 machines, 344 MW and 300.75 iron ore/min against a real extracted database.
 
-## Next — v0.1, the board
+**The app** — Next.js 16 static export, Chakra UI v3, light and dark. Three views:
+Overview (bottlenecks, power, machine census, plan progress), Planner (targets, board,
+inputs and surplus) and Progression (research by tier, Space Elevator delivery). Saves
+load by drag-and-drop or file picker, parsed in a Web Worker. Plans persist to
+`localStorage` and are re-validated with Zod on read.
 
-- [ ] Next.js app shell, Chakra UI v3 theme, light/dark
-- [ ] Target editor with presets for each Space Elevator phase
-- [ ] The board: one cell per line, grouped by machine, plan vs. actual, uptime bars
-- [ ] Save loading via drag-and-drop, parsed in a Web Worker
-- [ ] Inputs & surplus tables, milestone tracker, phase progress
-- [ ] Plans persisted to `localStorage`, validated with Zod on read
+**Auto-loading** — `SATISFACTORY_SAVE` / `SATISFACTORY_SAVES_DIR` open a save at
+dev/build time, and `npm run dev` watches the folder so the dashboard follows
+autosaves.
+
+## Next — v0.1
+
 - [ ] Playwright E2E covering load → solve → compare
+- [ ] Favicon and app icons
+- [ ] Alternate-recipe picker: show what a swap costs in machines and power
+- [ ] Export/import a plan as JSON
 
 ## After that
 

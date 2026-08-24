@@ -6,6 +6,7 @@ import { ChakraProvider } from '@chakra-ui/react';
 import { useServerInsertedHTML } from 'next/navigation';
 import { ThemeProvider } from 'next-themes';
 import { useState, type ReactNode } from 'react';
+import { BoardProvider } from '@/state/board';
 import { system } from '@/theme/system';
 
 /**
@@ -37,7 +38,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <EmotionRegistry>
       <ChakraProvider value={system}>
         <ThemeProvider attribute="class" disableTransitionOnChange>
-          {children}
+          <BoardProvider>{children}</BoardProvider>
         </ThemeProvider>
       </ChakraProvider>
     </EmotionRegistry>

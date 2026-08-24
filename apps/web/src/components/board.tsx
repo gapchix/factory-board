@@ -42,13 +42,11 @@ function LineCard({ row, db }: { row: Row; db: GameDatabase }) {
   const colors = TONE_COLOR[status.tone];
 
   const product = recipe?.outputs[0]?.item;
-  const alternatives = useMemo(
-    () => (product ? recipesProducing(db, product) : []),
-    [db, product],
-  );
+  const alternatives = useMemo(() => (product ? recipesProducing(db, product) : []), [db, product]);
 
   const uptime = row.actual?.uptime ?? null;
-  const uptimeTone = uptime === null ? 'ok' : uptime >= 0.95 ? 'ok' : uptime >= 0.6 ? 'warn' : 'crit';
+  const uptimeTone =
+    uptime === null ? 'ok' : uptime >= 0.95 ? 'ok' : uptime >= 0.6 ? 'warn' : 'crit';
 
   const topColor =
     planned === 0
@@ -138,18 +136,9 @@ function LineCard({ row, db }: { row: Row; db: GameDatabase }) {
         <Flex align="center" gap={2.5}>
           <Label>uptime</Label>
           <Meter value={uptime} tone={uptimeTone} />
-          <Mono
-            fontSize="11.5px"
-            w="36px"
-            textAlign="end"
-            color={
-              uptimeTone === 'ok'
-                ? 'status.ok'
-                : uptimeTone === 'warn'
-                  ? 'status.warn'
-                  : 'status.crit'
-            }
-          >
+          {/* The bar carries the state; the number stays in text ink so it
+              clears contrast in both themes. */}
+          <Mono fontSize="11.5px" w="36px" textAlign="end" color="fg.muted">
             {Math.round(uptime * 100)}%
           </Mono>
         </Flex>

@@ -27,6 +27,31 @@ npm run dev
 SATISFACTORY_DIR="D:/Games/Satisfactory" npm run extract
 ```
 
+## Open your save automatically
+
+By default the app opens the most recent save it can find, and `npm run dev` watches
+that folder — every autosave re-reads the file and hot-reloads the dashboard, so it
+tracks your factory while you play.
+
+To pin a specific one, copy `apps/web/.env.example` to `apps/web/.env.local`:
+
+```bash
+SATISFACTORY_SAVE=C:/Users/you/AppData/Local/FactoryGame/Saved/SaveGames/7656.../polska.sav
+# …or a folder, where the newest .sav wins:
+SATISFACTORY_SAVES_DIR=C:/Users/you/AppData/Local/FactoryGame/Saved/SaveGames/7656...
+```
+
+The save is read in Node, before Next runs, and only the resulting snapshot is put in
+the bundle. The page itself never touches your disk — it cannot, and shouldn't.
+
+## The three views
+
+|                 |                                                                                                                      |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan |
+| **Planner**     | Production targets, the board of lines, inputs and surplus                                                           |
+| **Progression** | Milestone research by tier and Space Elevator delivery                                                               |
+
 ## Why extract instead of ship the data?
 
 The recipe database is Coffee Stain's content, so it is **not committed to this repo**.

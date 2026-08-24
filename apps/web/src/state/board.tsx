@@ -11,17 +11,23 @@ import {
   useReducer,
   type ReactNode,
 } from 'react';
+import { defaultSave } from '@/lib/default-snapshot';
 import { loadPlan, savePlan } from '@/lib/plan-storage';
 
 export type LoadStatus =
-  | { kind: 'idle' }
-  | { kind: 'parsing'; fileName: string }
-  | { kind: 'failed'; message: string };
+  { kind: 'idle' } | { kind: 'parsing'; fileName: string } | { kind: 'failed'; message: string };
+
+/** Where the loaded snapshot came from, so the UI can say so. */
+export interface SnapshotSource {
+  readonly kind: 'default' | 'file';
+  readonly name: string;
+}
 
 interface BoardState {
   targets: ProductionTarget[];
   recipeChoices: Record<string, string>;
   snapshot: WorldSnapshot | null;
+  source: SnapshotSource | null;
   status: LoadStatus;
 }
 
@@ -34,7 +40,7 @@ type Action =
   | { type: 'clearPlan' }
   | { type: 'restore'; targets: ProductionTarget[]; recipeChoices: Record<string, string> }
   | { type: 'parsing'; fileName: string }
-  | { type: 'loaded'; snapshot: WorldSnapshot }
+  | { type: 'loaded'; snapshot: WorldSnapshot; source: SnapshotSource }
   | { type: 'failed'; message: string }
   | { type: 'clearSave' };
 
@@ -42,6 +48,7 @@ const initialState: BoardState = {
   targets: [],
   recipeChoices: {},
   snapshot: null,
+  source: null,
   status: { kind: 'idle' },
 };
 
@@ -84,11 +91,16 @@ function reducer(state: BoardState, action: Action): BoardState {
     case 'parsing':
       return { ...state, status: { kind: 'parsing', fileName: action.fileName } };
     case 'loaded':
-      return { ...state, snapshot: action.snapshot, status: { kind: 'idle' } };
+      return {
+        ...state,
+        snapshot: action.snapshot,
+        source: action.source,
+        status: { kind: 'idle' },
+      };
     case 'failed':
       return { ...state, status: { kind: 'failed', message: action.message } };
     case 'clearSave':
-      return { ...state, snapshot: null, status: { kind: 'idle' } };
+      return { ...state, snapshot: null, source: null, status: { kind: 'idle' } };
     default:
       return state;
   }
@@ -113,6 +125,15 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         type: 'restore',
         targets: stored.targets,
         recipeChoices: stored.recipeChoices,
+      });
+    }
+    // A save baked in at build time opens automatically, so the dashboard has
+    // something to show on first paint. Dropping a file in replaces it.
+    if (defaultSave) {
+      dispatch({
+        type: 'loaded',
+        snapshot: defaultSave.snapshot,
+        source: { kind: 'default', name: defaultSave.source },
       });
     }
   }, []);

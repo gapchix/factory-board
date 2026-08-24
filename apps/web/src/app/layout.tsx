@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono, IBM_Plex_Sans, Saira_Condensed } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { Box } from '@chakra-ui/react';
+import { Header } from '@/components/header';
 import { Providers } from './providers';
 
 const display = Saira_Condensed({
@@ -38,7 +40,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${display.variable} ${body.variable} ${mono.variable}`}
     >
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <Header />
+          <Box as="main" maxW="1320px" mx="auto" px={5} pt={6} pb={24}>
+            {children}
+          </Box>
+        </Providers>
       </body>
     </html>
   );

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/sync-game-data.mjs",
-    "dev": "next dev",
-    "prebuild": "node scripts/sync-game-data.mjs",
+    "dev": "node scripts/dev.mjs",
+    "prebuild": "node scripts/sync-game-data.mjs && node scripts/sync-save.mjs",
     "build": "next build",
     "start": "next start"
   },
