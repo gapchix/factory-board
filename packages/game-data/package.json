@@ -1,0 +1,29 @@
+{
+  "name": "@factory-board/game-data",
+  "version": "0.1.0",
+  "description": "Extract a typed Satisfactory recipe/item/milestone database from your own game install.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "factory-board-extract": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "extract": "npm run build && node dist/cli.js"
+  },
+  "dependencies": {
+    "@factory-board/planner": "0.1.0",
+    "zod": "^4.4.3"
+  }
+}

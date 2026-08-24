@@ -1,0 +1,26 @@
+{
+  "name": "@factory-board/save-reader",
+  "version": "0.1.0",
+  "description": "Reduce a Satisfactory save file to the production lines, buildings and progress it contains.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@etothepii/satisfactory-file-parser": "^4.1.2",
+    "@factory-board/planner": "0.1.0"
+  }
+}

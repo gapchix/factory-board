@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/planner"
+    },
+    {
+      "path": "packages/game-data"
+    },
+    {
+      "path": "packages/save-reader"
+    }
+  ]
+}
