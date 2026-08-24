@@ -1,4 +1,10 @@
-import type { BuildingPlacement, ActualLine, PhaseProgress, WorldSnapshot } from './types.js';
+import type {
+  ActualLine,
+  BuildingPath,
+  BuildingPlacement,
+  PhaseProgress,
+  WorldSnapshot,
+} from './types.js';
 
 /**
  * A deliberately loose view of what the save parser returns.
@@ -12,7 +18,16 @@ export interface RawSaveObject {
   readonly typePath?: string;
   readonly instanceName?: string;
   readonly properties?: Record<string, unknown>;
-  readonly transform?: { readonly translation?: { x?: unknown; y?: unknown; z?: unknown } };
+  readonly transform?: {
+    readonly translation?: { x?: unknown; y?: unknown; z?: unknown };
+    readonly rotation?: { x?: unknown; y?: unknown; z?: unknown; w?: unknown };
+  };
+}
+
+interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
 }
 
 export interface RawSaveLevel {
@@ -30,6 +45,101 @@ function tail(path: unknown): string {
 }
 
 const CM_PER_METRE = 100;
+/** A save with an enormous belt network should not bloat the snapshot. */
+const MAX_PATHS = 20000;
+
+function vec3(value: unknown): Vec3 | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const v = value as Record<string, unknown>;
+  const x = num(v['x']);
+  const y = num(v['y']);
+  const z = num(v['z']);
+  return x === undefined || y === undefined || z === undefined ? undefined : { x, y, z };
+}
+
+/**
+ * Spline points are stored in the belt's local space, so they need the owning
+ * object's rotation and translation applied to become world coordinates.
+ *
+ * Standard quaternion rotation: v + 2 * cross(q.xyz, cross(q.xyz, v) + q.w * v).
+ */
+function toWorld(transform: RawSaveObject['transform'], local: Vec3): Vec3 {
+  const t = vec3(transform?.translation) ?? { x: 0, y: 0, z: 0 };
+  const q = transform?.rotation;
+  const ux = num(q?.x) ?? 0;
+  const uy = num(q?.y) ?? 0;
+  const uz = num(q?.z) ?? 0;
+  const w = num(q?.w) ?? 1;
+
+  const cx = uy * local.z - uz * local.y;
+  const cy = uz * local.x - ux * local.z;
+  const cz = ux * local.y - uy * local.x;
+  const dx = cx + w * local.x;
+  const dy = cy + w * local.y;
+  const dz = cz + w * local.z;
+
+  return {
+    x: t.x + local.x + 2 * (uy * dz - uz * dy),
+    y: t.y + local.y + 2 * (uz * dx - ux * dz),
+    z: t.z + local.z + 2 * (ux * dy - uy * dx),
+  };
+}
+
+const toMetres = (points: readonly Vec3[]): [number, number][] => {
+  const out: [number, number][] = [];
+  for (const p of points) {
+    const point: [number, number] = [
+      Math.round(p.x / CM_PER_METRE),
+      Math.round(p.y / CM_PER_METRE),
+    ];
+    const last = out[out.length - 1];
+    // Rounding to metres collapses near-duplicate spline points; drop them.
+    if (last && last[0] === point[0] && last[1] === point[1]) continue;
+    out.push(point);
+  }
+  return out;
+};
+
+/** Belt and pipe routes, from the spline stored on the object. */
+function readSpline(object: RawSaveObject): [number, number][] {
+  const raw = object.properties?.['mSplineData'];
+  if (!raw || typeof raw !== 'object' || !('values' in raw)) return [];
+  const values = (raw as { values: unknown }).values;
+  if (!Array.isArray(values)) return [];
+
+  const world: Vec3[] = [];
+  for (const entry of values) {
+    const location = vec3(
+      propValue((entry as { properties?: Record<string, unknown> })?.properties, 'Location'),
+    );
+    if (location) world.push(toWorld(object.transform, location));
+  }
+  return toMetres(world);
+}
+
+/** Power lines carry their endpoints already in world space. */
+function readWires(object: RawSaveObject): [number, number][][] {
+  const raw = object.properties?.['mWireInstances'];
+  if (!raw || typeof raw !== 'object' || !('values' in raw)) return [];
+  const values = (raw as { values: unknown }).values;
+  if (!Array.isArray(values)) return [];
+
+  const wires: [number, number][][] = [];
+  for (const entry of values) {
+    const locations = (entry as { properties?: Record<string, unknown> })?.properties?.[
+      'Locations'
+    ];
+    const list = Array.isArray(locations) ? locations : [locations];
+    const points: Vec3[] = [];
+    for (const item of list) {
+      const point = vec3((item as { value?: unknown })?.value);
+      if (point) points.push(point);
+    }
+    const line = toMetres(points);
+    if (line.length >= 2) wires.push(line);
+  }
+  return wires;
+}
 
 function stripClass(name: string): string {
   return name.replace(/_C$/, '');
@@ -115,6 +225,7 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   const lines = new Map<string, LineAccumulator>();
   const buildings: Record<string, number> = {};
   const placements: BuildingPlacement[] = [];
+  const paths: BuildingPath[] = [];
   const milestones: string[] = [];
   let phase: PhaseProgress | null = null;
   let objectCount = 0;
@@ -130,6 +241,18 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       if (typePath.includes('/Build_')) {
         const id = buildingId(typePath);
         buildings[id] = (buildings[id] ?? 0) + 1;
+
+        if (paths.length < MAX_PATHS) {
+          if (/ConveyorBelt|ConveyorLift/.test(id)) {
+            const points = readSpline(object);
+            if (points.length >= 2) paths.push({ kind: 'belt', points });
+          } else if (/Pipeline/.test(id)) {
+            const points = readSpline(object);
+            if (points.length >= 2) paths.push({ kind: 'pipe', points });
+          } else if (/PowerLine/.test(id)) {
+            for (const points of readWires(object)) paths.push({ kind: 'power', points });
+          }
+        }
 
         const at = object.transform?.translation;
         const x = num(at?.x);
@@ -204,6 +327,7 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     lines: resolved,
     buildings,
     placements,
+    paths,
     milestones: [...new Set(milestones)].sort(),
     phase,
     objectCount,

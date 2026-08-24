@@ -137,5 +137,13 @@ export const testDatabase: GameDatabase = {
     // raw resource. Real Satisfactory ships several of these.
     recipe('r-iron-ore-from-sam', 'Iron Ore', 6, 'converter', [['sam', 2]], [['iron-ore', 12]]),
   ]),
+  buildings: byId([
+    { id: 'smelter', name: 'Smelter' },
+    { id: 'foundry', name: 'Foundry' },
+    { id: 'constructor', name: 'Constructor' },
+    { id: 'assembler', name: 'Assembler' },
+    { id: 'converter', name: 'Converter' },
+    { id: 'MinerMk1', name: 'Miner Mk.1' },
+  ]),
   milestones: {},
 };

@@ -15,7 +15,32 @@ export function unit(db: GameDatabase, id: ItemId): string {
 }
 
 export function machineName(db: GameDatabase, id: string): string {
-  return db.machines[id]?.name ?? id;
+  return db.machines[id]?.name ?? db.buildings[id]?.name ?? id;
+}
+
+/**
+ * Display name for anything placeable — miners, generators, the HUB.
+ *
+ * `machines` only holds things recipes are produced in, so a map that used it
+ * alone printed raw class names like `GeneratorBiomass_Automated` at the player.
+ */
+export function buildingName(db: GameDatabase, id: string): string {
+  const known = db.buildings[id]?.name ?? db.machines[id]?.name;
+  return known ?? humanise(id);
+}
+
+/**
+ * Last resort for a class the game ships without a display name — the
+ * integrated biomass burner inside the HUB is one. Splitting the camel case
+ * gives "Generator Integrated Biomass", which is at least readable, rather
+ * than printing an internal identifier at the player.
+ */
+function humanise(id: string): string {
+  return id
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/Mk(d)/g, 'Mk.$1')
+    .trim();
 }
 
 export function playTime(seconds: number): string {

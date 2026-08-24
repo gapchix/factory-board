@@ -31,6 +31,12 @@ All notable changes to this project are documented here. The format follows
 - **Flow diagram** on the Planner: the plan drawn as a layered DAG with throughput-
   weighted edges.
 
+- Belt, pipe and power-line routes in `WorldSnapshot`, transformed from the splines and
+  wire endpoints in the save into world-space polylines.
+- Display names for every placeable building, so maps name "The HUB" and "Miner Mk.1"
+  rather than `TradingPost` and `MinerMk1`.
+- `groupNearby` in the layout package: reusable single-linkage grouping.
+
 ### Fixed
 
 - Solver no longer manufactures raw ore through late-game Converter recipes. It answered a
@@ -45,6 +51,11 @@ All notable changes to this project are documented here. The format follows
   key-completeness check in both directions so a schema can't omit a domain field again.
 - Building ids in `WorldSnapshot` now match machine ids in `GameDatabase`; the `Build_`
   prefix was only being stripped on one of the two paths.
+- The base map is drawn from belt and power routes rather than a dot per building. The
+  first version was an unreadable star field: no structure, no names, four identical
+  "Iron Ingot" labels. Machines running the same recipe now merge into one mark with a
+  count, labels try four positions and are dropped rather than stacked, and buildings
+  the game ships without a display name fall back to a humanised class name.
 - Progression no longer reports more milestones researched than exist. It counted every
   purchased schematic — tutorials and customiser unlocks included — against a
   denominator of numbered milestones only.

@@ -1,4 +1,5 @@
 import type {
+  GameBuilding,
   GameDatabase,
   GameItem,
   GameMachine,
@@ -37,6 +38,7 @@ export interface ExtractionReport {
     readonly recipes: number;
     readonly alternateRecipes: number;
     readonly machines: number;
+    readonly buildings: number;
     readonly milestones: number;
   };
   readonly skipped: readonly string[];
@@ -96,6 +98,20 @@ function readMachinePower(
   if (min === undefined || max === undefined || max <= 0) return undefined;
 
   return { powerMW: (min + max) / 2, range: { min, max } };
+}
+
+/** Display names for every Build_ class, whether or not it makes anything. */
+function buildBuildings(docs: readonly DocsGroup[]): Record<string, GameBuilding> {
+  const buildings: Record<string, GameBuilding> = {};
+  for (const group of docs) {
+    for (const cls of group.Classes) {
+      if (!cls.ClassName?.startsWith('Build_')) continue;
+      const id = cls.ClassName.replace(/^Build_|_C$/g, '');
+      if (buildings[id]) continue;
+      buildings[id] = { id, name: readString(cls['mDisplayName']) ?? id };
+    }
+  }
+  return buildings;
 }
 
 function buildMachines(docs: readonly DocsGroup[]): Record<string, GameMachine> {
@@ -205,6 +221,7 @@ export function extractDatabase(
   const skipped: string[] = [];
   const { items } = buildItems(docs);
   const machines = buildMachines(docs);
+  const buildings = buildBuildings(docs);
   const recipes = buildRecipes(docs, items, machines, skipped);
   const milestones = buildMilestones(docs, items);
 
@@ -233,6 +250,7 @@ export function extractDatabase(
     items: usedItems,
     recipes,
     machines: usedMachines,
+    buildings,
     milestones,
   };
 
@@ -243,6 +261,7 @@ export function extractDatabase(
       recipes: Object.keys(recipes).length,
       alternateRecipes: Object.values(recipes).filter((r) => r.isAlternate).length,
       machines: Object.keys(usedMachines).length,
+      buildings: Object.keys(buildings).length,
       milestones: Object.keys(milestones).length,
     },
     skipped,

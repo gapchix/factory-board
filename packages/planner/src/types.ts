@@ -55,6 +55,18 @@ export interface GameMachine {
   readonly powerRangeMW?: { readonly min: number; readonly max: number } | undefined;
 }
 
+/**
+ * Anything placeable, for display purposes.
+ *
+ * Broader than `machines`: miners, generators, the HUB, belts and storage all
+ * appear here so a map can name them. Without it the UI falls back to printing
+ * raw class names like `GeneratorBiomass_Automated` at the player.
+ */
+export interface GameBuilding {
+  readonly id: MachineId;
+  readonly name: string;
+}
+
 export interface GameMilestone {
   readonly id: MilestoneId;
   readonly name: string;
@@ -74,6 +86,8 @@ export interface GameDatabase {
   readonly items: Readonly<Record<ItemId, GameItem>>;
   readonly recipes: Readonly<Record<RecipeId, GameRecipe>>;
   readonly machines: Readonly<Record<MachineId, GameMachine>>;
+  /** Display names for every placeable building, machines included. */
+  readonly buildings: Readonly<Record<MachineId, GameBuilding>>;
   readonly milestones: Readonly<Record<MilestoneId, GameMilestone>>;
 }
 

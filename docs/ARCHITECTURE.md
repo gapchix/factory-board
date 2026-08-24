@@ -54,8 +54,8 @@ Each is independently useful, and independently publishable:
   install" is a thing other tools want.
 - `save-reader` runs in browser or Node, and is the reusable half of any
   save-inspection tool.
-- `layout` is pure geometry and graph work — zone clustering and production-flow
-  layering — with no idea what a Satisfactory is.
+- `layout` is pure geometry and graph work — zone clustering, nearby-item grouping and
+  production-flow layering — with no idea what a Satisfactory is.
 
 ### Two entry points for `game-data`
 

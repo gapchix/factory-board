@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clusterZones, type Placement } from './cluster.js';
+import { clusterZones, groupNearby, type Placement } from './cluster.js';
 
 const machine = (
   x: number,
@@ -133,5 +133,44 @@ describe('clusterZones', () => {
     const far = [machine(0, 0), machine(100, 0)];
     expect(clusterZones(far).zones).toHaveLength(0); // both are strays
     expect(clusterZones(far, { radiusM: 150 }).zones).toHaveLength(1);
+  });
+});
+
+describe('groupNearby', () => {
+  const at = (x: number, y: number, tag = '') => ({ x, y, tag });
+  const pos = (p: { x: number; y: number }) => p;
+
+  it('handles an empty list', () => {
+    expect(groupNearby([], pos, 10)).toEqual([]);
+  });
+
+  it('puts everything close together in one group', () => {
+    const groups = groupNearby([at(0, 0), at(3, 0), at(0, 3)], pos, 10);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toHaveLength(3);
+  });
+
+  it('splits groups beyond the radius', () => {
+    const groups = groupNearby([at(0, 0), at(100, 0)], pos, 10);
+    expect(groups).toHaveLength(2);
+  });
+
+  it('is transitive — a chain of close items is one group', () => {
+    const groups = groupNearby([at(0, 0), at(8, 0), at(16, 0), at(24, 0)], pos, 10);
+    expect(groups).toHaveLength(1);
+  });
+
+  it('keeps every item exactly once', () => {
+    const items = [at(0, 0, 'a'), at(5, 0, 'b'), at(500, 0, 'c'), at(505, 0, 'd')];
+    const tags = groupNearby(items, pos, 10)
+      .flat()
+      .map((i) => i.tag)
+      .sort();
+    expect(tags).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('tolerates a zero radius without dividing by zero', () => {
+    const groups = groupNearby([at(0, 0), at(0, 0), at(9, 9)], pos, 0);
+    expect(groups.flat()).toHaveLength(3);
   });
 });

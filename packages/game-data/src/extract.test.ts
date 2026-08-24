@@ -185,6 +185,7 @@ describe('parseGameDatabase', () => {
           },
         },
         machines: {},
+        buildings: {},
         milestones: {},
       }),
     ).toThrow(/failed validation/);

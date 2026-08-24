@@ -33,6 +33,19 @@ export interface BuildingPlacement {
   readonly recipe?: RecipeId | undefined;
 }
 
+/**
+ * A belt, pipe or power line, as a polyline in metres.
+ *
+ * These are what make a map legible. Without them a base is an unreadable
+ * scatter of dots; with them you can see the spine, the runs out to the miners,
+ * and which cell feeds which.
+ */
+export interface BuildingPath {
+  readonly kind: 'belt' | 'pipe' | 'power';
+  /** [x, y] pairs in metres, in order. */
+  readonly points: readonly (readonly [number, number])[];
+}
+
 export interface PhaseProgress {
   /** e.g. `GP_Project_Assembly_Phase_1`, or null on a fresh save. */
   readonly current: string | null;
@@ -55,6 +68,8 @@ export interface WorldSnapshot {
   readonly buildings: Readonly<Record<string, number>>;
   /** The same buildings, with positions, for spatial analysis. */
   readonly placements: readonly BuildingPlacement[];
+  /** Belt, pipe and power-line routes, for drawing the base. */
+  readonly paths: readonly BuildingPath[];
   readonly milestones: readonly MilestoneId[];
   readonly phase: PhaseProgress | null;
   /** Total placed objects the parser returned, for sanity-checking a load. */

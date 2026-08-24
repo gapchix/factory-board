@@ -98,6 +98,59 @@ class DisjointSet {
   }
 }
 
+/**
+ * Single-linkage grouping of arbitrary points, returning groups of the original
+ * items. Two items join when they are within `radiusM` of each other, and the
+ * relation is transitive — a chain of close items is one group.
+ *
+ * A grid of one-radius cells keeps this near-linear: any two points within the
+ * radius are in the same cell or one of its eight neighbours.
+ */
+export function groupNearby<T>(
+  items: readonly T[],
+  position: (item: T) => { x: number; y: number },
+  radiusM: number,
+): T[][] {
+  if (items.length === 0) return [];
+  const radius = Math.max(0.0001, radiusM);
+  const points = items.map(position);
+
+  const grid = new Map<string, number[]>();
+  points.forEach((point, index) => {
+    const key = `${Math.floor(point.x / radius)}:${Math.floor(point.y / radius)}`;
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(index);
+    else grid.set(key, [index]);
+  });
+
+  const sets = new DisjointSet(items.length);
+  const radiusSquared = radius * radius;
+  points.forEach((point, index) => {
+    const cellX = Math.floor(point.x / radius);
+    const cellY = Math.floor(point.y / radius);
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (const other of grid.get(`${cellX + dx}:${cellY + dy}`) ?? []) {
+          if (other <= index) continue;
+          const candidate = points[other]!;
+          const distX = candidate.x - point.x;
+          const distY = candidate.y - point.y;
+          if (distX * distX + distY * distY <= radiusSquared) sets.union(index, other);
+        }
+      }
+    }
+  });
+
+  const grouped = new Map<number, T[]>();
+  items.forEach((item, index) => {
+    const root = sets.find(index);
+    const group = grouped.get(root);
+    if (group) group.push(item);
+    else grouped.set(root, [item]);
+  });
+  return [...grouped.values()];
+}
+
 function boundsOf(points: readonly Placement[]): Bounds {
   let minX = Infinity;
   let minY = Infinity;

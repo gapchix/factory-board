@@ -26,6 +26,11 @@ const placementSchema = z.object({
   recipe: z.string().optional(),
 });
 
+const pathSchema = z.object({
+  kind: z.enum(['belt', 'pipe', 'power']),
+  points: z.array(z.tuple([z.number(), z.number()])),
+});
+
 const snapshotSchema = z.object({
   sessionName: z.string(),
   playDurationSeconds: z.number().nonnegative(),
@@ -33,6 +38,7 @@ const snapshotSchema = z.object({
   lines: z.record(z.string(), lineSchema),
   buildings: z.record(z.string(), z.number().int().nonnegative()),
   placements: z.array(placementSchema),
+  paths: z.array(pathSchema),
   milestones: z.array(z.string()),
   phase: z
     .object({

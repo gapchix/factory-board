@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type {
+  GameBuilding,
   GameDatabase,
   GameItem,
   GameMachine,
@@ -45,6 +46,11 @@ const gameMachineSchema = z.object({
     .optional(),
 });
 
+const gameBuildingSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+});
+
 const gameMilestoneSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -58,6 +64,7 @@ export const gameDatabaseSchema = z.object({
   items: z.record(z.string(), gameItemSchema),
   recipes: z.record(z.string(), gameRecipeSchema),
   machines: z.record(z.string(), gameMachineSchema),
+  buildings: z.record(z.string(), gameBuildingSchema),
   milestones: z.record(z.string(), gameMilestoneSchema),
 });
 
@@ -90,13 +97,22 @@ const _shapeSatisfiesDomain: GameDatabaseShape extends GameDatabase ? true : nev
 const _itemKeys: AssertNoMissingKeys<GameItem, z.infer<typeof gameItemSchema>> = true;
 const _recipeKeys: AssertNoMissingKeys<GameRecipe, z.infer<typeof gameRecipeSchema>> = true;
 const _machineKeys: AssertNoMissingKeys<GameMachine, z.infer<typeof gameMachineSchema>> = true;
+const _buildingKeys: AssertNoMissingKeys<GameBuilding, z.infer<typeof gameBuildingSchema>> = true;
 const _milestoneKeys: AssertNoMissingKeys<
   GameMilestone,
   z.infer<typeof gameMilestoneSchema>
 > = true;
 const _databaseKeys: AssertNoMissingKeys<GameDatabase, GameDatabaseShape> = true;
 
-void [_shapeSatisfiesDomain, _itemKeys, _recipeKeys, _machineKeys, _milestoneKeys, _databaseKeys];
+void [
+  _shapeSatisfiesDomain,
+  _itemKeys,
+  _recipeKeys,
+  _machineKeys,
+  _buildingKeys,
+  _milestoneKeys,
+  _databaseKeys,
+];
 
 export class InvalidGameDatabaseError extends Error {
   constructor(readonly issues: z.ZodIssue[]) {
