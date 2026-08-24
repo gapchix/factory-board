@@ -27,11 +27,12 @@ That gap — between the plan and the world — is what this project fills.
 
 ## The three views
 
-| View            | Answers                               | Shows                                                                                                                                            |
-| --------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Overview**    | "How is the factory doing right now?" | Bottlenecks ranked worst-first, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery |
-| **Planner**     | "What am I building towards?"         | Production targets, one card per line with plan vs. built and an alternate-recipe picker, raw inputs and surplus                                 |
-| **Progression** | "What have I unlocked?"               | Milestone research by tier, then every milestone with its real cost                                                                              |
+| View            | Answers                                        | Shows                                                                                                                                                                     |
+| --------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**    | "How is the factory doing right now?"          | Bottlenecks ranked worst-first, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery                          |
+| **Base**        | "Where is everything, and where is it broken?" | A top-down map from the coordinates in the save, machines coloured by uptime, grouped into zones named after what they make                                               |
+| **Planner**     | "What am I building towards?"                  | The plan drawn as a flow — ore on the left, targets on the right, edge weight showing throughput — then one card per line with plan vs. built, and raw inputs and surplus |
+| **Progression** | "What have I unlocked?"                        | Milestone research by tier, then every milestone with its real cost                                                                                                       |
 
 Overview is the landing view on purpose: the question people open the tool with is
 "what is broken", not "let me start a plan". A save loads automatically where one is

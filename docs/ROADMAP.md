@@ -27,9 +27,23 @@ persist to `localStorage` and are re-validated with Zod on read.
 Phase 2 to exactly 44 machines, 344 MW and 300.75 iron ore/min against a real extracted
 database.
 
-## Phase 2 — candidate tracks
+## Phase 2
 
-Three coherent slices. They are independent; the order is a product call.
+### B. Zones — the factory in space · shipped
+
+**`@factory-board/layout`** — a fourth package, pure geometry and graph work with no
+dependencies. Single-linkage zone clustering over building coordinates, and Sugiyama-style
+layering for the production graph. 26 tests.
+
+**Base view** — a top-down map drawn from the save, machines coloured by the uptime of
+the line they run, zones named after what they mostly make, with per-zone machines,
+power, uptime and output.
+
+**The plan as a schematic** — the Planner now leads with the production flow as a layered
+DAG rather than a list: raw ore on the left, targets on the right, edge weight showing
+throughput.
+
+Remaining tracks. They are independent; the order is a product call.
 
 ### A. History — the factory over time
 
@@ -43,15 +57,11 @@ one. The dev watcher produces a new snapshot every few minutes; keep them.
 - Likely the point where a charting library starts earning its place
   ([ADR 0006](adr/0006-no-charting-library.md))
 
-### B. Zones — the factory in space
+### B2. Zones — what is left
 
-Every building in the save carries coordinates. Group production lines by where they
-actually are, so the board matches the base rather than a flat list.
-
-- Cluster buildings by position into named zones
-- Per-zone power, uptime and output
 - Assign plan targets to a zone, so "build 6 more smelters" says _where_
-- Groundwork for a lightweight map view
+- Anchor on power and extraction too, so generators and miners get their own zones
+- Name and pin zones by hand, overriding the derived name
 
 ### C. Publish — the packages stand alone
 

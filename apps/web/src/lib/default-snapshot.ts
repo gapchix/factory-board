@@ -18,12 +18,21 @@ const lineSchema = z.object({
   clock: z.number().positive(),
 });
 
+const placementSchema = z.object({
+  machine: z.string(),
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+  recipe: z.string().optional(),
+});
+
 const snapshotSchema = z.object({
   sessionName: z.string(),
   playDurationSeconds: z.number().nonnegative(),
   saveBuildVersion: z.number().nonnegative(),
   lines: z.record(z.string(), lineSchema),
   buildings: z.record(z.string(), z.number().int().nonnegative()),
+  placements: z.array(placementSchema),
   milestones: z.array(z.string()),
   phase: z
     .object({

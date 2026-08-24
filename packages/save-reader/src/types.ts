@@ -16,6 +16,23 @@ export interface ActualLine {
   readonly clock: number;
 }
 
+/**
+ * One placed building, positioned in metres.
+ *
+ * The game stores centimetres as floats; metres rounded to integers is plenty
+ * for laying out a base — a factory cell is 8 m across — and keeps the payload
+ * small on a save with tens of thousands of belts.
+ */
+export interface BuildingPlacement {
+  /** Machine or building id, matching `GameDatabase.machines` where it is one. */
+  readonly machine: MachineId;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  /** Set when the building is a manufacturer with a recipe selected. */
+  readonly recipe?: RecipeId | undefined;
+}
+
 export interface PhaseProgress {
   /** e.g. `GP_Project_Assembly_Phase_1`, or null on a fresh save. */
   readonly current: string | null;
@@ -36,6 +53,8 @@ export interface WorldSnapshot {
   readonly lines: Readonly<Record<RecipeId, ActualLine>>;
   /** Every placed building, counted by class, belts and foundations included. */
   readonly buildings: Readonly<Record<string, number>>;
+  /** The same buildings, with positions, for spatial analysis. */
+  readonly placements: readonly BuildingPlacement[];
   readonly milestones: readonly MilestoneId[];
   readonly phase: PhaseProgress | null;
   /** Total placed objects the parser returned, for sanity-checking a load. */

@@ -17,7 +17,10 @@ import { Label, Mono } from './primitives';
  * beside a value is what carries state.
  */
 
-export type Tone = 'accent' | 'ok' | 'warn' | 'crit' | 'steel' | 'muted';
+/** The three machine-state colours. Reserved: never used to tell series apart. */
+export type StatusTone = 'ok' | 'warn' | 'crit';
+
+export type Tone = StatusTone | 'accent' | 'steel' | 'muted';
 
 const FILL: Record<Tone, string> = {
   accent: 'accent.solid',
@@ -29,7 +32,7 @@ const FILL: Record<Tone, string> = {
 };
 
 /** Uptime bands. Named once so the dashboard and the board cannot disagree. */
-export function uptimeTone(uptime: number): Tone {
+export function uptimeTone(uptime: number): StatusTone {
   if (uptime >= 0.95) return 'ok';
   if (uptime >= 0.6) return 'warn';
   return 'crit';

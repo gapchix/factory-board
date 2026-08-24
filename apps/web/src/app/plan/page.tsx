@@ -4,6 +4,7 @@ import { Box } from '@chakra-ui/react';
 import { solve } from '@factory-board/planner';
 import { useMemo } from 'react';
 import { BoardGrid } from '@/components/board';
+import { FlowDiagram } from '@/components/flow-diagram';
 import { Balance, Summary, TargetEditor } from '@/components/panels';
 import { SectionHeading } from '@/components/primitives';
 import { gameDatabase as db } from '@/lib/game-database';
@@ -44,6 +45,11 @@ export default function PlanPage() {
           actualPowerMW={built.powerMW}
           targetCount={targets.length}
         />
+      </Box>
+
+      <Box as="section" mb={9}>
+        <SectionHeading title="The flow" note="ore on the left, your targets on the right" />
+        <FlowDiagram db={db} result={result} targets={targets} />
       </Box>
 
       <Box as="section" mb={9}>

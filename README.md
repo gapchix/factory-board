@@ -44,12 +44,13 @@ SATISFACTORY_SAVES_DIR=C:/Users/you/AppData/Local/FactoryGame/Saved/SaveGames/76
 The save is read in Node, before Next runs, and only the resulting snapshot is put in
 the bundle. The page itself never touches your disk — it cannot, and shouldn't.
 
-## The three views
+## The four views
 
 |                 |                                                                                                                      |
 | --------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan |
-| **Planner**     | Production targets, the board of lines, inputs and surplus                                                           |
+| **Base**        | A map of the base drawn from the save, machines coloured by uptime, grouped into named zones                         |
+| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus                                              |
 | **Progression** | Milestone research by tier and Space Elevator delivery                                                               |
 
 ## Why extract instead of ship the data?
@@ -68,6 +69,7 @@ the last patch changed, rather than whatever a maintainer last got round to upda
 | [`@factory-board/planner`](packages/planner)         | Expands production targets into machine counts, power and ore rates. Pure, no dependencies.                  |
 | [`@factory-board/game-data`](packages/game-data)     | Reads `Docs.json` from your install into a typed, validated database. Ships the `factory-board-extract` CLI. |
 | [`@factory-board/save-reader`](packages/save-reader) | Reduces a `.sav` to the production lines, buildings and progress it contains. Runs in the browser.           |
+| [`@factory-board/layout`](packages/layout)           | Clusters buildings into zones and lays out the production graph. Pure geometry, no dependencies.             |
 | [`apps/web`](apps/web)                               | The board itself — Next.js, React, Chakra UI.                                                                |
 
 The three packages are independent of the app on purpose: each is useful on its own, and

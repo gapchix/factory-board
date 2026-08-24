@@ -54,6 +54,8 @@ Each is independently useful, and independently publishable:
   install" is a thing other tools want.
 - `save-reader` runs in browser or Node, and is the reusable half of any
   save-inspection tool.
+- `layout` is pure geometry and graph work — zone clustering and production-flow
+  layering — with no idea what a Satisfactory is.
 
 ### Two entry points for `game-data`
 
@@ -80,6 +82,7 @@ apps/web/src/
 │   ├── layout.tsx          Providers + Header + page container
 │   ├── providers.tsx       Emotion registry → Chakra → theme → BoardProvider
 │   ├── page.tsx            Overview
+│   ├── base/page.tsx       Base — map and zones
 │   ├── plan/page.tsx       Planner
 │   └── progress/page.tsx   Progression
 ├── state/board.tsx         targets, recipe choices, snapshot — Context + useReducer
@@ -88,6 +91,8 @@ apps/web/src/
 ├── components/
 │   ├── primitives.tsx      Label, Panel, table parts, form controls
 │   ├── charts.tsx          StatTile, BarRow, MeterRow, ChartFrame
+│   ├── base-map.tsx        top-down plan of the base
+│   ├── flow-diagram.tsx    the plan as a layered DAG
 │   ├── board.tsx           the production-line cards
 │   └── panels.tsx          dropzone, target editor, balance, progression
 ├── lib/                    game database, default snapshot, plan storage, formatting
@@ -147,6 +152,11 @@ stylistic:
 
 - **Status colour is reserved.** Good / warning / critical mean machine state and are
   never reused as series colours.
+- **SVG takes theme tokens through the Chakra factory, never raw CSS variables.**
+  Chakra emits root CSS variables for its own built-in semantic tokens but inlines
+  custom ones into the generated class, so `var(--fb-colors-accent-solid)` resolves to
+  nothing. In HTML that is invisible; in SVG it paints black or not at all. Use
+  `chakra("rect")` and pass `fill="accent.solid"`.
 - **Text never wears the data colour.** Every mark colour clears 3:1 against both
   surfaces, but the warning step is 4.04:1 — under the 4.5:1 threshold for text. The
   bar carries the state; the number stays in text ink.
@@ -181,3 +191,4 @@ Recorded in full under [adr/](adr).
 | [Build-time save loading](adr/0005-build-time-save-loading.md)                     | A static page cannot read a path from an env var — the browser has no disk                     |
 | [No charting library](adr/0006-no-charting-library.md)                             | Every figure is a magnitude or a ratio; a library would be weight without benefit              |
 | [No state library](adr/0007-no-state-library.md)                                   | Three fields of state, everything else derived                                                 |
+| [Machines anchor zones](adr/0008-machines-anchor-zones.md)                         | Clustering belts welds the whole base into one blob                                            |

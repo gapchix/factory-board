@@ -23,6 +23,14 @@ All notable changes to this project are documented here. The format follows
 - Default save auto-loading via `SATISFACTORY_SAVE` / `SATISFACTORY_SAVES_DIR`, plus a
   dev-time watcher that re-reads the save on every autosave.
 
+- `@factory-board/layout` — zone clustering over building coordinates, and layered
+  layout for the production graph. Pure, dependency-free, 26 tests.
+- Building placements in `WorldSnapshot`, positioned in metres.
+- **Base view** — a top-down map of the base with machines coloured by uptime, and
+  per-zone machines, power, uptime and output.
+- **Flow diagram** on the Planner: the plan drawn as a layered DAG with throughput-
+  weighted edges.
+
 ### Fixed
 
 - Solver no longer manufactures raw ore through late-game Converter recipes. It answered a

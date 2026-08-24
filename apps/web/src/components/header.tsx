@@ -12,6 +12,7 @@ import { Label, Mono } from './primitives';
 
 const ROUTES = [
   { href: '/', label: 'Overview' },
+  { href: '/base', label: 'Base' },
   { href: '/plan', label: 'Planner' },
   { href: '/progress', label: 'Progression' },
 ] as const;

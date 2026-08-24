@@ -1,4 +1,4 @@
-import type { ActualLine, PhaseProgress, WorldSnapshot } from './types.js';
+import type { BuildingPlacement, ActualLine, PhaseProgress, WorldSnapshot } from './types.js';
 
 /**
  * A deliberately loose view of what the save parser returns.
@@ -12,6 +12,7 @@ export interface RawSaveObject {
   readonly typePath?: string;
   readonly instanceName?: string;
   readonly properties?: Record<string, unknown>;
+  readonly transform?: { readonly translation?: { x?: unknown; y?: unknown; z?: unknown } };
 }
 
 export interface RawSaveLevel {
@@ -27,6 +28,8 @@ export interface RawSave {
 function tail(path: unknown): string {
   return typeof path === 'string' ? (path.split('.').pop() ?? '') : '';
 }
+
+const CM_PER_METRE = 100;
 
 function stripClass(name: string): string {
   return name.replace(/_C$/, '');
@@ -111,6 +114,7 @@ function readPhase(properties: Record<string, unknown> | undefined): PhaseProgre
 export function analyzeSave(save: RawSave): WorldSnapshot {
   const lines = new Map<string, LineAccumulator>();
   const buildings: Record<string, number> = {};
+  const placements: BuildingPlacement[] = [];
   const milestones: string[] = [];
   let phase: PhaseProgress | null = null;
   let objectCount = 0;
@@ -121,12 +125,27 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       const typePath = object.typePath ?? '';
       const properties = object.properties;
 
+      const recipe = objectPath(propValue(properties, 'mCurrentRecipe'));
+
       if (typePath.includes('/Build_')) {
         const id = buildingId(typePath);
         buildings[id] = (buildings[id] ?? 0) + 1;
+
+        const at = object.transform?.translation;
+        const x = num(at?.x);
+        const y = num(at?.y);
+        const z = num(at?.z);
+        if (x !== undefined && y !== undefined && z !== undefined) {
+          placements.push({
+            machine: id,
+            x: Math.round(x / CM_PER_METRE),
+            y: Math.round(y / CM_PER_METRE),
+            z: Math.round(z / CM_PER_METRE),
+            ...(recipe ? { recipe } : {}),
+          });
+        }
       }
 
-      const recipe = objectPath(propValue(properties, 'mCurrentRecipe'));
       if (recipe) {
         let line = lines.get(recipe);
         if (!line) {
@@ -184,6 +203,7 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     saveBuildVersion: num(header?.['buildVersion']) ?? 0,
     lines: resolved,
     buildings,
+    placements,
     milestones: [...new Set(milestones)].sort(),
     phase,
     objectCount,

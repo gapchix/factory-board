@@ -9,6 +9,9 @@
     },
     {
       "path": "packages/save-reader"
+    },
+    {
+      "path": "packages/layout"
     }
   ]
 }
