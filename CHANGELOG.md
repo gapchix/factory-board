@@ -16,7 +16,7 @@ All notable changes to this project are documented here. The format follows
   per-line uptime, clock, building census, milestones and Space Elevator progress.
 - Integration test pinning Space Elevator Phase 2 to 44 machines and 344 MW against a real
   extracted database.
-- Project documentation: spec, architecture, roadmap and four ADRs.
+- Project documentation: spec, architecture, roadmap and seven ADRs.
 
 - Web app: Overview, Planner and Progression views with hand-built bar and meter
   charts, validated for contrast in both themes.

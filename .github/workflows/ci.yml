@@ -23,6 +23,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      # Packages only. apps/web imports the generated game database, which is
+      # extracted from a local install and never committed — see docs/adr/0003.
       - run: npm run typecheck
       - run: npm run lint
       # Integration tests skip here: the game database is extracted from a local

@@ -25,6 +25,31 @@ That gap — between the plan and the world — is what this project fills.
    the game's own uptime measurement for that line.
 4. **Track.** Milestone research and Space Elevator delivery progress, read from the save.
 
+## The three views
+
+| View            | Answers                               | Shows                                                                                                                                            |
+| --------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Overview**    | "How is the factory doing right now?" | Bottlenecks ranked worst-first, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery |
+| **Planner**     | "What am I building towards?"         | Production targets, one card per line with plan vs. built and an alternate-recipe picker, raw inputs and surplus                                 |
+| **Progression** | "What have I unlocked?"               | Milestone research by tier, then every milestone with its real cost                                                                              |
+
+Overview is the landing view on purpose: the question people open the tool with is
+"what is broken", not "let me start a plan". A save loads automatically where one is
+configured, so that question is answered on first paint.
+
+## Opening a save
+
+Three ways in, in order of precedence:
+
+1. Drop a `.sav` on the page, or use the file picker.
+2. `SATISFACTORY_SAVE` — one exact file.
+3. `SATISFACTORY_SAVES_DIR` — a folder, newest `.sav` wins. With neither set, the
+   usual SaveGames location is auto-detected.
+
+(2) and (3) are resolved in Node before the app is built, never in the browser — see
+[ADR 0005](adr/0005-build-time-save-loading.md). During `npm run dev` the save folder is
+watched, so the dashboard follows autosaves as you play.
+
 ## Non-goals
 
 - **Not a save editor.** Read-only, always. Nothing this tool does can corrupt a save.
@@ -67,6 +92,20 @@ unless you sink it. Crediting it silently would hide a real problem.
 A machine built ten seconds ago has no productivity history. That is `null`, not `0%`. A
 machine that has been sitting starved for five minutes is `0%`. Conflating them turns every
 fresh build into a false alarm.
+
+### Milestones are not schematics
+
+A save's purchased schematics include tutorial steps and customiser unlocks alongside
+the numbered milestones. Counting the raw set against a denominator of milestones
+reports more researched than exist — it showed "17 of 42" where the per-tier figures
+summed to 8. Always count the intersection.
+
+### Presentation: status colour is reserved, and text never wears it
+
+Good / warning / critical mean machine state; they are never reused to tell series
+apart. And a value is never printed in its status colour: every mark colour clears 3:1
+against both surfaces, but the warning step is 4.04:1 — below the 4.5:1 threshold for
+text. The coloured bar carries the state, the number stays in text ink.
 
 ### Two build numbers, never compared
 

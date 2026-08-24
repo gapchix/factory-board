@@ -29,5 +29,9 @@ against their own install.
 - One extra setup step, which the README covers and the CLI auto-detects.
 - CI cannot run the integration tests. They skip cleanly when no database is present, and
   the unit tests cover the parsing logic with hand-written fixtures.
+- CI also cannot type-check or build `apps/web`, which imports the generated database.
+  The packages are fully checked; the app is checked locally and on every `next build`.
+  Closing this would mean committing a small fixture database purely for CI — worth
+  doing, and tracked in the roadmap.
 - Deployments must run `extract` at build time on a machine with the game, or commit a
   build artefact out-of-band.

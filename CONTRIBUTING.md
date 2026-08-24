@@ -16,6 +16,12 @@ if auto-detection misses.
 You can work on the planner without the game installed; only the integration tests need
 it, and they skip cleanly.
 
+To have a save open automatically, copy `apps/web/.env.example` to
+`apps/web/.env.local` and set `SATISFACTORY_SAVE` or `SATISFACTORY_SAVES_DIR`.
+`npm run dev` then watches that folder and reloads on every autosave. Both are read in
+Node before Next runs — the page itself never reads your disk
+([ADR 0005](docs/adr/0005-build-time-save-loading.md)).
+
 ## Before you push
 
 ```bash
@@ -42,6 +48,16 @@ once, at the edge. Inside, types are trusted.
 
 **Decisions worth remembering go in an ADR.** Short: context, decision, why, consequences.
 Number it, don't rewrite history — supersede instead.
+
+## Where things are documented
+
+|                                                     |                                              |
+| --------------------------------------------------- | -------------------------------------------- |
+| What the product does, and the rules it must follow | [docs/SPEC.md](docs/SPEC.md)                 |
+| How the pieces fit together                         | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| What is built and what is next                      | [docs/ROADMAP.md](docs/ROADMAP.md)           |
+| Why a decision was made                             | [docs/adr/](docs/adr)                        |
+| What changed, per release                           | [CHANGELOG.md](CHANGELOG.md)                 |
 
 ## Commit messages
 
