@@ -53,6 +53,28 @@ how far ([ADR 10](adr/0010-the-frame-reaches-for-its-content.md)).
 
 Remaining tracks. They are independent; the order is a product call.
 
+### B3. The map — a visual pass · next up
+
+The mechanics are right and the map is not yet handsome. Called out on 2026-08-25: it
+reads well, it needs to _look_ well. No brief beyond that yet, so treat the list below as
+what an eye found rather than as a specification — confirm before building.
+
+- **Labels crowd at the default zoom.** Machine names run into zone captions, and the
+  four-position search gives up rather than trying harder. Leader lines, or a caption
+  placed inside its zone, would both buy room.
+- **Whitespace.** Two thirds of the default frame is empty on a real base, because the
+  frame is a rectangle and a factory is not. Worth testing a tighter margin, or letting
+  the canvas take the content's aspect within bounds.
+- **"Everything" letterboxes badly.** A base 450 m wide and 1000 m deep hits the 860-unit
+  canvas ceiling, and the result is a thin ribbon of factory in a wide white field.
+- **Belts read as confetti.** Each conveyor is its own object, so a single run draws as
+  a dozen short strokes with a gap at every join. Joining collinear runs end-to-start
+  before drawing would give the base its skeleton back.
+- **Hover is the browser's.** Detail comes from a native `<title>`, which takes a second
+  to appear and cannot be styled. A real hover card would carry uptime and recipe.
+- **The controls are plain.** Toolbar, legend and hint are three separate rows of small
+  type under a large drawing.
+
 ### A. History — the factory over time
 
 Autosaves are already a time series, and nothing else in the ecosystem treats them as
