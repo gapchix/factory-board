@@ -101,6 +101,20 @@ the numbered milestones. Counting the raw set against a denominator of milestone
 reports more researched than exist — it showed "17 of 42" where the per-tier figures
 summed to 8. Always count the intersection.
 
+### A belt's spline runs downstream
+
+A conveyor's `mSplineData` is stored in build order, which runs from the belt's input
+connection to its output. Point order is therefore the direction the items travel, and
+the map draws direction chevrons on the strength of it.
+
+The check that settled it uses the one building in the game that can only be a source: on
+the reference save, every belt touching a miner **starts** at that miner and none ends
+there — five for five, no counterexamples. `analyze.test.ts` pins the half that is ours,
+that the parser hands the spline back in the order it read it.
+
+Pipes carry no such promise. Which way fluid moves depends on the pumps at either end, so
+they get no arrows.
+
 ### Presentation: status colour is reserved, and text never wears it
 
 Good / warning / critical mean machine state; they are never reused to tell series

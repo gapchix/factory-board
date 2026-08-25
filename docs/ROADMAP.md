@@ -43,6 +43,14 @@ power, uptime and output.
 DAG rather than a list: raw ore on the left, targets on the right, edge weight showing
 throughput.
 
+**The map became a map** — it pans and zooms, and redraws at the view rather than
+magnifying, so zooming in splits merged marks apart and brings back labels there was no
+room for ([ADR 9](adr/0009-the-map-redraws-at-the-view.md)). Belts carry direction
+chevrons. Clicking a zone — on the map or on its card below — focuses it, and the two stay
+in step. The frame is decided from everything the map draws rather than from the zones
+alone, and whatever is still too far out gets a pointer at the edge saying what it is and
+how far ([ADR 10](adr/0010-the-frame-reaches-for-its-content.md)).
+
 Remaining tracks. They are independent; the order is a product call.
 
 ### A. History — the factory over time
@@ -62,6 +70,7 @@ one. The dev watcher produces a new snapshot every few minutes; keep them.
 - Assign plan targets to a zone, so "build 6 more smelters" says _where_
 - Anchor on power and extraction too, so generators and miners get their own zones
 - Name and pin zones by hand, overriding the derived name
+- Deep-link a focused zone, so a view can be shared or reloaded into
 
 ### C. Publish — the packages stand alone
 

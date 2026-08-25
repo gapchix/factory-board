@@ -33,6 +33,22 @@ All notable changes to this project are documented here. The format follows
 
 - Belt, pipe and power-line routes in `WorldSnapshot`, transformed from the splines and
   wire endpoints in the save into world-space polylines.
+
+- **The base map pans and zooms.** Drag, scroll, arrow keys, or the toolbar. It redraws
+  at the current view rather than magnifying, so type stays the size it says, marks drawn
+  as one split apart once there is room, and labels dropped for want of space come back
+  ([ADR 9](docs/adr/0009-the-map-redraws-at-the-view.md)).
+- **Belt direction chevrons.** A conveyor's spline is stored in build order, which runs
+  input to output — verified against miners, the one building that can only be a source.
+  Pipes get none: fluid direction depends on the pumps.
+- **Focus a zone** by clicking it on the map or its card underneath. The two stay in
+  step, the rest of the base dims, and the view flies to it.
+- `frameContent` and `sampleAlong` in `@factory-board/layout` — choosing what a map should
+  frame, and spacing markers along a polyline. 22 more tests.
+- `route.arrow` theme token, so chevrons keep contrast against the belt in both themes.
+- `npm run typecheck` now covers `apps/web` as well, where the extracted game database is
+  present. It skips itself in CI, which has no database, exactly as the integration tests
+  do.
 - Display names for every placeable building, so maps name "The HUB" and "Miner Mk.1"
   rather than `TradingPost` and `MinerMk1`.
 - `groupNearby` in the layout package: reusable single-linkage grouping.
@@ -62,3 +78,22 @@ All notable changes to this project are documented here. The format follows
 - Uptime values are no longer printed in their status colour. Contrast for the warning
   step falls below the 4.5:1 text threshold in light mode; the bar carries the state
   and the number stays in text ink.
+- The map no longer crops buildings that anchor no zone. It framed the zones, and zones
+  are anchored on machines with a recipe — so one of four coal generators, six metres
+  past the edge of the last one, was counted in the legend and drawn nowhere. The frame
+  is now grown from everything the map draws
+  ([ADR 10](docs/adr/0010-the-frame-reaches-for-its-content.md)), and what is still out
+  of reach gets a labelled pointer at the edge instead of a silent crop.
+- Belt direction chevrons no longer all stack on the origin. `transform` is a Chakra
+  style prop, so an SVG transform list passed to a chakra element is read as CSS, found
+  invalid, and dropped. Positioning moved to a plain `<g>` wrapper.
+- Clicking a zone works. The map took pointer capture on `pointerdown`, which retargets
+  the `pointerup` and moves the resulting `click` to the common ancestor — so the map
+  swallowed every click meant for a zone. Capture is now taken on the first drag
+  movement.
+- Belts that pass through the view no longer vanish when both their ends leave it. Route
+  points were filtered against the frame, which dropped the crossing segment; routes are
+  now drawn whole and clipped.
+- `humanise` produces "Miner Mk.1" rather than "Miner Mk1". Its regex had been written
+  with escape sequences that were interpreted before they reached the file, leaving two
+  literal backspace bytes around a pattern that matched "Mkd".

@@ -28,7 +28,11 @@ Node before Next runs — the page itself never reads your disk
 npm run typecheck && npm run lint && npm test
 ```
 
-CI runs the same three.
+CI runs the same three. Two of them do less there than they do here, both for the same
+reason — the extracted game database is not committed ([ADR 0003](docs/adr/0003-do-not-commit-game-data.md)).
+The integration tests skip, and so does the app's half of `typecheck`. Locally, where the
+data exists, both run; keep it that way, or a type error in `apps/web` waits until
+`npm run build` to introduce itself.
 
 ## House rules
 

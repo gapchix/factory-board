@@ -39,7 +39,7 @@ function humanise(id: string): string {
   return id
     .replace(/_/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/Mk(d)/g, 'Mk.$1')
+    .replace(/\bMk ?(\d)/g, 'Mk.$1')
     .trim();
 }
 

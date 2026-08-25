@@ -76,6 +76,9 @@ const config = defineConfig({
         'accent.solid': { value: { _light: '{colors.rust.500}', _dark: '#FF8845' } },
         'accent.subtle': { value: { _light: '{colors.rust.100}', _dark: '#37200F' } },
         'accent.contrast': { value: { _light: 'white', _dark: '#160C05' } },
+        // Belt direction chevrons sit on top of a steel-blue line, so they need a
+        // step the line does not have — darker on paper, lighter on slate.
+        'route.arrow': { value: { _light: '{colors.steel.700}', _dark: '{colors.steel.200}' } },
         // Status is its own axis, separate from the accent hue.
         'status.ok': { value: { _light: '#3B8551', _dark: '#68BC7D' } },
         'status.okSubtle': { value: { _light: '#E1F0E6', _dark: '#16291C' } },

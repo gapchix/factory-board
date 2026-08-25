@@ -195,3 +195,135 @@ describe('analyzeSave', () => {
     expect(snapshot.lines['Recipe_IronRod_C']?.count).toBe(2);
   });
 });
+
+/**
+ * Spline points are stored in the belt's own space, in build order — which runs
+ * from the belt's input connection to its output, and so is the direction the
+ * ore travels. The map draws chevrons along belts on the strength of that, and
+ * it holds in the reference save: of the belts touching a miner, the one
+ * building in the game that can only be a source, every one *starts* there and
+ * none ends there. These tests pin the half of it that is ours to keep — the
+ * order the parser hands back.
+ */
+describe('analyzeSave · routes', () => {
+  const splineProp = (points: readonly (readonly [number, number])[]) => ({
+    values: points.map(([x, y]) => ({ properties: { Location: { value: { x, y, z: 0 } } } })),
+  });
+
+  const conveyor = (
+    points: readonly (readonly [number, number])[],
+    transform: RawSaveObject['transform'] = { translation: { x: 1000, y: 2000, z: 0 } },
+    kind = 'ConveyorBeltMk1',
+  ): RawSaveObject => ({
+    typePath: `/Game/FactoryGame/Buildable/Factory/${kind}/Build_${kind}.Build_${kind}_C`,
+    ...(transform === undefined ? {} : { transform }),
+    properties: { mSplineData: splineProp(points) },
+  });
+
+  it('returns the spline in build order, so the first point is the input end', () => {
+    const snapshot = analyzeSave(
+      save([
+        conveyor([
+          [0, 0],
+          [200, 0],
+          [400, 0],
+        ]),
+      ]),
+    );
+    expect(snapshot.paths).toEqual([
+      {
+        kind: 'belt',
+        points: [
+          [10, 20],
+          [12, 20],
+          [14, 20],
+        ],
+      },
+    ]);
+  });
+
+  it('does not normalise direction: a belt built the other way reads the other way', () => {
+    const snapshot = analyzeSave(
+      save([
+        conveyor([
+          [400, 0],
+          [200, 0],
+          [0, 0],
+        ]),
+      ]),
+    );
+    expect(snapshot.paths[0]?.points).toEqual([
+      [14, 20],
+      [12, 20],
+      [10, 20],
+    ]);
+  });
+
+  it('rotates local spline points into world space', () => {
+    // A quarter turn about Z: the belt was drawn running east, and is placed
+    // facing south.
+    const quarterTurn = Math.SQRT1_2;
+    const snapshot = analyzeSave(
+      save([
+        conveyor(
+          [
+            [0, 0],
+            [100, 0],
+          ],
+          {
+            translation: { x: 500, y: 300, z: 0 },
+            rotation: { x: 0, y: 0, z: quarterTurn, w: quarterTurn },
+          },
+        ),
+      ]),
+    );
+    expect(snapshot.paths[0]?.points).toEqual([
+      [5, 3],
+      [5, 4],
+    ]);
+  });
+
+  it('collapses spline points that round to the same metre', () => {
+    const snapshot = analyzeSave(
+      save([
+        conveyor([
+          [0, 0],
+          [10, 0],
+          [200, 0],
+        ]),
+      ]),
+    );
+    expect(snapshot.paths[0]?.points).toEqual([
+      [10, 20],
+      [12, 20],
+    ]);
+  });
+
+  it('drops a run that is a single point once rounded', () => {
+    const snapshot = analyzeSave(
+      save([
+        conveyor([
+          [0, 0],
+          [10, 0],
+        ]),
+      ]),
+    );
+    expect(snapshot.paths).toEqual([]);
+  });
+
+  it('tells belts and pipes apart', () => {
+    const snapshot = analyzeSave(
+      save([
+        conveyor(
+          [
+            [0, 0],
+            [200, 0],
+          ],
+          undefined,
+          'PipelineMk1',
+        ),
+      ]),
+    );
+    expect(snapshot.paths[0]?.kind).toBe('pipe');
+  });
+});

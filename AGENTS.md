@@ -40,9 +40,16 @@ integration tests skip and the web app refuses to build with instructions.
   converts.
 - **Two build numbers, never compared.** `sourceBuildId` is Steam's;
   `saveBuildVersion` is the game's. Unrelated numbering.
+- **A belt's spline runs downstream.** `mSplineData` is stored in build order, input
+  connection to output, so point order is the direction items travel — the map's
+  direction chevrons depend on it. Checked against miners, the one building that can only
+  be a source. Pipes carry no such promise and get no arrows.
 - **Status colour is reserved, and text never wears it.** The warning step is 4.04:1 on
   the light surface — below the 4.5:1 text threshold. The bar carries state; the number
   stays in text ink.
+- **`transform` never goes through the Chakra factory.** It is a style prop, so an SVG
+  transform list is read as CSS, found invalid, and silently dropped — every mark lands on
+  the origin. Put it on a plain `<g>` wrapper. Colour still comes from the factory.
 - **Fixtures use real game rates.** A Constructor makes 15 Iron Rod/min in the tests
   because it does in the game, so assertions check the maths against reality.
 - **Domain rules get a test.** Changing one means changing the test that pins it, and

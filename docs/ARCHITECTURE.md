@@ -54,8 +54,9 @@ Each is independently useful, and independently publishable:
   install" is a thing other tools want.
 - `save-reader` runs in browser or Node, and is the reusable half of any
   save-inspection tool.
-- `layout` is pure geometry and graph work — zone clustering, nearby-item grouping and
-  production-flow layering — with no idea what a Satisfactory is.
+- `layout` is pure geometry and graph work — zone clustering, nearby-item grouping,
+  production-flow layering, choosing what a map should frame and spacing markers along a
+  polyline — with no idea what a Satisfactory is.
 
 ### Two entry points for `game-data`
 
@@ -157,6 +158,11 @@ stylistic:
   custom ones into the generated class, so `var(--fb-colors-accent-solid)` resolves to
   nothing. In HTML that is invisible; in SVG it paints black or not at all. Use
   `chakra("rect")` and pass `fill="accent.solid"`.
+- **…except `transform`, which must not go through it.** `transform` is a Chakra style
+  prop, so an SVG transform list handed to a chakra element is read as CSS, found to be
+  invalid, and dropped — silently, with every mark landing on the origin. Positioning
+  goes on a plain `<g transform=…>` wrapper, which passes its attributes through
+  untouched, with the chakra element inside it carrying the colour.
 - **Text never wears the data colour.** Every mark colour clears 3:1 against both
   surfaces, but the warning step is 4.04:1 — under the 4.5:1 threshold for text. The
   bar carries the state; the number stays in text ink.
@@ -192,3 +198,5 @@ Recorded in full under [adr/](adr).
 | [No charting library](adr/0006-no-charting-library.md)                             | Every figure is a magnitude or a ratio; a library would be weight without benefit              |
 | [No state library](adr/0007-no-state-library.md)                                   | Three fields of state, everything else derived                                                 |
 | [Machines anchor zones](adr/0008-machines-anchor-zones.md)                         | Clustering belts welds the whole base into one blob                                            |
+| [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)             | Magnifying enlarges the picture; redrawing reveals what would not fit                          |
+| [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md) | Framing the zones cropped a coal generator six metres past the edge                            |

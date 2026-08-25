@@ -1,8 +1,8 @@
 'use client';
 
-import { Box, Flex, Grid, Text } from '@chakra-ui/react';
+import { Box, chakra, Flex, Grid, Text } from '@chakra-ui/react';
 import { clusterZones } from '@factory-board/layout';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BaseMap } from '@/components/base-map';
 import { BarRow, ChartFrame, StatRow, StatTile, uptimeTone } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
@@ -10,6 +10,25 @@ import { Label, SectionHeading } from '@/components/primitives';
 import { itemName, rate } from '@/lib/format';
 import { gameDatabase as db } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
+
+/**
+ * A zone card is a button: pressing it finds that zone on the map. It is built
+ * from the chakra factory rather than `Box as="button"` because the polymorphic
+ * `as` prop keeps the div's attribute set, and a button needs `type`.
+ */
+const ZoneCard = chakra('button', {
+  base: {
+    textAlign: 'start',
+    width: '100%',
+    bg: 'bg.surface',
+    borderWidth: '1px',
+    borderTopWidth: '3px',
+    px: 5,
+    py: 4,
+    cursor: 'pointer',
+    _focusVisible: { outline: '2px solid', outlineColor: 'accent.solid', outlineOffset: '1px' },
+  },
+});
 
 /** A zone is named after what it mostly makes — far more use than "Zone 2". */
 function nameFor(dominantRecipe: string | undefined, fallback: string): string {
@@ -20,6 +39,8 @@ function nameFor(dominantRecipe: string | undefined, fallback: string): string {
 
 export default function BasePage() {
   const { snapshot } = useBoard();
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
 
   const view = useMemo(() => {
     if (!snapshot) return null;
@@ -77,6 +98,9 @@ export default function BasePage() {
     return { cluster, zones, names, spread };
   }, [snapshot]);
 
+  // Zone ids are positional, so a new save's "zone-2" is a different place.
+  useEffect(() => setSelectedZoneId(null), [snapshot]);
+
   if (!snapshot || !view) {
     return (
       <>
@@ -91,6 +115,12 @@ export default function BasePage() {
   }
 
   const maxZoneMachines = Math.max(...view.zones.map((z) => z.machines), 1);
+
+  /** Selecting from a card only means anything if the map is on screen. */
+  const focusZone = (id: string) => {
+    setSelectedZoneId((current) => (current === id ? null : id));
+    mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   return (
     <>
@@ -111,85 +141,99 @@ export default function BasePage() {
         />
       </StatRow>
 
-      <Box mt={9}>
+      <Box mt={9} ref={mapRef}>
         <SectionHeading title="The map" note="machines coloured by uptime · hover for detail" />
-        <BaseMap db={db} snapshot={snapshot} cluster={view.cluster} zoneNames={view.names} />
+        <BaseMap
+          db={db}
+          snapshot={snapshot}
+          cluster={view.cluster}
+          zoneNames={view.names}
+          selectedZoneId={selectedZoneId}
+          onSelectZone={setSelectedZoneId}
+        />
       </Box>
 
       <Box mt={9}>
-        <SectionHeading title="Zones" note="what each part of the base is for" />
+        <SectionHeading title="Zones" note="what each part of the base is for · click to find it" />
         <Grid gap={4} templateColumns={{ base: '1fr', lg: '1fr 1fr' }} alignItems="start">
-          {view.zones.map((zone) => (
-            <Box
-              key={zone.id}
-              bg="bg.surface"
-              borderWidth="1px"
-              borderColor="border.default"
-              borderTopWidth="3px"
-              borderTopColor={
-                zone.uptime === null
-                  ? 'border.default'
-                  : zone.uptime >= 0.95
-                    ? 'status.ok'
-                    : zone.uptime >= 0.6
-                      ? 'status.warn'
-                      : 'status.crit'
-              }
-              px={5}
-              py={4}
-            >
-              <Flex align="baseline" gap={3} wrap="wrap" mb={3}>
-                <Text
-                  fontFamily="heading"
-                  fontWeight="600"
-                  fontSize="21px"
-                  textTransform="uppercase"
-                  letterSpacing="0.02em"
-                >
-                  {zone.name}
-                </Text>
-                <Label>{zone.size}</Label>
-              </Flex>
+          {view.zones.map((zone) => {
+            const selected = zone.id === selectedZoneId;
+            return (
+              <ZoneCard
+                key={zone.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => focusZone(zone.id)}
+                borderColor={selected ? 'accent.solid' : 'border.default'}
+                borderTopColor={
+                  zone.uptime === null
+                    ? 'border.default'
+                    : zone.uptime >= 0.95
+                      ? 'status.ok'
+                      : zone.uptime >= 0.6
+                        ? 'status.warn'
+                        : 'status.crit'
+                }
+                _hover={{ borderColor: selected ? 'accent.solid' : 'fg.subtle' }}
+              >
+                <Flex align="baseline" gap={3} wrap="wrap" mb={3}>
+                  <Text
+                    fontFamily="heading"
+                    fontWeight="600"
+                    fontSize="21px"
+                    textTransform="uppercase"
+                    letterSpacing="0.02em"
+                    color={selected ? 'accent.solid' : 'fg.default'}
+                  >
+                    {zone.name}
+                  </Text>
+                  <Label>{zone.size}</Label>
+                  <Box flex="1" />
+                  <Label color={selected ? 'accent.solid' : 'fg.subtle'}>
+                    {selected ? 'on the map ✕' : 'show on map'}
+                  </Label>
+                </Flex>
 
-              <Flex gap={6} wrap="wrap" mb={4}>
-                {[
-                  ['Machines', String(zone.machines)],
-                  ['Power', `${Math.round(zone.powerMW)} MW`],
-                  ['Uptime', zone.uptime === null ? '-' : `${Math.round(zone.uptime * 100)}%`],
-                  ['Belts etc.', String(zone.attached)],
-                ].map(([label, value]) => (
-                  <Box key={label}>
-                    <Label display="block">{label}</Label>
-                    <Text
-                      fontFamily="mono"
-                      fontSize="19px"
-                      fontWeight="600"
-                      fontVariantNumeric="tabular-nums"
-                    >
-                      {value}
-                    </Text>
-                  </Box>
-                ))}
-              </Flex>
+                <Flex gap={6} wrap="wrap" mb={4}>
+                  {[
+                    ['Machines', String(zone.machines)],
+                    ['Power', `${Math.round(zone.powerMW)} MW`],
+                    ['Uptime', zone.uptime === null ? '-' : `${Math.round(zone.uptime * 100)}%`],
+                    ['Belts etc.', String(zone.attached)],
+                  ].map(([label, value]) => (
+                    <Box key={label}>
+                      <Label display="block">{label}</Label>
+                      <Text
+                        fontFamily="mono"
+                        fontSize="19px"
+                        fontWeight="600"
+                        fontVariantNumeric="tabular-nums"
+                      >
+                        {value}
+                      </Text>
+                    </Box>
+                  ))}
+                </Flex>
 
-              <Label display="block" mb={2}>
-                Makes
-              </Label>
-              <Flex direction="column" gap={2}>
-                {zone.products.map((product) => (
-                  <BarRow
-                    key={product.name}
-                    name={product.name}
-                    value={product.count}
-                    max={Math.max(...zone.products.map((p) => p.count), 1)}
-                    tone="steel"
-                    display={`${product.count}x`}
-                    nameWidth="150px"
-                  />
-                ))}
-              </Flex>
-            </Box>
-          ))}
+                <Label display="block" mb={2}>
+                  Makes
+                </Label>
+                <Flex direction="column" gap={2}>
+                  {zone.products.map((product) => (
+                    <BarRow
+                      key={product.name}
+                      name={product.name}
+                      value={product.count}
+                      max={Math.max(...zone.products.map((p) => p.count), 1)}
+                      tone="steel"
+                      display={`${product.count}x`}
+                      nameWidth="150px"
+                    />
+                  ))}
+                </Flex>
+              </ZoneCard>
+            );
+          })}
         </Grid>
       </Box>
 

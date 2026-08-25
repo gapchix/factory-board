@@ -52,3 +52,8 @@ an 11px label rendered at 45px and collided with everything.
 Both are fixed by drawing onto a fixed-size canvas — one unit is about one pixel, so type
 is the size it says — and framing that canvas on the **zones** rather than the world,
 reporting how many buildings fall outside.
+
+> **Superseded in part.** Framing on the zones cropped buildings that anchor no zone,
+> including a coal generator six metres past the edge. The frame is now decided from
+> everything the map draws, and reaches outwards from there — see
+> [ADR 10](0010-the-frame-reaches-for-its-content.md). The fixed canvas stands.
