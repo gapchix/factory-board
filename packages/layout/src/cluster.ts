@@ -40,7 +40,7 @@ export interface Bounds {
   readonly maxY: number;
 }
 
-export interface Zone {
+export interface Zone<T extends Placement = Placement> {
   readonly id: string;
   /** Which pass found it — `'default'` unless the caller named its own. */
   readonly pass: string;
@@ -52,7 +52,7 @@ export interface Zone {
   readonly widthM: number;
   readonly depthM: number;
   /** Machines that define the zone. */
-  readonly anchors: readonly Placement[];
+  readonly anchors: readonly T[];
   /** Everything else sitting inside it. */
   readonly attachedCount: number;
   readonly machineCounts: Readonly<Record<string, number>>;
@@ -70,17 +70,17 @@ export interface Zone {
  * Clustering each kind among its own, in order, keeps the earlier pass's zones
  * exactly as they were.
  */
-export interface AnchorPass {
+export interface AnchorPass<T extends Placement = Placement> {
   /** Recorded on every zone this pass produces. */
   readonly id: string;
-  readonly accepts: (placement: Placement) => boolean;
+  readonly accepts: (placement: T) => boolean;
   /** Defaults to the top-level `radiusM`. */
   readonly radiusM?: number;
   /** Defaults to the top-level `minAnchors`. */
   readonly minAnchors?: number;
 }
 
-export interface ClusterOptions {
+export interface ClusterOptions<T extends Placement = Placement> {
   /**
    * Two machines join the same zone when they are within this many metres.
    * 32 m is about four foundations — machines further apart than that read as
@@ -90,20 +90,20 @@ export interface ClusterOptions {
   /** Zones with fewer anchors than this are dropped as strays. Default 2. */
   readonly minAnchors?: number;
   /** What counts as a zone-defining machine. Default: anything with a recipe. */
-  readonly isAnchor?: (placement: Placement) => boolean;
+  readonly isAnchor?: (placement: T) => boolean;
   /**
    * Cluster in rounds rather than all at once, earlier passes first. A
    * placement accepted by two passes belongs to the earlier one, and a later
    * pass's cluster that sits inside an earlier pass's zone joins it instead of
    * becoming a zone of its own. Defaults to a single pass over `isAnchor`.
    */
-  readonly passes?: readonly AnchorPass[];
+  readonly passes?: readonly AnchorPass<T>[];
 }
 
-export interface ClusterResult {
-  readonly zones: readonly Zone[];
+export interface ClusterResult<T extends Placement = Placement> {
+  readonly zones: readonly Zone<T>[];
   /** Anchors in clusters too small to keep. */
-  readonly strays: readonly Placement[];
+  readonly strays: readonly T[];
   /** Buildings that fell outside every zone. */
   readonly unassignedCount: number;
   readonly bounds: Bounds | null;
@@ -227,10 +227,10 @@ function tally(values: Iterable<string | undefined>): Record<string, number> {
 }
 
 /** A group of anchors on its way to becoming a zone, still being added to. */
-interface Cluster {
+interface Cluster<T extends Placement> {
   pass: string;
   passIndex: number;
-  anchors: Placement[];
+  anchors: T[];
   bounds: Bounds;
 }
 
@@ -243,13 +243,13 @@ interface Cluster {
  * that cell — and a line of them marching out towards the coal, which is a
  * place of its own.
  */
-function hostFor(
-  zones: readonly Cluster[],
-  group: readonly Placement[],
+function hostFor<T extends Placement>(
+  zones: readonly Cluster<T>[],
+  group: readonly T[],
   passIndex: number,
   pad: number,
-): Cluster | undefined {
-  let best: Cluster | undefined;
+): Cluster<T> | undefined {
+  let best: Cluster<T> | undefined;
   let bestDistance = Infinity;
   for (const zone of zones) {
     if (zone.passIndex >= passIndex) continue;
@@ -276,19 +276,19 @@ function hostFor(
  * cluster that sits wholly inside one of them joins it rather than becoming a
  * zone of its own.
  */
-export function clusterZones(
-  placements: readonly Placement[],
-  options: ClusterOptions = {},
-): ClusterResult {
+export function clusterZones<T extends Placement>(
+  placements: readonly T[],
+  options: ClusterOptions<T> = {},
+): ClusterResult<T> {
   const radius = options.radiusM ?? DEFAULT_RADIUS_M;
   const minAnchors = options.minAnchors ?? DEFAULT_MIN_ANCHORS;
-  const isAnchor = options.isAnchor ?? ((p: Placement) => p.recipe !== undefined);
+  const isAnchor = options.isAnchor ?? ((p: T) => p.recipe !== undefined);
   const passes = options.passes ?? [{ id: DEFAULT_PASS, accepts: isAnchor }];
 
   // A placement two passes would both take belongs to the earlier one.
   const claimed = new Array<boolean>(placements.length).fill(false);
   const perPass = passes.map((pass) => {
-    const anchors: Placement[] = [];
+    const anchors: T[] = [];
     placements.forEach((placement, index) => {
       if (claimed[index] || !pass.accepts(placement)) return;
       claimed[index] = true;
@@ -307,8 +307,8 @@ export function clusterZones(
     };
   }
 
-  const kept: Cluster[] = [];
-  const strays: Placement[] = [];
+  const kept: Cluster<T>[] = [];
+  const strays: T[] = [];
 
   passes.forEach((pass, passIndex) => {
     const groups = groupNearby(perPass[passIndex] ?? [], (p) => p, pass.radiusM ?? radius).sort(
@@ -336,7 +336,7 @@ export function clusterZones(
    * outpost. What makes a stray is being alone *and* nowhere near anything —
    * which is the thing worth reporting.
    */
-  const stranded: Placement[] = [];
+  const stranded: T[] = [];
   for (const stray of strays) {
     const host = hostFor(kept, [stray], passes.length, radius);
     if (host) {
@@ -347,7 +347,7 @@ export function clusterZones(
     }
   }
 
-  const zones: Zone[] = kept.map((cluster, index) => {
+  const zones: Zone<T>[] = kept.map((cluster, index) => {
     const { anchors, bounds } = cluster;
     const recipeCounts = tally(anchors.map((p) => p.recipe));
     const dominantRecipe = Object.entries(recipeCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
