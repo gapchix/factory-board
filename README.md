@@ -46,12 +46,12 @@ the bundle. The page itself never touches your disk — it cannot, and shouldn't
 
 ## The four views
 
-|                 |                                                                                                                      |
-| --------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan |
-| **Base**        | A map of the base drawn from the save, machines coloured by uptime, grouped into named zones                         |
-| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus                                              |
-| **Progression** | Milestone research by tier and Space Elevator delivery                                                               |
+|                 |                                                                                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan                                                                        |
+| **Base**        | A map drawn from the save, machines coloured by uptime, grouped into zones named for what they make, mine or burn — nameable, linkable, and showing what the plan still wants built in each |
+| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus                                                                                                                     |
+| **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                      |
 
 ## Why extract instead of ship the data?
 

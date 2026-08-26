@@ -13,6 +13,8 @@ import {
 } from 'react';
 import { defaultSave } from '@/lib/default-snapshot';
 import { loadPlan, savePlan } from '@/lib/plan-storage';
+import { loadZoneNames, saveZoneNames } from '@/lib/zone-storage';
+import type { ZoneName, ZonePoint } from '@/lib/zones';
 
 export type LoadStatus =
   { kind: 'idle' } | { kind: 'parsing'; fileName: string } | { kind: 'failed'; message: string };
@@ -26,6 +28,15 @@ export interface SnapshotSource {
 interface BoardState {
   targets: ProductionTarget[];
   recipeChoices: Record<string, string>;
+  /**
+   * Target item → a point in the zone it is to be built in.
+   *
+   * A point rather than a zone id: ids are positional, so the next autosave
+   * hands "zone-2" to somewhere else entirely.
+   */
+  zoneAssignments: Record<string, ZonePoint>;
+  /** Names the player has given places in the base, pinned the same way. */
+  zoneNames: ZoneName[];
   snapshot: WorldSnapshot | null;
   source: SnapshotSource | null;
   status: LoadStatus;
@@ -37,8 +48,16 @@ type Action =
   | { type: 'removeTarget'; index: number }
   | { type: 'setTargets'; targets: ProductionTarget[] }
   | { type: 'chooseRecipe'; item: string; recipe: string }
+  | { type: 'assignZone'; item: string; at: ZonePoint | null }
+  | { type: 'setZoneNames'; names: ZoneName[] }
   | { type: 'clearPlan' }
-  | { type: 'restore'; targets: ProductionTarget[]; recipeChoices: Record<string, string> }
+  | {
+      type: 'restore';
+      targets: ProductionTarget[];
+      recipeChoices: Record<string, string>;
+      zoneAssignments: Record<string, ZonePoint>;
+      zoneNames: ZoneName[];
+    }
   | { type: 'parsing'; fileName: string }
   | { type: 'loaded'; snapshot: WorldSnapshot; source: SnapshotSource }
   | { type: 'failed'; message: string }
@@ -47,6 +66,8 @@ type Action =
 const initialState: BoardState = {
   targets: [],
   recipeChoices: {},
+  zoneAssignments: {},
+  zoneNames: [],
   snapshot: null,
   source: null,
   status: { kind: 'idle' },
@@ -75,8 +96,16 @@ function reducer(state: BoardState, action: Action): BoardState {
           i === action.index ? { ...t, ratePerMinute: action.ratePerMinute } : t,
         ),
       };
-    case 'removeTarget':
-      return { ...state, targets: state.targets.filter((_, i) => i !== action.index) };
+    case 'removeTarget': {
+      const removed = state.targets[action.index]?.item;
+      const zoneAssignments = { ...state.zoneAssignments };
+      if (removed) delete zoneAssignments[removed];
+      return {
+        ...state,
+        targets: state.targets.filter((_, i) => i !== action.index),
+        zoneAssignments,
+      };
+    }
     case 'setTargets':
       return { ...state, targets: action.targets };
     case 'chooseRecipe':
@@ -84,10 +113,25 @@ function reducer(state: BoardState, action: Action): BoardState {
         ...state,
         recipeChoices: { ...state.recipeChoices, [action.item]: action.recipe },
       };
+    case 'assignZone': {
+      const zoneAssignments = { ...state.zoneAssignments };
+      if (action.at) zoneAssignments[action.item] = action.at;
+      else delete zoneAssignments[action.item];
+      return { ...state, zoneAssignments };
+    }
+    case 'setZoneNames':
+      return { ...state, zoneNames: action.names };
     case 'clearPlan':
-      return { ...state, targets: [], recipeChoices: {} };
+      // Where things go belongs to the plan; what places are called does not.
+      return { ...state, targets: [], recipeChoices: {}, zoneAssignments: {} };
     case 'restore':
-      return { ...state, targets: action.targets, recipeChoices: action.recipeChoices };
+      return {
+        ...state,
+        targets: action.targets,
+        recipeChoices: action.recipeChoices,
+        zoneAssignments: action.zoneAssignments,
+        zoneNames: action.zoneNames,
+      };
     case 'parsing':
       return { ...state, status: { kind: 'parsing', fileName: action.fileName } };
     case 'loaded':
@@ -120,11 +164,14 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   // the static export is being prerendered.
   useEffect(() => {
     const stored = loadPlan();
-    if (stored) {
+    const zoneNames = loadZoneNames();
+    if (stored || zoneNames.length > 0) {
       dispatch({
         type: 'restore',
-        targets: stored.targets,
-        recipeChoices: stored.recipeChoices,
+        targets: stored?.targets ?? [],
+        recipeChoices: stored?.recipeChoices ?? {},
+        zoneAssignments: stored?.zoneAssignments ?? {},
+        zoneNames,
       });
     }
     // A save baked in at build time opens automatically, so the dashboard has
@@ -139,8 +186,16 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    savePlan({ targets: state.targets, recipeChoices: state.recipeChoices });
-  }, [state.targets, state.recipeChoices]);
+    savePlan({
+      targets: state.targets,
+      recipeChoices: state.recipeChoices,
+      zoneAssignments: state.zoneAssignments,
+    });
+  }, [state.targets, state.recipeChoices, state.zoneAssignments]);
+
+  useEffect(() => {
+    saveZoneNames(state.zoneNames);
+  }, [state.zoneNames]);
 
   const addTarget = useCallback((item: string, ratePerMinute: number) => {
     dispatch({ type: 'addTarget', item, ratePerMinute });

@@ -7,7 +7,9 @@ import { z } from 'zod';
  * board — losing a plan is annoying, a white screen is worse.
  */
 const storedPlanSchema = z.object({
-  version: z.literal(1),
+  // v2 added the zone each target is meant to be built in. A v1 plan is still
+  // a valid plan: it simply says nothing about where anything goes.
+  version: z.union([z.literal(1), z.literal(2)]),
   targets: z.array(
     z.object({
       item: z.string().min(1),
@@ -15,9 +17,19 @@ const storedPlanSchema = z.object({
     }),
   ),
   recipeChoices: z.record(z.string(), z.string()),
+  zoneAssignments: z
+    .record(z.string(), z.object({ x: z.number().finite(), y: z.number().finite() }))
+    .optional(),
 });
 
-export type StoredPlan = z.infer<typeof storedPlanSchema>;
+type StoredPlanInput = z.input<typeof storedPlanSchema>;
+
+export interface StoredPlan {
+  targets: { item: string; ratePerMinute: number }[];
+  recipeChoices: Record<string, string>;
+  /** Target item → a point in the zone it is to be built in. */
+  zoneAssignments: Record<string, { x: number; y: number }>;
+}
 
 const STORAGE_KEY = 'factory-board.plan.v1';
 
@@ -26,16 +38,22 @@ export function loadPlan(): StoredPlan | null {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
     if (!raw) return null;
     const result = storedPlanSchema.safeParse(JSON.parse(raw));
-    return result.success ? result.data : null;
+    if (!result.success) return null;
+    return {
+      targets: result.data.targets,
+      recipeChoices: result.data.recipeChoices,
+      zoneAssignments: result.data.zoneAssignments ?? {},
+    };
   } catch {
     // Private browsing, blocked site data, or malformed JSON. Start fresh.
     return null;
   }
 }
 
-export function savePlan(plan: Omit<StoredPlan, 'version'>): void {
+export function savePlan(plan: StoredPlan): void {
   try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify({ version: 1, ...plan }));
+    const stored: StoredPlanInput = { version: 2, ...plan };
+    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch {
     // Storage unavailable or full; the in-memory plan still works.
   }

@@ -32,10 +32,12 @@ integration tests skip and the web app refuses to build with instructions.
   Converters and 733 SAM/min. [ADR 0004](docs/adr/0004-raw-resources-terminate-the-solve.md)
 - **`planner` stays pure.** No I/O, no file formats, no dependencies. What the solver
   needs arrives as an argument.
-- **Parse at the boundary.** The generated database, the generated snapshot and the
-  plan in `localStorage` all go through Zod once, at the edge. Inside, types are
-  trusted. A schema missing a field silently drops it — keep both compile-time
-  assertions in `packages/game-data/src/schema.ts`.
+- **Parse at the boundary.** The generated database, the generated snapshot and what
+  `localStorage` holds all go through Zod once, at the edge. Inside, types are trusted.
+  A schema missing a field silently drops it — keep the compile-time key-completeness
+  assertions in `packages/game-data/src/schema.ts` and `apps/web/src/lib/default-snapshot.ts`.
+  Adding a field to a domain type means adding it to the schema in the same commit; the
+  assertion will say so.
 - **Fluids are m³ everywhere.** Normalised once in the extractor; nothing downstream
   converts.
 - **Two build numbers, never compared.** `sourceBuildId` is Steam's;
@@ -44,6 +46,13 @@ integration tests skip and the web app refuses to build with instructions.
   connection to output, so point order is the direction items travel — the map's
   direction chevrons depend on it. Checked against miners, the one building that can only
   be a source. Pipes carry no such promise and get no arrows.
+- **Machines define a zone; miners and burners describe one.** They are clustered in
+  separate passes because one kind bridges the other's zones — generators dotted between
+  two factory cells welded them into a 109 m blob.
+  [ADR 13](docs/adr/0013-zones-are-clustered-in-passes.md)
+- **A stored reference to a zone is a point on the ground.** Ids are positional and names
+  are derived, so both are re-keyed by the next autosave; a coordinate is not.
+  [ADR 14](docs/adr/0014-a-zone-reference-is-a-point.md)
 - **Status colour is reserved, and text never wears it.** The warning step is 4.04:1 on
   the light surface — below the 4.5:1 text threshold. The bar carries state; the number
   stays in text ink.

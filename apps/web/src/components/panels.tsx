@@ -3,12 +3,13 @@
 import { Box, Button, Flex, Grid, Heading, Text } from '@chakra-ui/react';
 import type { GameDatabase, SolveResult } from '@factory-board/planner';
 import type { WorldSnapshot } from '@factory-board/save-reader';
-import { useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import { itemName, rate, unit } from '@/lib/format';
 import { PHASES, PRESETS } from '@/lib/phases';
+import { buildZoneBoard, zoneAt } from '@/lib/zones';
 import { useBoard } from '@/state/board';
 import { useSaveLoader } from '@/hooks/use-save-loader';
-import { Field, Label, Mono, NumTd, Panel, Td, TableFrame, Th } from './primitives';
+import { Field, Label, Mono, NumTd, Panel, Select, Td, TableFrame, Th } from './primitives';
 
 /* ------------------------------------------------------------------ dropzone */
 
@@ -70,9 +71,19 @@ export function SaveDropzone() {
 /* -------------------------------------------------------------- target editor */
 
 export function TargetEditor({ db }: { db: GameDatabase }) {
-  const { targets, dispatch, addTarget } = useBoard();
+  const { targets, dispatch, addTarget, snapshot, zoneNames, zoneAssignments } = useBoard();
   const [query, setQuery] = useState('');
   const [amount, setAmount] = useState('5');
+
+  /*
+   * A target can be pointed at a zone, which is what turns "six more smelters"
+   * into an instruction. The zones come from the loaded save, so without one
+   * there is nowhere to point at and the control does not appear.
+   */
+  const zones = useMemo(
+    () => (snapshot ? buildZoneBoard(db, snapshot, zoneNames).zones : []),
+    [db, snapshot, zoneNames],
+  );
 
   const options = Object.values(db.items)
     .filter((item) => !item.isRaw)
@@ -226,6 +237,28 @@ export function TargetEditor({ db }: { db: GameDatabase }) {
                 }}
               />
               <Label>/ min</Label>
+              {zones.length > 0 ? (
+                <Flex align="center" gap={2}>
+                  <Label>built in</Label>
+                  <Select
+                    w="176px"
+                    py={1.5}
+                    aria-label={`Zone for ${itemName(db, target.item)}`}
+                    value={zoneAt(zones, zoneAssignments[target.item])?.slug ?? ''}
+                    onChange={(event) => {
+                      const zone = zones.find((candidate) => candidate.slug === event.target.value);
+                      dispatch({ type: 'assignZone', item: target.item, at: zone?.at ?? null });
+                    }}
+                  >
+                    <option value="">anywhere</option>
+                    {zones.map((zone) => (
+                      <option key={zone.id} value={zone.slug}>
+                        {zone.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Flex>
+              ) : null}
               <Button
                 size="xs"
                 variant="ghost"

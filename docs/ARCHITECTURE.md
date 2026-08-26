@@ -86,7 +86,7 @@ apps/web/src/
 │   ├── base/page.tsx       Base — map and zones
 │   ├── plan/page.tsx       Planner
 │   └── progress/page.tsx   Progression
-├── state/board.tsx         targets, recipe choices, snapshot — Context + useReducer
+├── state/board.tsx         targets, recipe choices, zones, snapshot — Context + useReducer
 ├── hooks/use-save-loader   file → Worker → snapshot, with a main-thread fallback
 ├── workers/parse-save      the only place the parser runs in the browser
 ├── components/
@@ -96,13 +96,18 @@ apps/web/src/
 │   ├── flow-diagram.tsx    the plan as a layered DAG
 │   ├── board.tsx           the production-line cards
 │   └── panels.tsx          dropzone, target editor, balance, progression
-├── lib/                    game database, default snapshot, plan storage, formatting
+├── lib/
+│   ├── zones.ts            the base as named zones: clustering, naming, pinning
+│   ├── zone-plan.ts        the plan laid over them: what is still missing, and where
+│   ├── zone-storage.ts     names the player gave places, pinned to coordinates
+│   └── …                   game database, default snapshot, plan storage, formatting
 └── generated/              build artefacts; gitignored
 ```
 
 **State** is a single `useReducer` behind Context — no state library. The whole store is
-three fields (`targets`, `recipeChoices`, `snapshot`); everything else on screen is
-derived by `solve()` inside a `useMemo`. See [ADR 0007](adr/0007-no-state-library.md).
+what the player has said (`targets`, `recipeChoices`, `zoneAssignments`, `zoneNames`) plus
+the loaded `snapshot`; everything else on screen is derived by `solve()` and
+`buildZoneBoard()` inside a `useMemo`. See [ADR 0007](adr/0007-no-state-library.md).
 
 **Parsing** happens in a Web Worker so a large save cannot freeze the page, with a
 main-thread fallback when a Worker cannot be constructed.
@@ -128,8 +133,9 @@ several events. See [ADR 0005](adr/0005-build-time-save-loading.md).
 
 ## Type safety at the boundaries
 
-Three things cross a boundary and are therefore parsed, not cast: the generated game
-database, the generated default snapshot, and the plan in `localStorage`.
+Four things cross a boundary and are therefore parsed, not cast: the generated game
+database, the generated default snapshot, the plan in `localStorage`, and the zone names
+beside it.
 
 Two compile-time assertions keep the game database's Zod schema and the domain type in
 step:
@@ -137,10 +143,15 @@ step:
 1. Validated output must be assignable to `GameDatabase`.
 2. Every key `GameDatabase` declares must also be declared by the schema.
 
-The second matters more than it looks. Zod strips undeclared keys, so a schema missing
-an optional field still satisfies (1) — the field simply vanishes during validation.
-That is exactly how `powerRangeMW` went missing, turning every variable-power machine's
-draw into `undefined`. The key-completeness check catches it at compile time; it
+The **snapshot** schema in `lib/default-snapshot.ts` carries the same check, and it was
+added the hard way: placements learned what building they were for, that schema did not,
+and Zod deleted the new fields on the way in — so the board drew a base with no miners,
+no generators and no coal plant, from a file that had all three.
+
+The second assertion matters more than it looks. Zod strips undeclared keys, so a schema
+missing an optional field still satisfies (1) — the field simply vanishes during
+validation. That is exactly how `powerRangeMW` went missing, turning every variable-power
+machine's draw into `undefined`. The key-completeness check catches it at compile time; it
 compares _keys_ rather than whole types because the domain uses `readonly` arrays and
 Zod infers mutable ones, and a plain `extends` in that direction fails on variance that
 has nothing to do with completeness.
@@ -196,9 +207,11 @@ Recorded in full under [adr/](adr).
 | [Raw resources terminate the solve](adr/0004-raw-resources-terminate-the-solve.md)           | Otherwise the solver mines SAM to make iron                                                    |
 | [Build-time save loading](adr/0005-build-time-save-loading.md)                               | A static page cannot read a path from an env var — the browser has no disk                     |
 | [No charting library](adr/0006-no-charting-library.md)                                       | Every figure is a magnitude or a ratio; a library would be weight without benefit              |
-| [No state library](adr/0007-no-state-library.md)                                             | Three fields of state, everything else derived                                                 |
+| [No state library](adr/0007-no-state-library.md)                                             | A handful of fields of state, everything else derived                                          |
 | [Machines anchor zones](adr/0008-machines-anchor-zones.md)                                   | Clustering belts welds the whole base into one blob                                            |
 | [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)                       | Magnifying enlarges the picture; redrawing reveals what would not fit                          |
 | [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md)           | Framing the zones cropped a coal generator six metres past the edge                            |
 | [Reach is bought with buildings](adr/0011-reach-is-bought-with-buildings.md)                 | A flat allowance let one water extractor buy 28% of the frame's width                          |
 | [The canvas takes the shape of the base](adr/0012-the-canvas-takes-the-shape-of-the-base.md) | A portrait base on a landscape sheet drew as a ribbon using 30% of the width                   |
+| [Zones are clustered in passes](adr/0013-zones-are-clustered-in-passes.md)                   | Letting generators anchor zones alongside machines welded two factory cells into one           |
+| [A reference to a zone is a point](adr/0014-a-zone-reference-is-a-point.md)                  | Zone ids are positional and names derived; a coordinate survives the next autosave             |

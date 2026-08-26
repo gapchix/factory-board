@@ -32,7 +32,16 @@ const TONE_COLOR = {
   neutral: { fg: 'fg.subtle', bg: 'bg.muted' },
 } as const;
 
-function LineCard({ row, db }: { row: Row; db: GameDatabase }) {
+function LineCard({
+  row,
+  db,
+  zones,
+}: {
+  row: Row;
+  db: GameDatabase;
+  /** Where the plan says these machines go, if it says. */
+  zones: readonly string[] | undefined;
+}) {
   const { dispatch, recipeChoices } = useBoard();
   const recipe = db.recipes[row.recipe];
   const planned = row.planned?.machinesToBuild ?? 0;
@@ -88,6 +97,11 @@ function LineCard({ row, db }: { row: Row; db: GameDatabase }) {
         {recipe && product && recipe.name !== itemName(db, product) ? (
           <Text fontFamily="mono" fontSize="11px" color="fg.subtle">
             {recipe.name}
+          </Text>
+        ) : null}
+        {zones && zones.length > 0 ? (
+          <Text fontFamily="mono" fontSize="11px" color="accent.solid" mt={0.5} truncate>
+            → {zones.length > 2 ? `${zones.length} zones` : zones.join(' · ')}
           </Text>
         ) : null}
       </Box>
@@ -183,10 +197,13 @@ export function BoardGrid({
   db,
   result,
   actual,
+  zonesFor,
 }: {
   db: GameDatabase;
   result: SolveResult;
   actual: Readonly<Record<string, ActualLine>>;
+  /** Recipe → the zones its machines are meant to be built in. */
+  zonesFor?: ReadonlyMap<string, readonly string[]> | undefined;
 }) {
   const groups = useMemo(() => {
     const rows = new Map<string, Row>();
@@ -250,7 +267,7 @@ export function BoardGrid({
           </Flex>
           <Grid gap={3} templateColumns="repeat(auto-fill, minmax(268px, 1fr))">
             {group.rows.map((row) => (
-              <LineCard key={row.recipe} row={row} db={db} />
+              <LineCard key={row.recipe} row={row} db={db} zones={zonesFor?.get(row.recipe)} />
             ))}
           </Grid>
         </Box>

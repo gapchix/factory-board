@@ -241,13 +241,19 @@ export function BaseMap({
   snapshot,
   cluster,
   zoneNames,
+  zoneUptimes,
   selectedZoneId,
   onSelectZone,
 }: {
   db: GameDatabase;
   snapshot: WorldSnapshot;
-  cluster: ClusterResult;
+  cluster: ClusterResult<BuildingPlacement>;
   zoneNames: Readonly<Record<string, string>>;
+  /**
+   * Worked out once, next to the zone cards, so the wash on the map and the
+   * rule on the card below it can never disagree about how a zone is doing.
+   */
+  zoneUptimes: Readonly<Record<string, number | null>>;
   selectedZoneId: string | null;
   onSelectZone: (id: string | null) => void;
 }) {
@@ -531,6 +537,8 @@ export function BaseMap({
       name: string;
       machine: string;
       uptime: number | null;
+      /** What a miner is pulling or a generator burning, for the hover. */
+      resource: string | undefined;
       zoneId: string | undefined;
     }
 
@@ -553,7 +561,10 @@ export function BaseMap({
         landmark: !placement.recipe,
         name,
         machine: buildingName(db, placement.machine),
-        uptime: uptimeOf(placement.recipe),
+        // An extractor or generator carries its own measurement; a machine's
+        // arrives through the line it runs.
+        uptime: placement.uptime ?? uptimeOf(placement.recipe),
+        resource: placement.resource,
         zoneId: zoneAt(placement.x, placement.y),
       });
     }
@@ -572,7 +583,12 @@ export function BaseMap({
         const first = group[0]!;
         const cx = group.reduce((sum, c) => sum + c.worldX, 0) / group.length;
         const cy = group.reduce((sum, c) => sum + c.worldY, 0) / group.length;
-        const uptime = first.uptime;
+        // Machines merged on a recipe share a line and so share its uptime, but
+        // five coal generators each measure their own, and the mark stands for
+        // all of them.
+        const measured = group.map((c) => c.uptime).filter((value) => value !== null);
+        const uptime =
+          measured.length > 0 ? measured.reduce((sum, v) => sum + v, 0) / measured.length : null;
         marks.push({
           x: px(cx),
           y: py(cy),
@@ -583,6 +599,7 @@ export function BaseMap({
           title:
             `${group.length}× ${first.machine}` +
             (first.landmark ? '' : ` — ${first.name}`) +
+            (first.resource ? ` — ${itemName(db, first.resource)}` : '') +
             (uptime === null ? '' : ` · ${Math.round(uptime * 100)}% uptime`),
           /*
            * Who wins a collision. Landmarks are the map's anchors and outrank a
@@ -612,14 +629,7 @@ export function BaseMap({
       const y = py(zone.bounds.minY) - ZONE_PAD - CAPTION_H;
       const height = Math.max(30, py(zone.bounds.maxY) - y + ZONE_PAD);
 
-      let weighted = 0;
-      let weight = 0;
-      for (const [recipe, count] of Object.entries(zone.recipeCounts)) {
-        const uptime = snapshot.lines[recipe]?.uptime;
-        if (uptime === undefined || uptime === null) continue;
-        weighted += uptime * count;
-        weight += count;
-      }
+      const uptime = zoneUptimes[zone.id] ?? null;
 
       // The caption belongs inside its own zone, in a band across the top. Above
       // the box it competed for the same strip of map as the machine labels of
@@ -636,7 +646,7 @@ export function BaseMap({
         height,
         captionW,
         captionInside,
-        tone: weight > 0 ? uptimeTone(weighted / weight) : null,
+        tone: uptime === null ? null : uptimeTone(uptime),
         machines: zone.anchors.length,
         selected: zone.id === selectedZoneId,
       };
@@ -816,7 +826,17 @@ export function BaseMap({
         visible.maxY - visible.minY,
       )} m`,
     };
-  }, [cluster.zones, content.inside, db, home, selectedZoneId, snapshot, view, zoneNames]);
+  }, [
+    cluster.zones,
+    content.inside,
+    db,
+    home,
+    selectedZoneId,
+    snapshot,
+    view,
+    zoneNames,
+    zoneUptimes,
+  ]);
 
   /*
    * No pointer capture here. Capturing on the press retargets the pointerup to
@@ -1050,7 +1070,7 @@ export function BaseMap({
                 key={zone.id}
                 role="button"
                 tabIndex={0}
-                aria-label={`${zone.label}, ${zone.machines} machines`}
+                aria-label={`${zone.label}, ${zone.machines} buildings`}
                 aria-pressed={zone.selected}
                 cursor="pointer"
                 opacity={selectedZoneId !== null && !zone.selected ? 0.4 : 1}
@@ -1089,7 +1109,7 @@ export function BaseMap({
                   strokeOpacity={zone.selected ? 1 : 0.42}
                 >
                   <title>
-                    {zone.label} — {zone.machines} machines
+                    {zone.label} — {zone.machines} buildings
                   </title>
                 </SvgRect>
               </SvgG>
@@ -1153,7 +1173,12 @@ export function BaseMap({
                     width={8}
                     height={8}
                     fill="bg.surface"
-                    stroke="fg.muted"
+                    // The outline carries state where there is state to carry:
+                    // a miner and a generator measure their productivity like
+                    // any machine, and a coal plant running at 60% is exactly
+                    // the sort of thing this map exists to show. The HUB and
+                    // the Space Elevator measure nothing and stay grey.
+                    stroke={mark.tone ? TONE_FILL[mark.tone] : 'fg.muted'}
                     strokeWidth={1.6}
                     cursor={mark.zoneId === undefined ? 'default' : 'pointer'}
                     onClick={() => selectZone(mark.zoneId)}

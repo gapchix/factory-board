@@ -51,8 +51,8 @@ in step. The frame is decided from everything the map draws rather than from the
 alone, and whatever is still too far out gets a pointer at the edge saying what it is and
 how far ([ADR 10](adr/0010-the-frame-reaches-for-its-content.md)).
 
-Remaining tracks. They are independent; the order is a product call — **this is the next
-decision**, now that B3 is done.
+Remaining tracks. They are independent; the order is a product call. B3 and B2 are done,
+which leaves **A** and **C** — the next decision.
 
 ### B3. The map — a visual pass · shipped
 
@@ -94,6 +94,37 @@ Still open, and not part of what was asked for:
   Rotating the drawing onto the base's principal axis is the only real answer and it
   costs the reader a map that no longer points north — worth asking about before building.
 
+### B2. Zones — the rest · shipped
+
+**Power and extraction anchor zones.** A coal plant, a pump house and a mining outpost
+are places you built, and the map used to report them as buildings belonging to nothing.
+They are clustered in a pass of their own, because letting them anchor alongside machines
+welds two factory cells into one blob — the same failure belts caused, arriving through a
+second door ([ADR 13](adr/0013-zones-are-clustered-in-passes.md)). On the reference save
+that took the base from 4 zones and a stray to 9 zones and none, with all four production
+zones untouched.
+
+The save says more about those buildings than the snapshot was keeping: a miner's output
+buffer names the ore it stands on even when a belt has drained it, a generator names its
+fuel, and both measure their own productivity. So zones are named for what they are for —
+"Coal Power", "Water", "Iron Ore" — and five coal generators averaging 79% is a fuel
+problem the map now shows in the colour of the mark.
+
+**Zones are nameable, and every reference to one is a point on the ground**
+([ADR 14](adr/0014-a-zone-reference-is-a-point.md)). Zone ids are positional and derived
+names move with what is built, so a hand-given name and a plan target's assignment are
+both pinned to a coordinate and resolved against whatever stands there now. A name
+survives the autosave watcher swapping the save out from under the page.
+
+**Deep links.** `/base?zone=coal-power` focuses that zone on load; focusing one writes the
+link. Renaming the zone you are looking at moves the link with it.
+
+**Plan targets are assigned to a zone**, so "build 6 more smelters" says where. Each zone
+card shows what the plan wants built there against what is already standing — the two
+numbers being in different places was the reason it was hard to act on — and the planner's
+line cards carry the zone they are destined for. Targets sharing a zone are rounded up
+together, because two lines in one cell share a machine and two lines 900 m apart cannot.
+
 ### A. History — the factory over time
 
 Autosaves are already a time series, and nothing else in the ecosystem treats them as
@@ -105,13 +136,6 @@ one. The dev watcher produces a new snapshot every few minutes; keep them.
 - "What changed since last time" — lines added, lines that stopped
 - Likely the point where a charting library starts earning its place
   ([ADR 0006](adr/0006-no-charting-library.md))
-
-### B2. Zones — what is left
-
-- Assign plan targets to a zone, so "build 6 more smelters" says _where_
-- Anchor on power and extraction too, so generators and miners get their own zones
-- Name and pin zones by hand, overriding the derived name
-- Deep-link a focused zone, so a view can be shared or reloaded into
 
 ### C. Publish — the packages stand alone
 

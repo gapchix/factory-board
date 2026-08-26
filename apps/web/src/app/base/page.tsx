@@ -1,107 +1,305 @@
 'use client';
 
 import { Box, chakra, Flex, Grid, Text } from '@chakra-ui/react';
-import { clusterZones } from '@factory-board/layout';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { BaseMap } from '@/components/base-map';
-import { BarRow, ChartFrame, StatRow, StatTile, uptimeTone } from '@/components/charts';
+import { BarRow, ChartFrame, MeterRow, StatRow, StatTile, uptimeTone } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
-import { Label, SectionHeading } from '@/components/primitives';
-import { itemName, rate } from '@/lib/format';
+import { Field, Label, Mono, SectionHeading } from '@/components/primitives';
+import { rate } from '@/lib/format';
 import { gameDatabase as db } from '@/lib/game-database';
+import { planByZone, type ZonePlanEntry } from '@/lib/zone-plan';
+import { buildZoneBoard, slugify, withZoneName, zoneBySlug, type ZoneView } from '@/lib/zones';
 import { useBoard } from '@/state/board';
 
-/**
- * A zone card is a button: pressing it finds that zone on the map. It is built
- * from the chakra factory rather than `Box as="button"` because the polymorphic
- * `as` prop keeps the div's attribute set, and a button needs `type`.
- */
-const ZoneCard = chakra('button', {
+/** A control small enough to sit in a card heading without shouting. */
+const CardButton = chakra('button', {
   base: {
-    textAlign: 'start',
-    width: '100%',
-    bg: 'bg.surface',
+    fontFamily: 'mono',
+    fontSize: '10px',
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+    color: 'fg.subtle',
+    px: 1.5,
+    py: 0.5,
     borderWidth: '1px',
-    borderTopWidth: '3px',
-    px: 5,
-    py: 4,
+    borderColor: 'transparent',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    _hover: { color: 'fg.default', borderColor: 'border.default' },
     _focusVisible: { outline: '2px solid', outlineColor: 'accent.solid', outlineOffset: '1px' },
   },
 });
 
-/** A zone is named after what it mostly makes — far more use than "Zone 2". */
-function nameFor(dominantRecipe: string | undefined, fallback: string): string {
-  if (!dominantRecipe) return fallback;
-  const product = db.recipes[dominantRecipe]?.outputs[0]?.item;
-  return product ? itemName(db, product) : fallback;
+/** What a zone is for, when it is not a factory cell. */
+const KIND_NOTE = {
+  production: '',
+  extraction: 'extraction',
+  power: 'power',
+} as const;
+
+function ZoneCard({
+  zone,
+  plan,
+  selected,
+  editing,
+  onSelect,
+  onEdit,
+  onRename,
+  onCopyLink,
+  copied,
+}: {
+  zone: ZoneView;
+  plan: ZonePlanEntry | undefined;
+  selected: boolean;
+  editing: boolean;
+  onSelect: () => void;
+  onEdit: (editing: boolean) => void;
+  onRename: (name: string) => void;
+  onCopyLink: () => void;
+  copied: boolean;
+}) {
+  const [draft, setDraft] = useState(zone.renamed ? zone.name : '');
+
+  const commit = () => {
+    onRename(draft);
+    onEdit(false);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commit();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setDraft(zone.renamed ? zone.name : '');
+      onEdit(false);
+    }
+  };
+
+  const uptime = zone.uptime === null ? '-' : `${Math.round(zone.uptime * 100)}%`;
+  const stats: [string, string][] =
+    zone.kind === 'production'
+      ? [
+          ['Machines', String(zone.machines)],
+          ['Power', `${Math.round(zone.powerMW)} MW`],
+          ['Uptime', uptime],
+          ['Belts etc.', String(zone.attached)],
+        ]
+      : [
+          ...(zone.extractors > 0
+            ? ([['Extractors', String(zone.extractors)]] as [string, string][])
+            : []),
+          ...(zone.generators > 0
+            ? ([['Generators', String(zone.generators)]] as [string, string][])
+            : []),
+          ['Uptime', uptime],
+          ['Belts etc.', String(zone.attached)],
+        ];
+
+  // A zone standing on one building has no footprint worth printing.
+  const footprint = zone.machines + zone.support === 1 ? 'one building' : zone.size;
+
+  const bars =
+    zone.kind === 'production' ? zone.products : zone.kind === 'power' ? zone.burns : zone.extracts;
+  const barsLabel =
+    zone.kind === 'production' ? 'Makes' : zone.kind === 'power' ? 'Burns' : 'Pulls';
+
+  // In a factory cell the miners and burners are supporting cast, so they get a
+  // line rather than a chart.
+  const alsoHere: string[] = [];
+  if (zone.kind === 'production') {
+    for (const pulled of zone.extracts) alsoHere.push(`${pulled.count} on ${pulled.name}`);
+    for (const burnt of zone.burns) alsoHere.push(`${burnt.count} burning ${burnt.name}`);
+  }
+
+  return (
+    <Box
+      bg="bg.surface"
+      borderWidth="1px"
+      borderTopWidth="3px"
+      px={5}
+      py={4}
+      borderColor={selected ? 'accent.solid' : 'border.default'}
+      borderTopColor={zone.uptime === null ? 'border.default' : `status.${uptimeTone(zone.uptime)}`}
+    >
+      <Flex align="baseline" gap={3} wrap="wrap" mb={3}>
+        {editing ? (
+          <Field
+            autoFocus
+            maxLength={40}
+            w="200px"
+            py={0.5}
+            fontSize="17px"
+            placeholder={zone.derived}
+            aria-label={`Name for ${zone.name}`}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={onKeyDown}
+            onBlur={commit}
+          />
+        ) : (
+          <Text
+            fontFamily="heading"
+            fontWeight="600"
+            fontSize="21px"
+            textTransform="uppercase"
+            letterSpacing="0.02em"
+            color={selected ? 'accent.solid' : 'fg.default'}
+          >
+            {zone.name}
+          </Text>
+        )}
+        <Label>{footprint}</Label>
+        {KIND_NOTE[zone.kind] ? (
+          <Label color="fg.subtle" borderWidth="1px" borderColor="border.default" px={1.5}>
+            {KIND_NOTE[zone.kind]}
+          </Label>
+        ) : null}
+
+        <Box flex="1" />
+
+        <CardButton
+          type="button"
+          onClick={() => onEdit(!editing)}
+          aria-label={editing ? `Stop renaming ${zone.name}` : `Rename ${zone.name}`}
+        >
+          {editing ? 'done' : zone.renamed ? 'rename ✎' : 'rename'}
+        </CardButton>
+        {selected ? (
+          <CardButton type="button" onClick={onCopyLink}>
+            {copied ? 'copied' : 'copy link'}
+          </CardButton>
+        ) : null}
+        <CardButton
+          type="button"
+          aria-pressed={selected}
+          onClick={onSelect}
+          color={selected ? 'accent.solid' : undefined}
+        >
+          {selected ? 'on the map ✕' : 'show on map'}
+        </CardButton>
+      </Flex>
+
+      <Flex gap={6} wrap="wrap" mb={4}>
+        {stats.map(([label, value]) => (
+          <Box key={label}>
+            <Label display="block">{label}</Label>
+            <Mono fontSize="19px" fontWeight="600">
+              {value}
+            </Mono>
+          </Box>
+        ))}
+      </Flex>
+
+      {bars.length > 0 ? (
+        <>
+          <Label display="block" mb={2}>
+            {barsLabel}
+          </Label>
+          <Flex direction="column" gap={2}>
+            {bars.map((entry) => (
+              <BarRow
+                key={entry.id}
+                name={entry.name}
+                value={entry.count}
+                max={Math.max(...bars.map((other) => other.count), 1)}
+                tone="steel"
+                display={`${entry.count}x`}
+                nameWidth="150px"
+              />
+            ))}
+          </Flex>
+        </>
+      ) : null}
+
+      {alsoHere.length > 0 ? (
+        <Text fontSize="12.5px" color="fg.subtle" mt={3}>
+          <Label>Also here</Label> {alsoHere.join(' · ')}
+        </Text>
+      ) : null}
+
+      {plan ? (
+        <Box mt={4} pt={3.5} borderTopWidth="1px" borderColor="border.subtle">
+          <Flex align="baseline" gap={3} mb={2.5}>
+            <Label>Planned here</Label>
+            <Box flex="1" />
+            <Label color={plan.toBuild > 0 ? 'fg.default' : 'fg.subtle'}>
+              {plan.toBuild > 0 ? `${plan.toBuild} still to build` : 'all built'}
+            </Label>
+          </Flex>
+          <Flex direction="column" gap={2}>
+            {plan.work.map((work) => (
+              <MeterRow
+                key={work.recipe}
+                name={work.name}
+                value={work.built}
+                target={work.needed}
+                nameWidth="150px"
+                unit={work.machine}
+              />
+            ))}
+          </Flex>
+        </Box>
+      ) : null}
+    </Box>
+  );
 }
 
 export default function BasePage() {
-  const { snapshot } = useBoard();
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const { snapshot, targets, recipeChoices, zoneAssignments, zoneNames, dispatch } = useBoard();
+
+  /*
+   * The URL holds the focused zone, by name rather than by number: zone ids are
+   * positional, so the next autosave hands "zone-3" to somewhere else, whereas
+   * "coal-power" is the place you were looking at. That makes the link both
+   * shareable and reloadable, and it survives the dev watcher swapping the save
+   * out from under the page.
+   *
+   * Read once on mount and written with `replaceState`. `useSearchParams` would
+   * push a static export into a client-side bailout, and focusing a zone is a
+   * view change, not somewhere to go back from.
+   */
+  const [zoneSlug, setZoneSlug] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('zone'),
+  );
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
 
-  const view = useMemo(() => {
-    if (!snapshot) return null;
-    const cluster = clusterZones(snapshot.placements);
+  const board = useMemo(
+    () => (snapshot ? buildZoneBoard(db, snapshot, zoneNames) : null),
+    [snapshot, zoneNames],
+  );
 
-    const zones = cluster.zones.map((zone) => {
-      let machines = 0;
-      let powerMW = 0;
-      let uptimeWeighted = 0;
-      let uptimeWeight = 0;
-      const products: { name: string; count: number }[] = [];
+  const plan = useMemo(
+    () =>
+      board ? planByZone(db, targets, recipeChoices, zoneAssignments, board.zones) : undefined,
+    [board, targets, recipeChoices, zoneAssignments],
+  );
 
-      for (const [recipe, count] of Object.entries(zone.recipeCounts)) {
-        machines += count;
-        const line = snapshot.lines[recipe];
-        const machineId = db.recipes[recipe]?.machine;
-        powerMW += count * (machineId ? (db.machines[machineId]?.powerMW ?? 0) : 0);
-        if (line?.uptime != null) {
-          uptimeWeighted += line.uptime * count;
-          uptimeWeight += count;
-        }
-        const product = db.recipes[recipe]?.outputs[0]?.item;
-        products.push({ name: product ? itemName(db, product) : recipe, count });
-      }
+  const selectedZone = zoneBySlug(board?.zones ?? [], zoneSlug);
+  const selectedZoneId = selectedZone?.id ?? null;
 
-      return {
-        id: zone.id,
-        name: nameFor(zone.dominantRecipe, zone.label),
-        machines,
-        powerMW,
-        uptime: uptimeWeight > 0 ? uptimeWeighted / uptimeWeight : null,
-        attached: zone.attachedCount,
-        size: `${Math.round(zone.widthM)} x ${Math.round(zone.depthM)} m`,
-        products: products.sort((a, b) => b.count - a.count),
-      };
-    });
+  const focusSlug = useCallback((slug: string | null) => {
+    setZoneSlug(slug);
+    setCopied(false);
+    const url = new URL(window.location.href);
+    if (slug) url.searchParams.set('zone', slug);
+    else url.searchParams.delete('zone');
+    window.history.replaceState(null, '', url);
+  }, []);
 
-    // Two zones making the same thing would collide; number the duplicates.
-    const seen = new Map<string, number>();
-    for (const zone of zones) {
-      const n = (seen.get(zone.name) ?? 0) + 1;
-      seen.set(zone.name, n);
-      if (n > 1) zone.name = `${zone.name} ${n}`;
-    }
+  const selectZone = useCallback(
+    (id: string | null) => {
+      const zone = id ? board?.zones.find((candidate) => candidate.id === id) : undefined;
+      focusSlug(zone && zone.slug !== zoneSlug ? zone.slug : null);
+    },
+    [board, focusSlug, zoneSlug],
+  );
 
-    const names: Record<string, string> = {};
-    for (const zone of zones) names[zone.id] = zone.name;
-
-    const spread = cluster.bounds
-      ? `${Math.round(cluster.bounds.maxX - cluster.bounds.minX)} x ${Math.round(
-          cluster.bounds.maxY - cluster.bounds.minY,
-        )} m`
-      : '-';
-
-    return { cluster, zones, names, spread };
-  }, [snapshot]);
-
-  // Zone ids are positional, so a new save's "zone-2" is a different place.
-  useEffect(() => setSelectedZoneId(null), [snapshot]);
-
-  if (!snapshot || !view) {
+  if (!snapshot || !board) {
     return (
       <>
         <SectionHeading title="Base" note="no save loaded" />
@@ -114,29 +312,49 @@ export default function BasePage() {
     );
   }
 
-  const maxZoneMachines = Math.max(...view.zones.map((z) => z.machines), 1);
+  const { zones, cluster } = board;
+  const maxZoneMachines = Math.max(...zones.map((zone) => zone.machines + zone.support), 1);
+  const supportZones = zones.filter((zone) => zone.kind !== 'production').length;
 
   /** Selecting from a card only means anything if the map is on screen. */
   const focusZone = (id: string) => {
-    setSelectedZoneId((current) => (current === id ? null : id));
+    selectZone(id);
     mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const renameZone = (zone: ZoneView, name: string) => {
+    dispatch({ type: 'setZoneNames', names: withZoneName(zoneNames, zone, name) });
+    // The link carries the name, so renaming the zone you are looking at moves
+    // the link with it rather than dropping the selection on the floor.
+    if (zone.id === selectedZoneId) setZoneSlug(slugify(name.trim() || zone.derived));
+  };
+
+  const copyLink = () => {
+    navigator.clipboard
+      ?.writeText(window.location.href)
+      .then(() => setCopied(true))
+      .catch(() => undefined);
   };
 
   return (
     <>
-      <SectionHeading title="Base" note={`${snapshot.sessionName} · ${view.spread} of ground`} />
+      <SectionHeading title="Base" note={`${snapshot.sessionName} · ${board.spread} of ground`} />
 
       <StatRow>
-        <StatTile label="Zones" value={view.zones.length} sub="clustered from machine positions" />
+        <StatTile
+          label="Zones"
+          value={zones.length}
+          sub={`${zones.length - supportZones} making things, ${supportZones} feeding them`}
+        />
         <StatTile
           label="Buildings"
           value={snapshot.placements.length}
-          sub={`${view.cluster.unassignedCount} outside any zone`}
+          sub={`${cluster.unassignedCount} outside any zone`}
         />
-        <StatTile label="Footprint" value={view.spread} sub="bounding box of everything" />
+        <StatTile label="Footprint" value={board.spread} sub="bounding box of everything" />
         <StatTile
           label="Strays"
-          value={view.cluster.strays.length}
+          value={cluster.strays.length}
           sub="lone machines, off on their own"
         />
       </StatRow>
@@ -146,118 +364,60 @@ export default function BasePage() {
         <BaseMap
           db={db}
           snapshot={snapshot}
-          cluster={view.cluster}
-          zoneNames={view.names}
+          cluster={cluster}
+          zoneNames={board.names}
+          zoneUptimes={board.uptimes}
           selectedZoneId={selectedZoneId}
-          onSelectZone={setSelectedZoneId}
+          onSelectZone={selectZone}
         />
       </Box>
 
       <Box mt={9}>
         <SectionHeading title="Zones" note="what each part of the base is for · click to find it" />
         <Grid gap={4} templateColumns={{ base: '1fr', lg: '1fr 1fr' }} alignItems="start">
-          {view.zones.map((zone) => {
-            const selected = zone.id === selectedZoneId;
-            return (
-              <ZoneCard
-                key={zone.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => focusZone(zone.id)}
-                borderColor={selected ? 'accent.solid' : 'border.default'}
-                borderTopColor={
-                  zone.uptime === null
-                    ? 'border.default'
-                    : zone.uptime >= 0.95
-                      ? 'status.ok'
-                      : zone.uptime >= 0.6
-                        ? 'status.warn'
-                        : 'status.crit'
-                }
-                _hover={{ borderColor: selected ? 'accent.solid' : 'fg.subtle' }}
-              >
-                <Flex align="baseline" gap={3} wrap="wrap" mb={3}>
-                  <Text
-                    fontFamily="heading"
-                    fontWeight="600"
-                    fontSize="21px"
-                    textTransform="uppercase"
-                    letterSpacing="0.02em"
-                    color={selected ? 'accent.solid' : 'fg.default'}
-                  >
-                    {zone.name}
-                  </Text>
-                  <Label>{zone.size}</Label>
-                  <Box flex="1" />
-                  <Label color={selected ? 'accent.solid' : 'fg.subtle'}>
-                    {selected ? 'on the map ✕' : 'show on map'}
-                  </Label>
-                </Flex>
-
-                <Flex gap={6} wrap="wrap" mb={4}>
-                  {[
-                    ['Machines', String(zone.machines)],
-                    ['Power', `${Math.round(zone.powerMW)} MW`],
-                    ['Uptime', zone.uptime === null ? '-' : `${Math.round(zone.uptime * 100)}%`],
-                    ['Belts etc.', String(zone.attached)],
-                  ].map(([label, value]) => (
-                    <Box key={label}>
-                      <Label display="block">{label}</Label>
-                      <Text
-                        fontFamily="mono"
-                        fontSize="19px"
-                        fontWeight="600"
-                        fontVariantNumeric="tabular-nums"
-                      >
-                        {value}
-                      </Text>
-                    </Box>
-                  ))}
-                </Flex>
-
-                <Label display="block" mb={2}>
-                  Makes
-                </Label>
-                <Flex direction="column" gap={2}>
-                  {zone.products.map((product) => (
-                    <BarRow
-                      key={product.name}
-                      name={product.name}
-                      value={product.count}
-                      max={Math.max(...zone.products.map((p) => p.count), 1)}
-                      tone="steel"
-                      display={`${product.count}x`}
-                      nameWidth="150px"
-                    />
-                  ))}
-                </Flex>
-              </ZoneCard>
-            );
-          })}
+          {zones.map((zone) => (
+            <ZoneCard
+              key={zone.slug}
+              zone={zone}
+              plan={plan?.byZone.get(zone.id)}
+              selected={zone.id === selectedZoneId}
+              editing={zone.id === editingZoneId}
+              copied={copied}
+              onSelect={() => focusZone(zone.id)}
+              onEdit={(editing) => setEditingZoneId(editing ? zone.id : null)}
+              onRename={(name) => renameZone(zone, name)}
+              onCopyLink={copyLink}
+            />
+          ))}
         </Grid>
       </Box>
 
       <Box mt={9}>
-        <ChartFrame title="Zone size" note="machines per zone">
-          {view.zones.map((zone) => (
+        <ChartFrame title="Zone size" note="buildings that anchor each zone">
+          {zones.map((zone) => (
             <BarRow
               key={zone.id}
               name={zone.name}
-              value={zone.machines}
+              value={zone.machines + zone.support}
               max={maxZoneMachines}
               tone={zone.uptime === null ? 'muted' : uptimeTone(zone.uptime)}
-              display={`${zone.machines} · ${rate(zone.powerMW, 0)} MW`}
+              display={
+                zone.kind === 'production'
+                  ? `${zone.machines} · ${rate(zone.powerMW, 0)} MW`
+                  : `${zone.support} bldg`
+              }
             />
           ))}
         </ChartFrame>
-        <Text fontSize="13px" color="fg.subtle" mt={2.5}>
-          Zones are machines within 32 m of one another. Belts and poles are attached to whichever
-          zone they sit in rather than defining one — a single belt run would otherwise weld the
-          whole base into one blob.{' '}
-          {view.cluster.strays.length > 0
-            ? `${view.cluster.strays.length} lone machine${
-                view.cluster.strays.length === 1 ? '' : 's'
-              } sit too far from anything else to form a zone.`
+        <Text fontSize="13px" color="fg.subtle" mt={2.5} maxW="88ch">
+          Zones are buildings within 32 m of one another, clustered in two passes: machines define a
+          zone, and the miners and generators around them describe one. Doing it in a single pass
+          lets a line of burners weld two factory cells into one blob. Belts and poles are attached
+          to whichever zone they sit in.{' '}
+          {cluster.strays.length > 0
+            ? `${cluster.strays.length} lone machine${
+                cluster.strays.length === 1 ? '' : 's'
+              } sit too far from anything else to belong anywhere.`
             : ''}
         </Text>
       </Box>

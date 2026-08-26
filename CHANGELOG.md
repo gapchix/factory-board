@@ -60,6 +60,35 @@ All notable changes to this project are documented here. The format follows
 - **Leader lines.** A label with no room beside its mark now moves out a ring or two and
   keeps a line back to what it names, instead of being dropped.
 
+- **Power and extraction anchor zones.** A coal plant, a pump house and a mining outpost
+  are places you built, and they were being reported as buildings belonging to nothing.
+  Clustering runs in passes now, because letting them anchor alongside machines welds two
+  factory cells into one blob ([ADR 13](docs/adr/0013-zones-are-clustered-in-passes.md)).
+  On the reference save, 4 zones and a stray became 9 zones and none, with the production
+  zones unchanged.
+- **A save says what a miner pulls and what a generator burns.** `BuildingPlacement`
+  carries what the building is for, the resource it handles, and — for the extractors and
+  generators no production line covers — its own uptime. Classified from the properties a
+  building carries rather than from a list of class names.
+- **Zones are named for what they are for**: the product their machines mostly make, the
+  resource their extractors pull, or the fuel their generators burn. "Coal Power",
+  "Water", "Iron Ore".
+- **Zones can be named by hand.** The name is pinned to the ground rather than to a zone
+  id, so it survives the next autosave renumbering everything
+  ([ADR 14](docs/adr/0014-a-zone-reference-is-a-point.md)).
+- **Deep links to a zone.** `/base?zone=coal-power` focuses it on load, focusing one
+  writes the link, and renaming that zone moves the link with it.
+- **Plan targets are assigned to a zone**, so "build 6 more smelters" says _where_. Zone
+  cards show what the plan wants built there against what is already standing, and the
+  planner's line cards carry the zone they are destined for. Targets sharing a zone are
+  rounded up together, because two lines in one cell share a machine.
+- `AnchorPass` in `@factory-board/layout`: cluster in rounds, earlier passes first, a
+  later pass's cluster joining an earlier zone it sits wholly inside. `Zone` and
+  `ClusterResult` are generic over the placement type, so a caller gets its own richer
+  placements back on `anchors`.
+- 33 more tests, including the app's zone naming, pinning and plan-by-zone rules —
+  `apps/*/src/**/*.test.ts` is part of the suite now.
+
 ### Changed
 
 - **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls
@@ -77,6 +106,16 @@ All notable changes to this project are documented here. The format follows
   another and a label survives whatever it crosses.
 - A landmark no longer outranks a starving machine for label space. At a flat bonus a
   lookout tower took the room a cell running at 0% needed.
+- Landmarks on the map carry state in their outline wherever they measure any: a coal
+  generator at 67% reads amber, while the HUB and the Space Elevator stay grey.
+- Zone uptime folds in extractors and generators, so a zone of fuel-starved burners can
+  say so. It is worked out once, beside the zone cards, and handed to the map — the wash
+  and the card can no longer disagree about it.
+- The stored plan is version 2, carrying each target's zone. A v1 plan loads unchanged and
+  is rewritten as v2.
+- A lone machine standing inside a zone joins it instead of being counted as a stray. A
+  stray is one that is alone _and_ nowhere near anything, which is the thing worth
+  reporting.
 
 ### Fixed
 
@@ -119,6 +158,10 @@ All notable changes to this project are documented here. The format follows
 - Belts that pass through the view no longer vanish when both their ends leave it. Route
   points were filtered against the frame, which dropped the crossing segment; routes are
   now drawn whole and clipped.
+- The snapshot's Zod schema no longer strips fields it has not been told about. It knew
+  nothing of what a placement was for, so the board drew a base with no miners, no
+  generators and no coal plant out of a file that had all three — the same class of bug as
+  `powerRangeMW`, and it now carries the same compile-time key-completeness check.
 - `humanise` produces "Miner Mk.1" rather than "Miner Mk1". Its regex had been written
   with escape sequences that were interpreted before they reached the file, leaving two
   literal backspace bytes around a pattern that matched "Mkd".

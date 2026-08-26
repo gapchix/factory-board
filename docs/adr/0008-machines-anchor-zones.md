@@ -42,6 +42,11 @@ belt and how many poles sit in it, which is a fair proxy for how built-out it is
   an anchor today. Extending `isAnchor` to include power and extraction would give those
   their own zones, and is the obvious next step if it proves useful.
 
+  > **Taken up, but not that way.** Extending `isAnchor` welds the base together for the
+  > same reason belts do — generators and miners sit between cells and chain them. They
+  > anchor zones now, in a pass of their own; see
+  > [ADR 13](0013-zones-are-clustered-in-passes.md).
+
 ## A related trap, in the drawing rather than the clustering
 
 Fitting the map's viewBox to the world bounds looks right and is wrong twice over. One

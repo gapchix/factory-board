@@ -27,12 +27,12 @@ That gap — between the plan and the world — is what this project fills.
 
 ## The three views
 
-| View            | Answers                                        | Shows                                                                                                                                                                     |
-| --------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Overview**    | "How is the factory doing right now?"          | Bottlenecks ranked worst-first, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery                          |
-| **Base**        | "Where is everything, and where is it broken?" | A top-down map from the coordinates in the save, machines coloured by uptime, grouped into zones named after what they make                                               |
-| **Planner**     | "What am I building towards?"                  | The plan drawn as a flow — ore on the left, targets on the right, edge weight showing throughput — then one card per line with plan vs. built, and raw inputs and surplus |
-| **Progression** | "What have I unlocked?"                        | Milestone research by tier, then every milestone with its real cost                                                                                                       |
+| View            | Answers                                        | Shows                                                                                                                                                                                                            |
+| --------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**    | "How is the factory doing right now?"          | Bottlenecks ranked worst-first, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery                                                                 |
+| **Base**        | "Where is everything, and where is it broken?" | A top-down map from the coordinates in the save, machines coloured by uptime, grouped into zones named after what they make, extract or burn — nameable, linkable, and showing what the plan wants built in each |
+| **Planner**     | "What am I building towards?"                  | The plan drawn as a flow — ore on the left, targets on the right, edge weight showing throughput — then one card per line with plan vs. built, and raw inputs and surplus                                        |
+| **Progression** | "What have I unlocked?"                        | Milestone research by tier, then every milestone with its real cost                                                                                                                                              |
 
 Overview is the landing view on purpose: the question people open the tool with is
 "what is broken", not "let me start a plan". A save loads automatically where one is
@@ -115,6 +115,20 @@ that the parser hands the spline back in the order it read it.
 Pipes carry no such promise. Which way fluid moves depends on the pumps at either end, so
 they get no arrows.
 
+### Machines define a zone; miners and burners describe one
+
+A zone is the buildings within 32 m of one another, clustered in two rounds: machines
+with a recipe first, then extractors and generators. Clustering them together lets one
+kind bridge two zones of the other — a line of burners between two factory cells welds
+them into one, exactly as a belt run does
+([ADR 8](adr/0008-machines-anchor-zones.md), [ADR 13](adr/0013-zones-are-clustered-in-passes.md)).
+
+A zone is named after what it is for: the product its machines mostly make, the resource
+its extractors pull, or the fuel its generators burn. Anything the player names by hand
+overrides that, and every stored reference to a zone — a name, a plan target's
+assignment — is a point on the ground rather than an id, because ids are positional and
+the next autosave renumbers them ([ADR 14](adr/0014-a-zone-reference-is-a-point.md)).
+
 ### Presentation: status colour is reserved, and text never wears it
 
 Good / warning / critical mean machine state; they are never reused to tell series
@@ -141,6 +155,11 @@ They use unrelated numbering. Comparing them produces nonsense.
 
 Resource node **type and purity** are world-generation data, not save data — only mutated
 state is written. Any feature needing a node map has to source it elsewhere.
+
+What a **placed extractor** is producing is a different question, and the save does answer
+it: the miner's output buffer is locked to the ore it stands on, and reports it even when
+a belt has drained the last stack. Generators name their fuel outright. Neither says
+anything about the node underneath, or about the ones nobody has built on.
 
 ## Verification
 
