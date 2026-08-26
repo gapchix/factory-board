@@ -174,3 +174,109 @@ describe('groupNearby', () => {
     expect(groups.flat()).toHaveLength(3);
   });
 });
+
+/* ------------------------------------------------------------------ passes */
+
+const generator = (x: number, y: number): Placement => ({
+  machine: 'GeneratorCoal',
+  x,
+  y,
+  role: 'power',
+});
+
+const PASSES = [
+  { id: 'production', accepts: (p: Placement) => p.recipe !== undefined },
+  { id: 'support', accepts: (p: Placement) => p.role !== undefined, minAnchors: 1 },
+];
+
+describe('clusterZones · passes', () => {
+  // The regression that made passes necessary: on a real base, generators and
+  // miners standing between two factory cells chained them into one 109 m blob
+  // and the second cell lost its name.
+  it('does not let a later pass weld together two zones an earlier pass found', () => {
+    const dotted = [
+      generator(35, 0),
+      generator(65, 0),
+      generator(95, 0),
+      generator(125, 0),
+      generator(155, 0),
+      generator(185, 0),
+    ];
+    const world = [machine(0, 0), machine(10, 0), ...dotted, machine(200, 0), machine(210, 0)];
+
+    const welded = clusterZones(world, { isAnchor: (p) => p.recipe !== undefined || !!p.role });
+    expect(welded.zones).toHaveLength(1);
+
+    const separate = clusterZones(world, { passes: PASSES });
+    const production = separate.zones.filter((zone) => zone.pass === 'production');
+    expect(production).toHaveLength(2);
+    expect(production.map((zone) => zone.widthM)).toEqual([10, 10]);
+  });
+
+  it('lets a cluster that sits inside an earlier zone join it', () => {
+    const result = clusterZones([machine(0, 0), machine(10, 0), generator(15, 5)], {
+      passes: PASSES,
+    });
+    expect(result.zones).toHaveLength(1);
+    expect(result.zones[0]?.pass).toBe('production');
+    expect(result.zones[0]?.anchors).toHaveLength(3);
+    expect(result.zones[0]?.machineCounts['GeneratorCoal']).toBe(1);
+    // It joined a production zone, so it does not rename it.
+    expect(result.zones[0]?.dominantRecipe).toBe('r-iron-rod');
+  });
+
+  it('makes a zone of a cluster that stands apart, and says which pass found it', () => {
+    const result = clusterZones([machine(0, 0), machine(10, 0), generator(500, 500)], {
+      passes: PASSES,
+    });
+    expect(result.zones).toHaveLength(2);
+    expect(result.zones[1]?.pass).toBe('support');
+    expect(result.zones[1]?.anchors).toHaveLength(1);
+  });
+
+  it('gives a placement both passes would take to the earlier one', () => {
+    const both: Placement[] = [
+      { machine: 'SmelterMk1', x: 0, y: 0, recipe: 'r-ingot', role: 'production' },
+      { machine: 'SmelterMk1', x: 10, y: 0, recipe: 'r-ingot', role: 'production' },
+    ];
+    const result = clusterZones(both, { passes: PASSES });
+    expect(result.zones).toHaveLength(1);
+    expect(result.zones[0]?.pass).toBe('production');
+    expect(result.zones[0]?.anchors).toHaveLength(2);
+  });
+
+  it('holds a later pass to its own minimum, not the shared one', () => {
+    const world = [machine(0, 0), machine(10, 0), generator(900, 900)];
+    const strict = clusterZones(world, {
+      passes: [PASSES[0]!, { id: 'support', accepts: (p: Placement) => p.role !== undefined }],
+    });
+    expect(strict.zones).toHaveLength(1);
+    expect(strict.strays).toHaveLength(1);
+
+    const lenient = clusterZones(world, { passes: PASSES });
+    expect(lenient.zones).toHaveLength(2);
+    expect(lenient.strays).toEqual([]);
+  });
+
+  it('still reports one pass by default, so a single-pass caller sees no change', () => {
+    const result = clusterZones([machine(0, 0), machine(10, 0)]);
+    expect(result.zones[0]?.pass).toBe('default');
+  });
+});
+
+describe('clusterZones · leftovers', () => {
+  // Standing inside a zone is enough to belong to it. What makes a stray is
+  // being alone *and* nowhere near anything, which is what is worth reporting.
+  it('takes in a lone anchor standing inside a zone rather than calling it a stray', () => {
+    const result = clusterZones([machine(0, 0), machine(10, 0), machine(40, 30)]);
+    expect(result.zones).toHaveLength(1);
+    expect(result.zones[0]?.anchors).toHaveLength(3);
+    expect(result.strays).toEqual([]);
+  });
+
+  it('still leaves one out on its own as a stray', () => {
+    const result = clusterZones([machine(0, 0), machine(10, 0), machine(900, 900)]);
+    expect(result.zones).toHaveLength(1);
+    expect(result.strays).toHaveLength(1);
+  });
+});
