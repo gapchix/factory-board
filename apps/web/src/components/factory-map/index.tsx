@@ -1,11 +1,12 @@
 'use client';
 
-import { Box, Button, Flex, Text } from '@chakra-ui/react';
+import { Box, Button, chakra, Flex, Text } from '@chakra-ui/react';
 import { frameContent, joinRuns } from '@factory-board/layout';
 import type { GameDatabase } from '@factory-board/planner';
 import type { WorldSnapshot } from '@factory-board/save-reader';
 import { Application } from 'pixi.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { traceChain, type Chain, type ChainStep } from '@/lib/chain';
 import { buildingName, itemName } from '@/lib/format';
 import type { ZoneView } from '@/lib/zones';
 import { uptimeTone, type StatusTone } from '../charts';
@@ -125,6 +126,10 @@ export default function FactoryMap({
     content: MapCardContent;
     at: MapCardPlacement;
   } | null>(null);
+  const [chain, setChain] = useState<Chain | null>(null);
+  /** The scene is rebuilt when the theme changes, and has to be told again. */
+  const chainRef = useRef<Chain | null>(null);
+  chainRef.current = chain;
 
   /* ------------------------------------------------------------- the data */
 
@@ -139,10 +144,10 @@ export default function FactoryMap({
       )?.id;
 
     const buildings: SceneBuilding[] = [];
-    for (const placement of snapshot.placements) {
-      if (DRAWN_AS_ROUTE.test(placement.machine)) continue;
+    snapshot.placements.forEach((placement, index) => {
+      if (DRAWN_AS_ROUTE.test(placement.machine)) return;
       const footprint = db.buildings[placement.machine]?.footprintM;
-      if (!footprint) continue;
+      if (!footprint) return;
 
       const line = placement.recipe ? snapshot.lines[placement.recipe] : undefined;
       const product = placement.recipe ? db.recipes[placement.recipe]?.outputs[0]?.item : undefined;
@@ -150,6 +155,7 @@ export default function FactoryMap({
       const resource = placement.resource ? itemName(db, placement.resource) : undefined;
 
       buildings.push({
+        index,
         x: placement.x,
         y: placement.y,
         w: footprint.width,
@@ -161,10 +167,16 @@ export default function FactoryMap({
         name: product ? itemName(db, product) : machine,
         detail: placement.recipe ? machine : (resource ?? ''),
       });
-    }
+    });
     // The floor first, so everything else stands on it.
     buildings.sort((a, b) => Number(FLOOR.test(b.detail)) - Number(FLOOR.test(a.detail)));
 
+    /*
+     * Routes are drawn as the runs they are — joined where they continue — but
+     * a chain lights up the belts it actually runs through, and those are the
+     * objects the save connected. So both go in: joined runs to draw, and each
+     * object's own run, which is drawn only when a chain lights it.
+     */
     const byKind = {
       belt: [] as (readonly (readonly [number, number])[])[],
       pipe: [] as (readonly (readonly [number, number])[])[],
@@ -184,9 +196,24 @@ export default function FactoryMap({
         uptime: zone.uptime,
       })),
       routes: [
-        ...byKind.power.map((points) => ({ kind: 'power' as const, points })),
-        ...joinRuns(byKind.pipe).map((points) => ({ kind: 'pipe' as const, points })),
-        ...joinRuns(byKind.belt).map((points) => ({ kind: 'belt' as const, points })),
+        ...byKind.power.map((points) => ({
+          kind: 'power' as const,
+          points,
+          building: undefined,
+        })),
+        ...joinRuns(byKind.pipe).map((points) => ({
+          kind: 'pipe' as const,
+          points,
+          building: undefined,
+        })),
+        ...joinRuns(byKind.belt).map((points) => ({
+          kind: 'belt' as const,
+          points,
+          building: undefined,
+        })),
+        ...snapshot.paths
+          .filter((path) => path.kind !== 'power' && path.building !== undefined)
+          .map((path) => ({ kind: path.kind, points: path.points, building: path.building })),
       ],
     };
   }, [db, snapshot, zones]);
@@ -285,6 +312,7 @@ export default function FactoryMap({
       }
       scene.update(cameraRef.current, width, height);
       scene.highlight(null, selectedZoneId);
+      scene.spotlight(chainRef.current?.members ?? null);
       setStatus('drawn');
 
       instance.ticker.add((ticker) => {
@@ -491,6 +519,16 @@ export default function FactoryMap({
     });
   };
 
+  const showChain = useCallback((next: Chain | null) => {
+    setChain(next);
+    sceneRef.current?.spotlight(next?.members ?? null);
+  }, []);
+
+  /**
+   * A machine is a question — what feeds this? — so clicking one traces it.
+   * The ground is not a question, so it picks out the zone you clicked in, or
+   * clears everything where there is none.
+   */
   const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     dragRef.current = null;
@@ -498,13 +536,40 @@ export default function FactoryMap({
     const at = worldAt(event.clientX, event.clientY);
     if (!at) return;
     const building = buildingAt(at.x, at.y);
-    onSelectZone(building?.zoneId && building.zoneId !== selectedZoneId ? building.zoneId : null);
+
+    if (building) {
+      const traced = traceChain(db, snapshot, building.index);
+      showChain(traced && traced.members.size > 1 ? traced : null);
+      return;
+    }
+
+    showChain(null);
+    const zone = zones.find(
+      (candidate) =>
+        at.x >= candidate.bounds.minX &&
+        at.x <= candidate.bounds.maxX &&
+        at.y >= candidate.bounds.minY &&
+        at.y <= candidate.bounds.maxY,
+    );
+    onSelectZone(zone && zone.id !== selectedZoneId ? zone.id : null);
+  };
+
+  /** Take me to that one. */
+  const flyTo = (index: number) => {
+    const placement = snapshot.placements[index];
+    if (!placement) return;
+    targetRef.current = clamp({
+      x: placement.x,
+      y: placement.y,
+      scale: Math.max(cameraRef.current.scale, 6),
+    });
   };
 
   const reset = () => {
     targetRef.current = { ...homeRef.current };
     setZoom(1);
     setHovered(null);
+    showChain(null);
   };
 
   const metresPerStep = niceStep(cameraRef.current.scale || 1);
@@ -568,6 +633,8 @@ export default function FactoryMap({
             </Text>
           </Flex>
         ) : null}
+
+        {chain ? <ChainPanel chain={chain} onGo={flyTo} onClose={() => showChain(null)} /> : null}
 
         {hovered ? <MapCard content={hovered.content} at={hovered.at} /> : null}
 
@@ -655,5 +722,182 @@ function MapButton({
     >
       {children}
     </Button>
+  );
+}
+
+/*
+ * Buttons come from the chakra factory rather than `as="button"`: the
+ * polymorphic prop keeps the div's attribute set, and a button needs `type`.
+ * See AGENTS.md.
+ */
+const RowButton = chakra('button', {
+  base: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '8px',
+    width: '100%',
+    textAlign: 'start',
+    py: 0.5,
+    cursor: 'pointer',
+    _hover: { bg: 'bg.muted' },
+    _focusVisible: { outline: '2px solid', outlineColor: 'accent.solid', outlineOffset: '-2px' },
+  },
+});
+
+const PlainButton = chakra('button', {
+  base: {
+    cursor: 'pointer',
+    textAlign: 'start',
+    _focusVisible: { outline: '2px solid', outlineColor: 'accent.solid', outlineOffset: '1px' },
+  },
+});
+
+const pct = (uptime: number | null) => (uptime === null ? '—' : `${Math.round(uptime * 100)}%`);
+
+const toneOf = (uptime: number | null): string =>
+  uptime === null ? 'fg.subtle' : `status.${uptimeTone(uptime)}`;
+
+/** One machine in the chain: click it and the camera goes there. */
+function ChainRow({ step, onGo }: { step: ChainStep; onGo: (index: number) => void }) {
+  return (
+    <RowButton type="button" onClick={() => onGo(step.index)}>
+      <Text fontFamily="mono" fontSize="10px" color="fg.subtle" w="14px" flex="none">
+        {step.hops}
+      </Text>
+      <Text fontSize="12.5px" flex="1" truncate>
+        {step.name}
+      </Text>
+      <Box w="6px" h="6px" flex="none" bg={toneOf(step.uptime)} alignSelf="center" />
+      <Text
+        fontFamily="mono"
+        fontSize="11px"
+        color="fg.muted"
+        w="34px"
+        textAlign="end"
+        flex="none"
+        fontVariantNumeric="tabular-nums"
+      >
+        {pct(step.uptime)}
+      </Text>
+    </RowButton>
+  );
+}
+
+/** How many of a list to show before it stops being a list and becomes a wall. */
+const SHOWN = 10;
+
+/**
+ * What feeds the machine you clicked, and what it feeds.
+ *
+ * The weakest link comes first because it is the answer: everything else is
+ * the working out.
+ */
+function ChainPanel({
+  chain,
+  onGo,
+  onClose,
+}: {
+  chain: Chain;
+  onGo: (index: number) => void;
+  onClose: () => void;
+}) {
+  const section = (title: string, steps: readonly ChainStep[]) =>
+    steps.length === 0 ? null : (
+      <Box mt={3}>
+        <Label display="block" mb={1}>
+          {title}
+        </Label>
+        {steps.slice(0, SHOWN).map((step) => (
+          <ChainRow key={`${title}-${step.index}`} step={step} onGo={onGo} />
+        ))}
+        {steps.length > SHOWN ? (
+          <Text fontFamily="mono" fontSize="10px" color="fg.subtle" mt={1}>
+            …and {steps.length - SHOWN} more
+          </Text>
+        ) : null}
+      </Box>
+    );
+
+  return (
+    <Box
+      position="absolute"
+      top="10px"
+      left="10px"
+      w="266px"
+      maxH="calc(100% - 20px)"
+      overflowY="auto"
+      bg="bg.surface"
+      borderWidth="1px"
+      borderColor="fg.muted"
+      px={3.5}
+      py={3}
+      zIndex={2}
+      // The panel is a thing in its own right; clicking it is not clicking the
+      // ground behind it.
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onPointerMove={(event) => event.stopPropagation()}
+    >
+      <Flex align="baseline" gap={2} mb={2}>
+        <Label>The chain</Label>
+        <Box flex="1" />
+        <PlainButton
+          type="button"
+          fontFamily="mono"
+          fontSize="11px"
+          color="fg.subtle"
+          _hover={{ color: 'fg.default' }}
+          aria-label="Clear the chain"
+          onClick={onClose}
+        >
+          ✕
+        </PlainButton>
+      </Flex>
+
+      <Text fontSize="14px" fontWeight="600" lineHeight="1.25" truncate>
+        {chain.origin.name}
+      </Text>
+      <Flex align="center" gap={2}>
+        <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" truncate flex="1">
+          {chain.origin.detail}
+        </Text>
+        <Box w="6px" h="6px" bg={toneOf(chain.origin.uptime)} flex="none" />
+        <Text fontFamily="mono" fontSize="11px" color="fg.muted" fontVariantNumeric="tabular-nums">
+          {pct(chain.origin.uptime)}
+        </Text>
+      </Flex>
+
+      {chain.weakest ? (
+        <PlainButton
+          type="button"
+          display="block"
+          w="100%"
+          mt={3}
+          px={2.5}
+          py={2}
+          bg="status.critSubtle"
+          borderLeftWidth="3px"
+          borderColor="status.crit"
+          onClick={() => onGo(chain.weakest?.index ?? chain.origin.index)}
+        >
+          <Label display="block" color="fg.default">
+            Weakest link
+          </Label>
+          <Text fontSize="13px" fontWeight="600" mt={0.5} truncate>
+            {chain.weakest.name} · {pct(chain.weakest.uptime)}
+          </Text>
+          <Text fontFamily="mono" fontSize="10.5px" color="fg.muted">
+            {chain.weakest.hops} machine{chain.weakest.hops === 1 ? '' : 's'} back · go there
+          </Text>
+        </PlainButton>
+      ) : (
+        <Text fontSize="12.5px" color="fg.subtle" mt={3}>
+          Nothing feeding this is running worse than it is.
+        </Text>
+      )}
+
+      {section('Feeding it', chain.upstream)}
+      {section('It feeds', chain.downstream)}
+    </Box>
   );
 }

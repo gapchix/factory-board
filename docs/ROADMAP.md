@@ -145,6 +145,31 @@ Next for it, in rough order: showing what a machine is _making_ rather than only
 is doing, drawing the belts a run at a time so a whole route can be traced, and the
 clearance boxes that sit off-centre.
 
+### B6. Trace the chain · shipped
+
+The board could say a line was at 60%. It could not say why — which is the question a
+player actually has.
+
+The save answers it. Every connection component names the one it is plugged into, and
+every connection is declared from both ends: 422 of them on the reference save, none
+one-way. So `WorldSnapshot` now carries **what feeds what**, and clicking a machine on the
+factory map lights its whole chain — what feeds it, what it feeds — and fogs the rest of
+the base ([ADR 18](adr/0018-the-save-says-what-feeds-what.md)).
+
+The panel names the **weakest link**: the worst-running thing upstream, how many machines
+back it is, and a button that takes the camera there. It says nothing when nothing
+upstream is running worse than the machine asked about, because then the trouble is here.
+Tried on the reference save, clicking a smelter at 83% names the iron miner feeding it at
+67%, and follows its output four machines downstream to Smart Plating sitting at 0%.
+
+Belts, splitters and mergers are walked through rather than counted, so a hop is a
+machine. Pipes are walked in both directions, because which way fluid moves depends on
+the pumps — which is how a water extractor is found behind a coal generator.
+
+Next for the chain: the same thing on the schematic map, which has nowhere to put the
+panel yet; and rates rather than uptimes, once the throughput of a belt can be worked out
+rather than guessed.
+
 ### B2. Zones — the rest · shipped
 
 **Power and extraction anchor zones.** A coal plant, a pump house and a mining outpost

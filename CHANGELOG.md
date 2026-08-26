@@ -141,6 +141,21 @@ All notable changes to this project are documented here. The format follows
   factory view is opened.
 - 19 more tests, over the clearance boxes, the yaw and the rotated-rectangle maths.
 
+- **Trace the chain.** Click a machine on the factory map and it lights everything that
+  feeds it and everything it feeds, fogging the rest of the base. The panel names the
+  **weakest link** — the worst-running thing upstream, how many machines back — and takes
+  the camera there. It says nothing when nothing upstream is running worse, because then
+  the trouble is where you clicked
+  ([ADR 18](docs/adr/0018-the-save-says-what-feeds-what.md)).
+- **`WorldSnapshot.links`** — what feeds what, from the connections the save records.
+  Every connection is declared from both ends (422 of them on the reference save, none
+  one-way), and direction comes out of the component names rather than out of geometry.
+  Pipes are undirected, because which way fluid moves depends on the pumps.
+- **`BuildingPath.building`** — the belt or pipe that drew each route, so a chain can
+  light the exact runs it passes through.
+- Clicking the ground on the factory map picks out the zone you clicked in; clicking a
+  machine traces it. 12 more tests.
+
 ### Changed
 
 - **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls

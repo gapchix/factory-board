@@ -1,5 +1,6 @@
 import type {
   ActualLine,
+  BuildingLink,
   BuildingPath,
   BuildingPlacement,
   WorldSnapshot,
@@ -38,6 +39,13 @@ const placementSchema = z.object({
 const pathSchema = z.object({
   kind: z.enum(['belt', 'pipe', 'power']),
   points: z.array(z.tuple([z.number(), z.number()])),
+  building: z.number().int().nonnegative().optional(),
+});
+
+const linkSchema = z.object({
+  from: z.number().int().nonnegative(),
+  to: z.number().int().nonnegative(),
+  kind: z.enum(['belt', 'pipe']),
 });
 
 const snapshotSchema = z.object({
@@ -49,6 +57,7 @@ const snapshotSchema = z.object({
   buildings: z.record(z.string(), z.number().int().nonnegative()),
   placements: z.array(placementSchema),
   paths: z.array(pathSchema),
+  links: z.array(linkSchema),
   milestones: z.array(z.string()),
   phase: z
     .object({
@@ -82,9 +91,10 @@ const _placementKeys: AssertNoMissingKeys<
   z.infer<typeof placementSchema>
 > = true;
 const _pathKeys: AssertNoMissingKeys<BuildingPath, z.infer<typeof pathSchema>> = true;
+const _linkKeys: AssertNoMissingKeys<BuildingLink, z.infer<typeof linkSchema>> = true;
 const _snapshotKeys: AssertNoMissingKeys<WorldSnapshot, z.infer<typeof snapshotSchema>> = true;
 
-void [_lineKeys, _placementKeys, _pathKeys, _snapshotKeys];
+void [_lineKeys, _placementKeys, _pathKeys, _linkKeys, _snapshotKeys];
 
 const envelopeSchema = z.discriminatedUnion('present', [
   z.object({ present: z.literal(false) }),

@@ -61,6 +61,7 @@ const world = (placements: BuildingPlacement[]): WorldSnapshot => ({
   buildings: {},
   placements,
   paths: [],
+  links: [],
   milestones: [],
   phase: null,
   objectCount: placements.length,

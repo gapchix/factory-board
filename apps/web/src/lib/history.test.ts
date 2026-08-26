@@ -73,6 +73,7 @@ const world = (over: Partial<WorldSnapshot> = {}): WorldSnapshot => ({
   buildings: {},
   placements: [],
   paths: [],
+  links: [],
   milestones: [],
   phase: null,
   objectCount: 0,

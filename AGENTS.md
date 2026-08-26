@@ -46,6 +46,11 @@ integration tests skip and the web app refuses to build with instructions.
   connection to output, so point order is the direction items travel — the map's
   direction chevrons depend on it. Checked against miners, the one building that can only
   be a source. Pipes carry no such promise and get no arrows.
+- **What feeds what is read, not inferred.** Every connection component names the one it
+  is plugged into, from both ends. A belt's `ConveyorAny0` is the end items arrive at and
+  `ConveyorAny1` the end they leave by; a splitter's `Connection0..3` say nothing, and the
+  belt on the other side always does.
+  [ADR 18](docs/adr/0018-the-save-says-what-feeds-what.md)
 - **Machines define a zone; miners and burners describe one.** They are clustered in
   separate passes because one kind bridges the other's zones — generators dotted between
   two factory cells welded them into a 109 m blob.

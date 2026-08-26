@@ -116,6 +116,22 @@ that the parser hands the spline back in the order it read it.
 Pipes carry no such promise. Which way fluid moves depends on the pumps at either end, so
 they get no arrows.
 
+### The factory is a graph, and the save draws it
+
+Every connection component names the one it is plugged into, from both ends. Direction
+comes out of the names — a belt's `ConveyorAny0` is the end items arrive at, `ConveyorAny1`
+the end they leave by, and a machine names its `Input` and `Output` ports — so what feeds
+what is read rather than inferred from which belt ends near which machine. Splitters and
+mergers name their ports `Connection0..3` and say nothing; the belt on the other side of
+the link always does ([ADR 18](adr/0018-the-save-says-what-feeds-what.md)).
+
+Pipes carry no direction, for the same reason they carry no arrows: which way fluid moves
+depends on the pumps at either end.
+
+Belts, splitters and mergers are walked _through_ when tracing a chain, never counted: a
+hop is a machine. And the weakest link upstream is only named when it is running worse
+than the machine asked about — a supply at 98% explains nothing.
+
 ### Machines define a zone; miners and burners describe one
 
 A zone is the buildings within 32 m of one another, clustered in two rounds: machines

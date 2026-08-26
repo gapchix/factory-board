@@ -47,6 +47,8 @@ export interface Palette {
 export type BuildingKind = 'production' | 'extraction' | 'power' | 'other';
 
 export interface SceneBuilding {
+  /** Index into the snapshot's placements, which is what a chain is made of. */
+  readonly index: number;
   /** Centre, in world metres. */
   readonly x: number;
   readonly y: number;
@@ -75,6 +77,8 @@ export interface SceneZone {
 export interface SceneRoute {
   readonly kind: 'belt' | 'pipe' | 'power';
   readonly points: readonly (readonly [number, number])[];
+  /** The belt or pipe that drew it, so a chain can light up that exact run. */
+  readonly building: number | undefined;
 }
 
 export interface SceneData {
@@ -120,6 +124,10 @@ export interface Scene {
   update(camera: Camera, width: number, height: number): void;
   /** Ring the building under the pointer, and the selected zone. */
   highlight(building: SceneBuilding | null, zoneId: string | null): void;
+  /**
+   * Light one chain and dim the rest of the base, or clear it with null.
+   */
+  spotlight(members: ReadonlySet<number> | null): void;
   /** Walk the belts along by however long the last frame took. */
   advance(seconds: number): void;
   destroy(): void;
@@ -144,10 +152,23 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
   const shapes = new Graphics();
   const rings = new Graphics();
   const labels = new Container();
+  const fog = new Graphics();
+  const chainLayer = new Graphics();
   const grid = new Graphics();
 
   overlay.addChild(grid);
-  world.addChild(zoneShapes, routes, flowLayer, shadows, shapes, edges, rings, labels);
+  world.addChild(
+    zoneShapes,
+    routes,
+    flowLayer,
+    shadows,
+    shapes,
+    edges,
+    labels,
+    fog,
+    chainLayer,
+    rings,
+  );
 
   /* ---------------------------------------------------------------- zones */
 
@@ -244,6 +265,28 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
       .fill({ color: solid, alpha: building.kind === 'other' ? 0.42 : 0.82 });
   }
 
+  /* ------------------------------------------------------------ the chain */
+
+  {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const building of data.buildings) {
+      minX = Math.min(minX, building.x);
+      minY = Math.min(minY, building.y);
+      maxX = Math.max(maxX, building.x);
+      maxY = Math.max(maxY, building.y);
+    }
+    const pad = 20000;
+    if (Number.isFinite(minX)) {
+      fog
+        .rect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2)
+        .fill({ color: palette.surface, alpha: 0.74 });
+    }
+  }
+  fog.visible = false;
+
   /* ---------------------------------------------------------------- names */
 
   const zoneLabels: { text: Text; x: number; y: number }[] = [];
@@ -307,13 +350,11 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
         .stroke({ color: toneOf(palette, zone.uptime).solid, width: hair * 1.2, alpha: 0.6 });
     }
     for (const building of data.buildings) {
-      edges
-        .poly(cornersOf(building))
-        .stroke({
-          color: palette.ink,
-          width: hair,
-          alpha: building.kind === 'other' ? 0.22 : 0.34,
-        });
+      edges.poly(cornersOf(building)).stroke({
+        color: palette.ink,
+        width: hair,
+        alpha: building.kind === 'other' ? 0.22 : 0.34,
+      });
     }
   };
 
@@ -375,6 +416,49 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
     // worse, so both give way and the shape stands alone.
     shadows.visible = camera.scale >= MIN_DRAWN_PX / 4;
     flowLayer.visible = camera.scale >= 1.2;
+    if (chain && Math.abs(camera.scale - chainScale) > 1e-4) drawChain(camera.scale);
+  };
+
+  let chain: ReadonlySet<number> | null = null;
+  let chainScale = 0;
+
+  const drawChain = (scale: number) => {
+    chainScale = scale;
+    chainLayer.clear();
+    if (!chain) return;
+    const hair = 1 / scale;
+
+    for (const route of data.routes) {
+      if (route.building === undefined || !chain.has(route.building)) continue;
+      const [first, ...rest] = route.points;
+      if (!first) continue;
+      chainLayer.moveTo(first[0], first[1]);
+      for (const [x, y] of rest) chainLayer.lineTo(x, y);
+      chainLayer.stroke({
+        color: palette.accent,
+        width: route.kind === 'pipe' ? 1.3 : 1.2,
+        alpha: 0.95,
+        cap: 'round',
+        join: 'round',
+      });
+    }
+
+    for (const building of data.buildings) {
+      if (!chain.has(building.index)) continue;
+      const tone = toneOf(palette, building.uptime);
+      chainLayer
+        .poly(cornersOf(building))
+        .fill({ color: building.kind === 'other' ? palette.muted : tone.solid, alpha: 0.95 })
+        .stroke({ color: palette.accent, width: hair * 1.8, alpha: 0.95 });
+    }
+  };
+
+  const spotlight = (members: ReadonlySet<number> | null) => {
+    chain = members;
+    fog.visible = members !== null;
+    // Names belong to the base, not to the chain: dim them with it.
+    labels.alpha = members === null ? 1 : 0.3;
+    drawChain(lastCamera.scale || 1);
   };
 
   const highlight = (building: SceneBuilding | null, zoneId: string | null) => {
@@ -427,6 +511,7 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
     overlay,
     update,
     highlight,
+    spotlight,
     advance,
     destroy() {
       texture.destroy(true);
