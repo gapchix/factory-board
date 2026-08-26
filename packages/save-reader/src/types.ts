@@ -41,6 +41,13 @@ export interface BuildingPlacement {
   readonly z: number;
   /** Set when the building is a manufacturer with a recipe selected. */
   readonly recipe?: RecipeId | undefined;
+  /**
+   * Which way it faces, in degrees clockwise from north, seen from above.
+   *
+   * The save stores a full quaternion; this is the yaw taken out of it, which
+   * is all a top-down drawing can use. Absent where the transform did not say.
+   */
+  readonly facing?: number | undefined;
   /** Absent for anything that neither makes, extracts nor burns — storage, walls, belts. */
   readonly role?: BuildingRole | undefined;
   /**

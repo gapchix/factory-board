@@ -501,3 +501,44 @@ describe('analyzeSave · when the save was written', () => {
     expect(analyzeSave(save([])).savedAt).toBeNull();
   });
 });
+
+describe('analyzeSave · which way a building faces', () => {
+  const placed = (rotation: Record<string, number>): RawSaveObject => ({
+    typePath: '/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C',
+    transform: { translation: { x: 0, y: 0, z: 0 }, rotation },
+    properties: {},
+  });
+
+  // A quaternion about the vertical axis: (0, 0, sin(θ/2), cos(θ/2)).
+  const yaw = (degrees: number) => {
+    const half = ((degrees / 2) * Math.PI) / 180;
+    return { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
+  };
+
+  it('takes the yaw out of the quaternion, in degrees', () => {
+    expect(analyzeSave(save([placed(yaw(0))])).placements[0]?.facing).toBe(0);
+    expect(analyzeSave(save([placed(yaw(90))])).placements[0]?.facing).toBe(90);
+    expect(analyzeSave(save([placed(yaw(180))])).placements[0]?.facing).toBe(180);
+  });
+
+  it('reports a quarter turn the other way as 270, not as minus 90', () => {
+    expect(analyzeSave(save([placed(yaw(-90))])).placements[0]?.facing).toBe(270);
+  });
+
+  // Only the rotation about the vertical axis means anything to a drawing seen
+  // from above: a machine tilted on a ramp stands on the same ground.
+  it('ignores a tilt, keeping the heading', () => {
+    const tilted = { x: 0.2588, y: 0, z: 0, w: 0.9659 }; // 30° about X
+    expect(analyzeSave(save([placed(tilted)])).placements[0]?.facing).toBe(0);
+  });
+
+  it('says nothing where the transform does not', () => {
+    const noRotation: RawSaveObject = {
+      typePath:
+        '/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C',
+      transform: { translation: { x: 0, y: 0, z: 0 } },
+      properties: {},
+    };
+    expect(analyzeSave(save([noRotation])).placements[0]?.facing).toBeUndefined();
+  });
+});

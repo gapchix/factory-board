@@ -202,7 +202,8 @@ const YEAR_2000 = 946684800000;
 const YEAR_2100 = 4102444800000;
 
 function epochMillis(value: unknown): number | null {
-  const parsed = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
+  const parsed =
+    typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
   if (!Number.isFinite(parsed) || parsed < YEAR_2000 || parsed > YEAR_2100) return null;
   return Math.round(parsed);
 }
@@ -242,6 +243,28 @@ function inventoryItem(properties: Record<string, unknown> | undefined): string 
     if (id) return id;
   }
   return undefined;
+}
+
+/**
+ * The yaw of a placement's quaternion, in degrees clockwise from north.
+ *
+ * Only the rotation about the vertical axis survives, because only that one
+ * means anything to a drawing seen from above — a building tilted on a ramp is
+ * still the same rectangle of ground.
+ */
+function facingDegrees(transform: RawSaveObject['transform']): number | undefined {
+  const q = transform?.rotation;
+  const x = num(q?.x);
+  const y = num(q?.y);
+  const z = num(q?.z);
+  const w = num(q?.w);
+  if (x === undefined || y === undefined || z === undefined || w === undefined) return undefined;
+  const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+  const degrees = (yaw * 180) / Math.PI;
+  // Rounded to a tenth: the game snaps most things to whole degrees, and this
+  // rides on every placement in the file.
+  const wrapped = ((degrees % 360) + 360) % 360;
+  return Math.round(wrapped * 10) / 10;
 }
 
 /** `…Build_MinerMk1_C_2147250059.OutputInventory` → the miner that owns it. */
@@ -362,12 +385,14 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
           // and repeating it per placement would grow every save by a smelter.
           const uptime =
             role === 'extraction' || role === 'power' ? measuredUptime(properties) : undefined;
+          const facing = facingDegrees(object.transform);
           placements.push({
             machine: id,
             x: Math.round(x / CM_PER_METRE),
             y: Math.round(y / CM_PER_METRE),
             z: Math.round(z / CM_PER_METRE),
             ...(recipe ? { recipe } : {}),
+            ...(facing === undefined ? {} : { facing }),
             ...(role ? { role } : {}),
             ...(uptime === undefined ? {} : { uptime }),
           });
