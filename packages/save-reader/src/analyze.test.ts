@@ -327,3 +327,155 @@ describe('analyzeSave · routes', () => {
     expect(snapshot.paths[0]?.kind).toBe('pipe');
   });
 });
+
+/* ------------------------------------------------------------------- roles */
+
+const instance = (name: string) => `Persistent_Level:PersistentLevel.${name}`;
+const classPath = (id: string) => `/Game/FactoryGame/Resource/${id}.${id}_C`;
+
+const miner = (
+  name: string,
+  extra: Record<string, unknown> = {},
+  buildClass = 'MinerMk1',
+): RawSaveObject => ({
+  instanceName: instance(name),
+  typePath: `/Game/FactoryGame/Buildable/Factory/${buildClass}/Build_${buildClass}.Build_${buildClass}_C`,
+  transform: { translation: { x: 0, y: 0, z: 0 } },
+  properties: {
+    mExtractableResource: objectProp(instance('BP_ResourceNode551')),
+    ...extra,
+  },
+});
+
+const generator = (
+  name: string,
+  fuel: string | undefined,
+  extra: Record<string, unknown> = {},
+): RawSaveObject => ({
+  instanceName: instance(name),
+  typePath:
+    '/Game/FactoryGame/Buildable/Factory/GeneratorCoal/Build_GeneratorCoal.Build_GeneratorCoal_C',
+  transform: { translation: { x: 0, y: 0, z: 0 } },
+  properties: {
+    mFuelInventory: objectProp(instance(`${name}.FuelInventory`)),
+    ...(fuel ? { mCurrentFuelClass: objectProp(classPath(fuel)) } : {}),
+    ...extra,
+  },
+});
+
+/** An inventory component, stored as an object of its own next to its owner. */
+const inventory = (
+  owner: string,
+  child: 'OutputInventory' | 'FuelInventory',
+  { holding, accepts }: { holding?: string; accepts?: string },
+): RawSaveObject => ({
+  instanceName: instance(`${owner}.${child}`),
+  typePath: '/Script/FactoryGame.FGInventoryComponent',
+  properties: {
+    ...(holding
+      ? {
+          mInventoryStacks: {
+            values: [
+              {
+                properties: {
+                  Item: { value: { itemReference: { pathName: classPath(holding) } } },
+                },
+              },
+            ],
+          },
+        }
+      : {}),
+    ...(accepts ? { mAllowedItemDescriptors: { values: [{ pathName: classPath(accepts) }] } } : {}),
+  },
+});
+
+describe('analyzeSave · what a building is for', () => {
+  it('reads the ore a miner is pulling out of its node', () => {
+    const snapshot = analyzeSave(
+      save([
+        miner('Build_MinerMk1_C_1'),
+        inventory('Build_MinerMk1_C_1', 'OutputInventory', { holding: 'Desc_OreIron' }),
+      ]),
+    );
+    expect(snapshot.placements[0]?.role).toBe('extraction');
+    expect(snapshot.placements[0]?.resource).toBe('Desc_OreIron_C');
+  });
+
+  // A miner whose belt has drained the buffer has no stack left to read, and
+  // that is the normal state of a working miner.
+  it('names the ore from an empty output buffer too', () => {
+    const snapshot = analyzeSave(
+      save([
+        miner('Build_MinerMk1_C_1'),
+        inventory('Build_MinerMk1_C_1', 'OutputInventory', { accepts: 'Desc_Stone' }),
+      ]),
+    );
+    expect(snapshot.placements[0]?.resource).toBe('Desc_Stone_C');
+  });
+
+  it('resolves an inventory stored before the building that owns it', () => {
+    const snapshot = analyzeSave(
+      save([
+        inventory('Build_MinerMk1_C_1', 'OutputInventory', { holding: 'Desc_OreCopper' }),
+        miner('Build_MinerMk1_C_1'),
+      ]),
+    );
+    expect(snapshot.placements[0]?.resource).toBe('Desc_OreCopper_C');
+  });
+
+  it('reads the fuel a generator is burning', () => {
+    const snapshot = analyzeSave(save([generator('Build_GeneratorCoal_C_1', 'Desc_Coal')]));
+    expect(snapshot.placements[0]?.role).toBe('power');
+    expect(snapshot.placements[0]?.resource).toBe('Desc_Coal_C');
+  });
+
+  it('falls back to the fuel inventory when the burner is between loads', () => {
+    const snapshot = analyzeSave(
+      save([
+        generator('Build_GeneratorCoal_C_1', undefined),
+        inventory('Build_GeneratorCoal_C_1', 'FuelInventory', { holding: 'Desc_Biofuel' }),
+      ]),
+    );
+    expect(snapshot.placements[0]?.resource).toBe('Desc_Biofuel_C');
+  });
+
+  it('keeps the uptime of buildings no production line covers', () => {
+    const snapshot = analyzeSave(
+      save([
+        miner('Build_MinerMk1_C_1', withUptime(150, 300)),
+        generator('Build_GeneratorCoal_C_1', 'Desc_Coal', withUptime(200, 300)),
+      ]),
+    );
+    expect(snapshot.placements[0]?.uptime).toBeCloseTo(0.5, 6);
+    expect(snapshot.placements[1]?.uptime).toBeCloseTo(2 / 3, 6);
+  });
+
+  // A machine's productivity is already averaged into its line, and repeating
+  // it on every placement would grow the snapshot by a smelter per smelter.
+  it('does not repeat a machine uptime that lines already carry', () => {
+    const snapshot = analyzeSave(
+      save([
+        {
+          ...machine('SmelterMk1', 'Recipe_IngotIron', withUptime(150, 300)),
+          transform: { translation: { x: 0, y: 0, z: 0 } },
+        },
+      ]),
+    );
+    expect(snapshot.placements[0]?.role).toBe('production');
+    expect(snapshot.placements[0]?.uptime).toBeUndefined();
+    expect(snapshot.lines['Recipe_IngotIron_C']?.uptime).toBeCloseTo(0.5, 6);
+  });
+
+  it('leaves anything that neither makes, extracts nor burns unclassified', () => {
+    const snapshot = analyzeSave(
+      save([
+        {
+          typePath:
+            '/Game/FactoryGame/Buildable/Factory/StorageContainerMk1/Build_StorageContainerMk1.Build_StorageContainerMk1_C',
+          transform: { translation: { x: 0, y: 0, z: 0 } },
+        },
+      ]),
+    );
+    expect(snapshot.placements[0]?.role).toBeUndefined();
+  });
+});

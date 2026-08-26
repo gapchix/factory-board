@@ -17,6 +17,16 @@ export interface ActualLine {
 }
 
 /**
+ * What a building is *for*, when the save says so plainly.
+ *
+ * Read from the properties rather than from a list of class names: a
+ * manufacturer carries `mCurrentRecipe`, an extractor `mExtractableResource`,
+ * a generator a fuel inventory. So a game update that adds another miner or
+ * burner is classified correctly by a package that has never heard of it.
+ */
+export type BuildingRole = 'production' | 'extraction' | 'power';
+
+/**
  * One placed building, positioned in metres.
  *
  * The game stores centimetres as floats; metres rounded to integers is plenty
@@ -31,6 +41,26 @@ export interface BuildingPlacement {
   readonly z: number;
   /** Set when the building is a manufacturer with a recipe selected. */
   readonly recipe?: RecipeId | undefined;
+  /** Absent for anything that neither makes, extracts nor burns — storage, walls, belts. */
+  readonly role?: BuildingRole | undefined;
+  /**
+   * What the building handles: the resource an extractor is pulling out of its
+   * node, or the fuel a generator is burning. A production machine says it with
+   * its recipe instead, so this is left off there.
+   *
+   * Node *purity* is still world-generation data and still absent — see
+   * SPEC.md. What a placed miner is producing is a different question, and the
+   * save does answer it.
+   */
+  readonly resource?: ItemId | undefined;
+  /**
+   * Share of the last measurement window this building spent producing, 0–1.
+   *
+   * Only for buildings no production line covers — extractors and generators.
+   * Machines with a recipe report theirs through `lines`, and repeating it per
+   * placement would grow the snapshot for every smelter in the base.
+   */
+  readonly uptime?: number | undefined;
 }
 
 /**

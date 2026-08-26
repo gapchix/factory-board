@@ -2,6 +2,7 @@ import type {
   ActualLine,
   BuildingPath,
   BuildingPlacement,
+  BuildingRole,
   PhaseProgress,
   WorldSnapshot,
 } from './types.js';
@@ -188,6 +189,48 @@ function str(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
+/**
+ * The game's own productivity measurement: how much of the last window this
+ * building spent producing.
+ *
+ * Every factory building keeps it — manufacturers, extractors and generators
+ * alike — which is why it is read out here rather than inside the accumulator
+ * that only ever sees machines with a recipe.
+ */
+function measuredUptime(properties: Record<string, unknown> | undefined): number | undefined {
+  const producing = num(propValue(properties, 'mLastProductivityMeasurementProduceDuration'));
+  const window = num(propValue(properties, 'mLastProductivityMeasurementDuration'));
+  if (producing === undefined || window === undefined || window <= 0) return undefined;
+  return Math.max(0, Math.min(1, producing / window));
+}
+
+/**
+ * The item an inventory component holds, from the first occupied slot, falling
+ * back to what its slots are *allowed* to hold.
+ *
+ * The fallback is what makes this dependable. A miner whose belt has drained
+ * its output buffer has no stack left to read, but the buffer is still locked
+ * to the ore the miner was placed on.
+ */
+function inventoryItem(properties: Record<string, unknown> | undefined): string | undefined {
+  for (const stack of propValues(properties, 'mInventoryStacks')) {
+    const inner = (stack as { properties?: Record<string, unknown> })?.properties;
+    const item = propValue(inner, 'Item');
+    const id = objectPath((item as { itemReference?: unknown })?.itemReference);
+    if (id) return id;
+  }
+  for (const allowed of propValues(properties, 'mAllowedItemDescriptors')) {
+    const id = objectPath(allowed);
+    if (id) return id;
+  }
+  return undefined;
+}
+
+/** `…Build_MinerMk1_C_2147250059.OutputInventory` → the miner that owns it. */
+function ownerOf(instanceName: string): string {
+  return instanceName.slice(0, instanceName.lastIndexOf('.'));
+}
+
 interface LineAccumulator {
   machine: string;
   count: number;
@@ -230,6 +273,18 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   let phase: PhaseProgress | null = null;
   let objectCount = 0;
 
+  /*
+   * An inventory is an object in its own right, named after the building that
+   * owns it, and for a miner it is the only record of which ore is coming out.
+   * Both halves are collected on the way past and joined once the level has
+   * been read through, because an inventory may well be stored before the
+   * building it belongs to.
+   */
+  const outputInventories = new Map<string, string>();
+  const fuelInventories = new Map<string, string>();
+  const fuelClasses = new Map<string, string>();
+  const needsResource: { index: number; owner: string; role: BuildingRole }[] = [];
+
   for (const level of Object.values(save.levels ?? {})) {
     for (const object of level.objects ?? []) {
       objectCount += 1;
@@ -237,6 +292,15 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       const properties = object.properties;
 
       const recipe = objectPath(propValue(properties, 'mCurrentRecipe'));
+
+      const instanceName = object.instanceName ?? '';
+      if (instanceName.endsWith('.OutputInventory')) {
+        const item = inventoryItem(properties);
+        if (item) outputInventories.set(ownerOf(instanceName), item);
+      } else if (instanceName.endsWith('.FuelInventory')) {
+        const item = inventoryItem(properties);
+        if (item) fuelInventories.set(ownerOf(instanceName), item);
+      }
 
       if (typePath.includes('/Build_')) {
         const id = buildingId(typePath);
@@ -254,18 +318,47 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
           }
         }
 
+        /*
+         * What a building is for, taken from what it carries rather than from
+         * a list of class names. A manufacturer holds a recipe, an extractor
+         * holds the node it is bolted to, a generator holds fuel. Nothing else
+         * holds any of the three, and a game update that adds another miner is
+         * classified correctly without this file knowing it exists.
+         */
+        const role: BuildingRole | undefined = recipe
+          ? 'production'
+          : properties?.['mExtractableResource'] !== undefined
+            ? 'extraction'
+            : properties?.['mFuelInventory'] !== undefined ||
+                properties?.['mCurrentFuelClass'] !== undefined
+              ? 'power'
+              : undefined;
+
         const at = object.transform?.translation;
         const x = num(at?.x);
         const y = num(at?.y);
         const z = num(at?.z);
         if (x !== undefined && y !== undefined && z !== undefined) {
+          // Extractors and generators run no line, so this is the only place
+          // their productivity survives; a machine's arrives through `lines`,
+          // and repeating it per placement would grow every save by a smelter.
+          const uptime =
+            role === 'extraction' || role === 'power' ? measuredUptime(properties) : undefined;
           placements.push({
             machine: id,
             x: Math.round(x / CM_PER_METRE),
             y: Math.round(y / CM_PER_METRE),
             z: Math.round(z / CM_PER_METRE),
             ...(recipe ? { recipe } : {}),
+            ...(role ? { role } : {}),
+            ...(uptime === undefined ? {} : { uptime }),
           });
+
+          if (role === 'extraction' || role === 'power') {
+            needsResource.push({ index: placements.length - 1, owner: instanceName, role });
+            const fuel = objectPath(propValue(properties, 'mCurrentFuelClass'));
+            if (fuel) fuelClasses.set(instanceName, fuel);
+          }
         }
       }
 
@@ -282,11 +375,8 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
         }
         line.count += 1;
 
-        const producing = num(propValue(properties, 'mLastProductivityMeasurementProduceDuration'));
-        const window = num(propValue(properties, 'mLastProductivityMeasurementDuration'));
-        if (producing !== undefined && window !== undefined && window > 0) {
-          line.uptimeSamples.push(Math.max(0, Math.min(1, producing / window)));
-        }
+        const uptime = measuredUptime(properties);
+        if (uptime !== undefined) line.uptimeSamples.push(uptime);
 
         // Absent means an untouched 100% clock rather than zero.
         line.clockSamples.push(num(propValue(properties, 'mCurrentPotential')) ?? 1);
@@ -303,6 +393,20 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
         phase = readPhase(properties);
       }
     }
+  }
+
+  /*
+   * A generator names its fuel outright; an extractor has to be asked what is
+   * sitting in its output buffer. Either answer only arrives once every object
+   * has been seen, so the join happens here rather than in the loop.
+   */
+  for (const pending of needsResource) {
+    const resource =
+      pending.role === 'power'
+        ? (fuelClasses.get(pending.owner) ?? fuelInventories.get(pending.owner))
+        : outputInventories.get(pending.owner);
+    const placement = placements[pending.index];
+    if (resource && placement) placements[pending.index] = { ...placement, resource };
   }
 
   const mean = (values: readonly number[]): number | null =>

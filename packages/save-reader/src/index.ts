@@ -5,6 +5,7 @@ export type {
   ActualLine,
   BuildingPath,
   BuildingPlacement,
+  BuildingRole,
   PhaseProgress,
   WorldSnapshot,
 } from './types.js';
