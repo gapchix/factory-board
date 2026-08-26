@@ -123,6 +123,24 @@ All notable changes to this project are documented here. The format follows
   the format, and a misread would file a save under the year 58000.
 - 13 more tests, over the digest, the diff and the burn-down.
 
+- **A second map: the factory itself, on a WebGL canvas.** Every building drawn at its
+  real size and angle, switched from the Base view, with the schematic left exactly as it
+  was — the two answer different questions and neither is a better version of the other
+  ([ADR 17](docs/adr/0017-a-second-map-on-a-canvas.md)). Belts carry chevrons travelling
+  downstream, machines are coloured by uptime, zones are washed and named, and the zone
+  selection, the `?zone=` link and the hover card are shared with the schematic.
+- **Building footprints in `@factory-board/game-data`.** `mClearanceData` in the game's
+  own `Docs.json` states the ground each building stands on: a Constructor is 8 × 10 m, a
+  Coal-Powered Generator 10 × 26 m, a Space Elevator 15 × 43 m. The hard box is taken over
+  the soft one, which is the room a player needs to stand and use the machine and would
+  draw everything half again as big. 499 of 546 building classes have one.
+- **`BuildingPlacement.facing`** — the yaw out of the quaternion each building was placed
+  at, in degrees clockwise from north. On the reference save all four iron smelters read
+  310°, which is what a row built side by side should look like.
+- `pixi.js`, the app's first runtime dependency taken on for drawing, loaded only when the
+  factory view is opened.
+- 19 more tests, over the clearance boxes, the yaw and the rotated-rectangle maths.
+
 ### Changed
 
 - **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls

@@ -114,6 +114,37 @@ fixed size in pixels**, so the further you zoom in, the further a machine's mark
 the belt that feeds it. Drawing buildings at their true footprint needs a size per
 building class out of `Docs.json` and the rotation of each placement out of the save.
 
+### B5. The factory view — a second map, on a canvas · shipped
+
+The schematic map abstracts: merged marks, placed labels, a frame that reaches. That is
+what makes it good at "what is broken and roughly where", and what stops it answering
+"what did I actually build". So there are two maps now, switched from the Base view, and
+the schematic is untouched ([ADR 17](adr/0017-a-second-map-on-a-canvas.md)).
+
+The factory view draws **every building at its real size and angle**. The game's
+`Docs.json` states the ground each one stands on in `mClearanceData` — a Constructor is
+8 × 10 m, a Coal-Powered Generator 10 × 26 m — and every placement in the save carries
+the quaternion it was built at, so the yaw falls out of it. On the reference save 499 of
+546 building classes have a footprint, and all 408 placements have a heading; the four
+iron smelters read the same 310°, which is what a row built side by side should look
+like.
+
+It is drawn with **PixiJS on WebGL**, loaded only when the view is opened. The camera
+moves the world instead of the drawing being rebuilt at each view — the opposite bargain
+to [ADR 9](adr/0009-the-map-redraws-at-the-view.md), and the reason it drags and zooms at
+sixty frames a second. Type is counter-scaled so it stays the size it says, the grid is
+drawn in screen space, and outlines are redrawn on a scale change so a hairline stays a
+hairline.
+
+Belts carry chevrons that travel downstream, machines are coloured by uptime, zones are
+washed and named, and hovering gives the same card the schematic gives — hit-tested
+against each building's own rotated rectangle. Selection, the `?zone=` link and the card
+are shared between both maps.
+
+Next for it, in rough order: showing what a machine is _making_ rather than only how it
+is doing, drawing the belts a run at a time so a whole route can be traced, and the
+clearance boxes that sit off-centre.
+
 ### B2. Zones — the rest · shipped
 
 **Power and extraction anchor zones.** A coal plant, a pump house and a mining outpost

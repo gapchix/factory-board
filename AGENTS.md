@@ -56,6 +56,11 @@ integration tests skip and the web app refuses to build with instructions.
 - **Status colour is reserved, and text never wears it.** The warning step is 4.04:1 on
   the light surface — below the 4.5:1 text threshold. The bar carries state; the number
   stays in text ink.
+- **Theme colours cannot be read off `:root`.** Chakra publishes root variables for its
+  own built-in semantic tokens but inlines custom ones into the generated class, so
+  `getComputedStyle(document.documentElement)` returns nothing for them. Anything needing
+  a colour as a _number_ — the WebGL map — renders a hidden element per token and asks it
+  what colour it ended up. [ADR 17](docs/adr/0017-a-second-map-on-a-canvas.md)
 - **`transform` never goes through the Chakra factory.** It is a style prop, so an SVG
   transform list is read as CSS, found invalid, and silently dropped — every mark lands on
   the origin. Put it on a plain `<g>` wrapper. Colour still comes from the factory.

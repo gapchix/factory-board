@@ -25,7 +25,8 @@ import {
 } from 'react';
 import { buildingName, itemName } from '@/lib/format';
 import { uptimeTone, type StatusTone } from './charts';
-import { Label, Meter } from './primitives';
+import { MapCard, placeCard, type MapCardPlacement } from './map-card';
+import { Label } from './primitives';
 
 /**
  * A top-down plan of the base, drawn from the save.
@@ -200,15 +201,8 @@ interface Mark {
  */
 interface Hovered {
   readonly mark: Mark;
-  readonly x: number;
-  readonly y: number;
-  readonly flipX: boolean;
-  readonly flipY: boolean;
+  readonly at: MapCardPlacement;
 }
-
-const HOVER_W = 208;
-const HOVER_H = 78;
-const HOVER_GAP = 14;
 
 /** The frame the map opens on, and the scale that fits it to the canvas. */
 interface Home {
@@ -976,13 +970,7 @@ export function BaseMap({
     const rect = surface.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    setHovered({
-      mark,
-      x,
-      y,
-      flipX: x + HOVER_W + HOVER_GAP > rect.width,
-      flipY: y + HOVER_H + HOVER_GAP > rect.height,
-    });
+    setHovered({ mark, at: placeCard(x, y, rect.width, rect.height) });
   };
 
   const hideDetail = () => setHovered(null);
@@ -1531,65 +1519,23 @@ export function BaseMap({
         </svg>
 
         {hovered ? (
-          <Box
-            position="absolute"
-            left={`${hovered.flipX ? hovered.x - HOVER_W - HOVER_GAP : hovered.x + HOVER_GAP}px`}
-            top={`${hovered.flipY ? hovered.y - HOVER_H - HOVER_GAP : hovered.y + HOVER_GAP}px`}
-            w={`${HOVER_W}px`}
-            bg="bg.surface"
-            borderWidth="1px"
-            borderColor="fg.muted"
-            borderLeftWidth="3px"
-            borderLeftColor={hovered.mark.tone ? TONE_FILL[hovered.mark.tone] : 'fg.muted'}
-            px={3}
-            py={2.5}
-            pointerEvents="none"
-            zIndex={1}
-          >
-            <Text fontSize="14px" fontWeight="600" lineHeight="1.25" truncate>
-              {hovered.mark.name}
-            </Text>
-            {/*
-             * A machine's heading is what it makes, so the second line is what
-             * it is made in. A landmark's heading is already the building, so
-             * the second line is what it handles — and the HUB, which makes and
-             * handles nothing, gets no second line rather than its own name
-             * twice.
-             */}
-            {(hovered.mark.landmark ? hovered.mark.resource : hovered.mark.machine) ? (
-              <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" truncate>
-                {hovered.mark.landmark ? hovered.mark.resource : hovered.mark.machine}
-              </Text>
-            ) : null}
-            {hovered.mark.uptime === null ? (
-              <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" mt={1.5}>
-                no measurement yet
-              </Text>
-            ) : (
-              <Flex align="center" gap={2} mt={2}>
-                <Meter
-                  value={hovered.mark.uptime}
-                  tone={hovered.mark.tone ?? uptimeTone(hovered.mark.uptime)}
-                />
-                {/* The bar carries the state; the number stays in text ink. */}
-                <Text
-                  fontFamily="mono"
-                  fontSize="11px"
-                  color="fg.muted"
-                  w="34px"
-                  textAlign="end"
-                  fontVariantNumeric="tabular-nums"
-                >
-                  {Math.round(hovered.mark.uptime * 100)}%
-                </Text>
-              </Flex>
-            )}
-            {hovered.mark.zoneId !== undefined && zoneNames[hovered.mark.zoneId] ? (
-              <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" mt={1.5} truncate>
-                in {zoneNames[hovered.mark.zoneId]}
-              </Text>
-            ) : null}
-          </Box>
+          <MapCard
+            content={{
+              name: hovered.mark.name,
+              /*
+               * A machine's heading is what it makes, so the second line is
+               * what it is made in. A landmark's heading is already the
+               * building, so the second line is what it handles — and the HUB,
+               * which makes and handles nothing, gets no second line rather
+               * than its own name twice.
+               */
+              detail: hovered.mark.landmark ? hovered.mark.resource : hovered.mark.machine,
+              uptime: hovered.mark.uptime,
+              zone: hovered.mark.zoneId === undefined ? undefined : zoneNames[hovered.mark.zoneId],
+              tone: hovered.mark.tone,
+            }}
+            at={hovered.at}
+          />
         ) : null}
       </Box>
 

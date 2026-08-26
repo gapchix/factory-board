@@ -20,10 +20,21 @@ export function Label({ children, ...rest }: BoxProps & { children: ReactNode })
   );
 }
 
-/** Section heading with a rule that runs to the end of the row. */
-export function SectionHeading({ title, note }: { title: string; note?: string }) {
+/**
+ * Section heading with a rule that runs to the end of the row, and room beside
+ * the title for whatever switches what the section is showing.
+ */
+export function SectionHeading({
+  title,
+  note,
+  controls,
+}: {
+  title: string;
+  note?: string;
+  controls?: ReactNode;
+}) {
   return (
-    <Flex align="baseline" gap={4} mb={3}>
+    <Flex align="baseline" gap={4} mb={3} wrap="wrap">
       <Heading
         as="h2"
         fontFamily="heading"
@@ -35,6 +46,7 @@ export function SectionHeading({ title, note }: { title: string; note?: string }
       >
         {title}
       </Heading>
+      {controls}
       <Box flex="1" h="1px" bg="border.default" />
       {note ? <Label textAlign="right">{note}</Label> : null}
     </Flex>

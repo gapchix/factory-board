@@ -29,6 +29,7 @@ const placementSchema = z.object({
   y: z.number(),
   z: z.number(),
   recipe: z.string().optional(),
+  facing: z.number().optional(),
   role: z.enum(['production', 'extraction', 'power']).optional(),
   resource: z.string().optional(),
   uptime: z.number().min(0).max(1).optional(),
