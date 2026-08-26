@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sampleAlong } from './path.js';
+import { joinRuns, sampleAlong, type Polyline } from './path.js';
 
 const HALF_PI = Math.PI / 2;
 
@@ -103,5 +103,72 @@ describe('sampleAlong', () => {
         0,
       ),
     ).toEqual([]);
+  });
+});
+
+const run = (...points: [number, number][]): Polyline => points;
+
+describe('joinRuns', () => {
+  it('joins a chain of runs into one, without doubling the joints', () => {
+    const joined = joinRuns([run([0, 0], [10, 0]), run([10, 0], [20, 0]), run([20, 0], [20, 10])]);
+    expect(joined).toEqual([
+      [
+        [0, 0],
+        [10, 0],
+        [20, 0],
+        [20, 10],
+      ],
+    ]);
+  });
+
+  it('joins a chain given in any order', () => {
+    const joined = joinRuns([run([10, 0], [20, 0]), run([0, 0], [10, 0])]);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]?.[0]).toEqual([0, 0]);
+  });
+
+  // One belt in and two out is a splitter, and it stays three runs: welding an
+  // arbitrary two of them together would draw a route that does not exist.
+  it('leaves a split alone', () => {
+    const joined = joinRuns([
+      run([0, 0], [10, 0]),
+      run([10, 0], [20, 10]),
+      run([10, 0], [20, -10]),
+    ]);
+    expect(joined).toHaveLength(3);
+  });
+
+  it('leaves a merge alone', () => {
+    const joined = joinRuns([run([0, 10], [10, 0]), run([0, -10], [10, 0]), run([10, 0], [20, 0])]);
+    expect(joined).toHaveLength(3);
+  });
+
+  // Point order is the direction items travel, so a run is never turned round
+  // to make a longer one.
+  it('never reverses a run to make a join', () => {
+    const joined = joinRuns([run([0, 0], [10, 0]), run([20, 0], [10, 0])]);
+    expect(joined).toHaveLength(2);
+  });
+
+  it('closes a joint that rounding left a metre apart', () => {
+    expect(joinRuns([run([0, 0], [10, 0]), run([11, 0], [20, 0])])).toHaveLength(1);
+    expect(joinRuns([run([0, 0], [10, 0]), run([13, 0], [20, 0])])).toHaveLength(2);
+  });
+
+  it('passes a lone run through and drops a degenerate one', () => {
+    expect(joinRuns([run([0, 0], [10, 0])])).toEqual([
+      [
+        [0, 0],
+        [10, 0],
+      ],
+    ]);
+    expect(joinRuns([[[0, 0]]])).toEqual([]);
+    expect(joinRuns([])).toEqual([]);
+  });
+
+  it('does not spin forever on a loop', () => {
+    const joined = joinRuns([run([0, 0], [10, 0]), run([10, 0], [10, 10]), run([10, 10], [0, 0])]);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]).toHaveLength(4);
   });
 });
