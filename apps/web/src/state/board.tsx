@@ -12,6 +12,9 @@ import {
   type ReactNode,
 } from 'react';
 import { defaultSave } from '@/lib/default-snapshot';
+import { gameDatabase } from '@/lib/game-database';
+import { digestOf } from '@/lib/history';
+import { recordPoint } from '@/lib/history-store';
 import { loadPlan, savePlan } from '@/lib/plan-storage';
 import { loadZoneNames, saveZoneNames } from '@/lib/zone-storage';
 import type { ZoneName, ZonePoint } from '@/lib/zones';
@@ -196,6 +199,17 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveZoneNames(state.zoneNames);
   }, [state.zoneNames]);
+
+  /*
+   * Every save that passes through the board is written down, whichever view
+   * happens to be open. The game keeps three rotating autosave slots, so a
+   * moment nobody recorded is gone within a quarter of an hour — and the only
+   * moment the board is certain to see is the one it is holding right now.
+   */
+  useEffect(() => {
+    if (!state.snapshot || !state.source) return;
+    void recordPoint(digestOf(gameDatabase, state.snapshot, state.source.name));
+  }, [state.snapshot, state.source]);
 
   const addTarget = useCallback((item: string, ratePerMinute: number) => {
     dispatch({ type: 'addTarget', item, ratePerMinute });

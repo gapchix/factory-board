@@ -56,6 +56,7 @@ const world = (placements: BuildingPlacement[]): WorldSnapshot => ({
   sessionName: 'test',
   playDurationSeconds: 0,
   saveBuildVersion: 0,
+  savedAt: null,
   lines: {},
   buildings: {},
   placements,

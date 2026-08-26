@@ -3,3 +3,4 @@ dist
 .next
 out
 packages/game-data/generated
+apps/web/src/generated

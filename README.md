@@ -44,13 +44,14 @@ SATISFACTORY_SAVES_DIR=C:/Users/you/AppData/Local/FactoryGame/Saved/SaveGames/76
 The save is read in Node, before Next runs, and only the resulting snapshot is put in
 the bundle. The page itself never touches your disk — it cannot, and shouldn't.
 
-## The four views
+## The views
 
 |                 |                                                                                                                                                                                             |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan                                                                        |
 | **Base**        | A map drawn from the save, machines coloured by uptime, grouped into zones named for what they make, mine or burn — nameable, linkable, and showing what the plan still wants built in each |
 | **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus                                                                                                                     |
+| **History**     | Every autosave kept, so the session draws itself: what changed since the last save, machines, power and uptime over time, and a phase burn-down                                             |
 | **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                      |
 
 ## Why extract instead of ship the data?

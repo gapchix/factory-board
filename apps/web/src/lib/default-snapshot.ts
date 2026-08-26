@@ -43,6 +43,7 @@ const snapshotSchema = z.object({
   sessionName: z.string(),
   playDurationSeconds: z.number().nonnegative(),
   saveBuildVersion: z.number().nonnegative(),
+  savedAt: z.number().nullable(),
   lines: z.record(z.string(), lineSchema),
   buildings: z.record(z.string(), z.number().int().nonnegative()),
   placements: z.array(placementSchema),

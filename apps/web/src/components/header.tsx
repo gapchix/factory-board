@@ -14,6 +14,7 @@ const ROUTES = [
   { href: '/', label: 'Overview' },
   { href: '/base', label: 'Base' },
   { href: '/plan', label: 'Planner' },
+  { href: '/history', label: 'History' },
   { href: '/progress', label: 'Progression' },
 ] as const;
 
@@ -27,7 +28,7 @@ function Nav() {
           <Box
             key={route.href}
             asChild
-            px={4}
+            px={3}
             py={2}
             borderRightWidth={index < ROUTES.length - 1 ? '1px' : '0'}
             borderColor="border.default"
@@ -91,7 +92,7 @@ export function Header() {
       borderBottomWidth="2px"
       borderColor="fg.default"
     >
-      <Flex maxW="1320px" mx="auto" px={5} py={3} gap={5} align="center" wrap="wrap">
+      <Flex maxW="1320px" mx="auto" px={5} py={3} gap={4} align="center" wrap="wrap">
         <Box asChild>
           <Link href="/">
             <Text
@@ -127,7 +128,7 @@ export function Header() {
                 py={1}
                 borderRightWidth={index < 2 ? '1px' : '0'}
                 borderColor="border.subtle"
-                maxW="220px"
+                maxW="168px"
               >
                 <Label display="block">{label}</Label>
                 <Mono fontSize="13px" fontWeight="500" lineHeight="1.3" truncate>

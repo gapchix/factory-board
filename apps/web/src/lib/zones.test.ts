@@ -75,6 +75,7 @@ const world = (placements: BuildingPlacement[], uptime: number | null = null): W
   sessionName: 'test',
   playDurationSeconds: 0,
   saveBuildVersion: 0,
+  savedAt: null,
   lines: {
     Recipe_IngotIron_C: {
       recipe: 'Recipe_IngotIron_C',

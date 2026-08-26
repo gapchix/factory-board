@@ -85,6 +85,7 @@ apps/web/src/
 │   ├── page.tsx            Overview
 │   ├── base/page.tsx       Base — map and zones
 │   ├── plan/page.tsx       Planner
+│   ├── history/page.tsx    History — the session over time
 │   └── progress/page.tsx   Progression
 ├── state/board.tsx         targets, recipe choices, zones, snapshot — Context + useReducer
 ├── hooks/use-save-loader   file → Worker → snapshot, with a main-thread fallback
@@ -100,6 +101,8 @@ apps/web/src/
 │   ├── zones.ts            the base as named zones: clustering, naming, pinning
 │   ├── zone-plan.ts        the plan laid over them: what is still missing, and where
 │   ├── zone-storage.ts     names the player gave places, pinned to coordinates
+│   ├── history.ts          a save reduced to what a series needs, and the diff
+│   ├── history-store.ts    every save kept, in IndexedDB
 │   └── …                   game database, default snapshot, plan storage, formatting
 └── generated/              build artefacts; gitignored
 ```
@@ -133,9 +136,10 @@ several events. See [ADR 0005](adr/0005-build-time-save-loading.md).
 
 ## Type safety at the boundaries
 
-Four things cross a boundary and are therefore parsed, not cast: the generated game
-database, the generated default snapshot, the plan in `localStorage`, and the zone names
-beside it.
+Five things cross a boundary and are therefore parsed, not cast: the generated game
+database, the generated default snapshot, the plan in `localStorage`, the zone names
+beside it, and the history kept in IndexedDB — which outlives releases, so a point
+written last month is a stranger to the code reading it.
 
 Two compile-time assertions keep the game database's Zod schema and the domain type in
 step:
@@ -216,3 +220,4 @@ Recorded in full under [adr/](adr).
 | [Zones are clustered in passes](adr/0013-zones-are-clustered-in-passes.md)                   | Letting generators anchor zones alongside machines welded two factory cells into one           |
 | [A reference to a zone is a point](adr/0014-a-zone-reference-is-a-point.md)                  | Zone ids are positional and names derived; a coordinate survives the next autosave             |
 | [Runs are joined, fittings are drawn](adr/0015-runs-are-joined-fittings-are-drawn.md)        | Reaching across the gaps bought one join in a hundred; the thing in the gap says more          |
+| [History keeps a digest](adr/0016-history-keeps-a-digest.md)                                 | A snapshot is 40 KB of mostly placements; a session's history is a kilobyte a save             |

@@ -51,8 +51,9 @@ in step. The frame is decided from everything the map draws rather than from the
 alone, and whatever is still too far out gets a pointer at the edge saying what it is and
 how far ([ADR 10](adr/0010-the-frame-reaches-for-its-content.md)).
 
-Remaining tracks. They are independent; the order is a product call. B3 and B2 are done,
-which leaves **A** and **C** — the next decision.
+Remaining tracks. They were independent, and the order was a product call. B3, B4, B2 and
+A are done, which leaves **C** — publishing, and with it this repository's first push to a
+remote.
 
 ### B3. The map — a visual pass · shipped
 
@@ -144,17 +145,38 @@ numbers being in different places was the reason it was hard to act on — and t
 line cards carry the zone they are destined for. Targets sharing a zone are rounded up
 together, because two lines in one cell share a machine and two lines 900 m apart cannot.
 
-### A. History — the factory over time
+### A. History — the factory over time · shipped
 
-Autosaves are already a time series, and nothing else in the ecosystem treats them as
-one. The dev watcher produces a new snapshot every few minutes; keep them.
+Autosaves are a time series nobody keeps: three rotating slots, so a quarter of an hour
+later the moment is gone. The board sees every one of them — `npm run dev` hands the page
+a new snapshot on each autosave — so now it writes them down, whichever view is open.
 
-- Persist snapshots to IndexedDB, keyed by session and save time
-- Uptime, machine count and power over the session
-- A burn-down against the current Space Elevator phase
-- "What changed since last time" — lines added, lines that stopped
-- Likely the point where a charting library starts earning its place
-  ([ADR 0006](adr/0006-no-charting-library.md))
+**A digest, not the save** ([ADR 16](adr/0016-history-keeps-a-digest.md)). A snapshot is
+40 KB and nearly all of it is placements and routes, which answer _where_. History asks
+_how is this going_, and that answer is about a kilobyte: counts, power, uptime,
+milestones, phase deliveries, and a count and uptime per line. In IndexedDB, keyed by the
+session's own clock, capped at 2000 saves a session, parsed on the way back out so a
+later release upgrades old points instead of discarding them.
+
+**Since the last save** — the diff the roadmap asked for, ordered by what you would want
+to be told first: a line that has stopped outranks one that was merely built, because the
+first costs you production you thought you had.
+
+**Over the session** — machines, power drawn, uptime and buildings as lines, with a
+readout that follows the pointer to the nearest save.
+
+**A burn-down** against the current Space Elevator phase, with a straight-line estimate of
+what is left that says nothing at all until something has been delivered to judge a rate
+by. The rate is measured within one phase only — the counter resets when a phase is
+delivered, and measuring across that reads as going backwards.
+
+The save reader also learned `savedAt` — the header's `saveDateTime`, sanity-checked
+rather than trusted, because it has been a string, a number and Unreal's own tick count
+across versions of the format.
+
+A charting library was the open question here, and
+[ADR 6 was revisited on the evidence](adr/0006-no-charting-library.md): still no, at about
+140 lines for the chart.
 
 ### C. Publish — the packages stand alone
 
@@ -164,7 +186,7 @@ All three are designed to be useful outside this app.
 - README and API docs per package, provenance in the release workflow
 - A worked example: solve a factory from Node in ten lines
 
-### Housekeeping, folded into whichever track goes first
+### Housekeeping, folded into whatever goes next
 
 - Playwright E2E covering load → solve → compare
 - Favicon and app icons

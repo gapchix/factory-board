@@ -1,7 +1,7 @@
 'use client';
 
-import { Box, Flex, Grid, Text } from '@chakra-ui/react';
-import type { ReactNode } from 'react';
+import { Box, chakra, Flex, Grid, Text } from '@chakra-ui/react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Label, Mono } from './primitives';
 
 /**
@@ -226,5 +226,202 @@ export function LegendKey({ tone, children }: { tone: Tone; children: ReactNode 
       <Box w="9px" h="9px" bg={FILL[tone]} flex="none" />
       <Label>{children}</Label>
     </Flex>
+  );
+}
+
+/* -------------------------------------------------------------- time chart */
+
+/*
+ * SVG takes theme tokens through the chakra factory, never as raw CSS
+ * variables — see ARCHITECTURE.md. `transform` is the exception that must not
+ * go through it, so nothing here uses one.
+ */
+const SvgPath = chakra('path');
+const SvgLine = chakra('line');
+const SvgCircle = chakra('circle');
+const SvgText = chakra('text');
+
+export interface TimePoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+const CHART_H = 96;
+const CHART_TOP = 22;
+const CHART_BOTTOM = 15;
+const FALLBACK_W = 640;
+
+/**
+ * A series over the session.
+ *
+ * Hand-built like the bars, and for the same reason: this is the third shape
+ * the board draws, and a charting library would arrive with its own opinions
+ * about type, axes and colour that would then have to be argued out of it. The
+ * whole component is a path, a baseline and a readout.
+ *
+ * Drawn at the width it is given rather than scaled into it, so 10 px type is
+ * 10 px — the lesson the map paid for.
+ */
+export function TimeChart({
+  title,
+  points,
+  format,
+  formatX,
+  tone = 'accent',
+  note,
+}: {
+  title: string;
+  points: readonly TimePoint[];
+  format: (value: number) => string;
+  formatX: (value: number) => string;
+  tone?: Tone | undefined;
+  note?: string | undefined;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(FALLBACK_W);
+  const [at, setAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    const element = box.current;
+    if (!element || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      const measured = entry?.contentRect.width ?? 0;
+      if (measured > 0) setWidth(measured);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const model = useMemo(() => {
+    if (points.length === 0) return null;
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    // A flat series should read as flat, so the scale never zooms in on noise:
+    // the floor is zero and the ceiling has a tenth of headroom.
+    const maxY = Math.max(...ys, 0) * 1.1 || 1;
+    const spanX = maxX - minX || 1;
+    const px = (x: number) => ((x - minX) / spanX) * (width - 2) + 1;
+    const py = (y: number) => CHART_TOP + (1 - y / maxY) * (CHART_H - CHART_TOP - CHART_BOTTOM);
+    return { minX, maxX, maxY, px, py };
+  }, [points, width]);
+
+  const shown = at !== null ? points[at] : points[points.length - 1];
+
+  return (
+    <Box bg="bg.surface" borderWidth="1px" borderColor="border.default" px={4} pt={3} pb={2}>
+      <Flex align="baseline" gap={3} mb={1} wrap="wrap">
+        <Label>{title}</Label>
+        {note ? <Label color="fg.subtle">{note}</Label> : null}
+        <Box flex="1" />
+        {shown ? (
+          <>
+            <Mono fontSize="17px" fontWeight="600">
+              {format(shown.y)}
+            </Mono>
+            <Label color="fg.subtle" minW="62px" textAlign="right">
+              {formatX(shown.x)}
+            </Label>
+          </>
+        ) : null}
+      </Flex>
+
+      <Box ref={box} position="relative">
+        {model === null || points.length < 2 ? (
+          <Flex h={`${CHART_H - CHART_TOP}px`} align="center">
+            <Text fontSize="13px" color="fg.subtle">
+              {points.length === 1 ? 'One save so far — the line starts at two.' : 'Nothing yet.'}
+            </Text>
+          </Flex>
+        ) : (
+          <svg
+            width={width}
+            height={CHART_H - CHART_TOP + CHART_BOTTOM}
+            viewBox={`0 ${CHART_TOP} ${width} ${CHART_H - CHART_TOP + CHART_BOTTOM}`}
+            style={{ display: 'block', maxWidth: '100%' }}
+            role="img"
+            aria-label={`${title}: ${format(points[0]?.y ?? 0)} at ${formatX(
+              points[0]?.x ?? 0,
+            )}, ${format(points[points.length - 1]?.y ?? 0)} at ${formatX(
+              points[points.length - 1]?.x ?? 0,
+            )}`}
+            onPointerMove={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              if (rect.width === 0) return;
+              const x = ((event.clientX - rect.left) / rect.width) * width;
+              let nearest = 0;
+              let best = Infinity;
+              points.forEach((point, index) => {
+                const distance = Math.abs(model.px(point.x) - x);
+                if (distance < best) {
+                  best = distance;
+                  nearest = index;
+                }
+              });
+              setAt(nearest);
+            }}
+            onPointerLeave={() => setAt(null)}
+          >
+            {/*
+             * A line, not an area. History starts the day the board is first
+             * opened, so a series almost always begins part-way up — and an
+             * area under a line that starts at 90% fills the chart with a slab
+             * of colour that says nothing.
+             */}
+            <SvgPath
+              d={points
+                .map(
+                  (point, index) =>
+                    `${index === 0 ? 'M' : 'L'} ${model.px(point.x).toFixed(1)} ${model
+                      .py(point.y)
+                      .toFixed(1)}`,
+                )
+                .join(' ')}
+              fill="none"
+              stroke={FILL[tone]}
+              strokeWidth={1.6}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            <SvgLine
+              x1={0}
+              y1={model.py(0)}
+              x2={width}
+              y2={model.py(0)}
+              stroke="border.default"
+              strokeWidth={1}
+            />
+            {shown ? (
+              <>
+                <SvgLine
+                  x1={model.px(shown.x)}
+                  y1={CHART_TOP}
+                  x2={model.px(shown.x)}
+                  y2={model.py(0)}
+                  stroke="border.default"
+                  strokeWidth={1}
+                />
+                <SvgCircle cx={model.px(shown.x)} cy={model.py(shown.y)} r={3} fill={FILL[tone]} />
+              </>
+            ) : null}
+            {/* The span, at its own ends, so the width means something. */}
+            <SvgText x={0} y={model.py(0) + 13} fontSize="9.5px" fontFamily="mono" fill="fg.subtle">
+              {formatX(model.minX)}
+            </SvgText>
+            <SvgText
+              x={width}
+              y={model.py(0) + 13}
+              textAnchor="end"
+              fontSize="9.5px"
+              fontFamily="mono"
+              fill="fg.subtle"
+            >
+              {formatX(model.maxX)}
+            </SvgText>
+          </svg>
+        )}
+      </Box>
+    </Box>
   );
 }

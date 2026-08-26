@@ -101,6 +101,28 @@ All notable changes to this project are documented here. The format follows
   handles, its uptime as a bar, and the zone it stands in. It appears where the pointer
   arrived and flips to whichever side of it has room.
 
+- **History — the session over time.** The game keeps three rotating autosave slots, so a
+  quarter of an hour later the moment is gone. Every save the board sees is now written
+  down as a digest — about a kilobyte against the snapshot's 40 KB — in IndexedDB, keyed
+  by the session's own clock ([ADR 16](docs/adr/0016-history-keeps-a-digest.md)). The
+  write happens wherever the board is, because the page nobody has open records nothing.
+- **"Since the last save"** — lines that stopped, started, grew or came back, ordered by
+  what you would want to be told first, with what the session gained in buildings,
+  machines, power, deliveries and milestones.
+- **Machines, power, uptime and buildings over the session**, as lines with a readout that
+  follows the pointer to the nearest save.
+- **A Space Elevator burn-down** with a straight-line estimate of what is left, measured
+  within the current phase only — the counter resets when a phase is delivered, and
+  measuring across that reads as going backwards. It says nothing at all until something
+  has been delivered to judge a rate by.
+- `TimeChart` in the chart layer, hand-built at about 140 lines.
+  [ADR 6 was revisited on the evidence](docs/adr/0006-no-charting-library.md) and still
+  says no library.
+- `WorldSnapshot.savedAt` — the header's `saveDateTime`, sanity-checked rather than
+  trusted: it has been a string, a number and Unreal's own tick count across versions of
+  the format, and a misread would file a save under the year 58000.
+- 13 more tests, over the digest, the diff and the burn-down.
+
 ### Changed
 
 - **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls

@@ -25,13 +25,14 @@ That gap — between the plan and the world — is what this project fills.
    the game's own uptime measurement for that line.
 4. **Track.** Milestone research and Space Elevator delivery progress, read from the save.
 
-## The three views
+## The views
 
 | View            | Answers                                        | Shows                                                                                                                                                                                                            |
 | --------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Overview**    | "How is the factory doing right now?"          | Bottlenecks ranked worst-first, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery                                                                 |
 | **Base**        | "Where is everything, and where is it broken?" | A top-down map from the coordinates in the save, machines coloured by uptime, grouped into zones named after what they make, extract or burn — nameable, linkable, and showing what the plan wants built in each |
 | **Planner**     | "What am I building towards?"                  | The plan drawn as a flow — ore on the left, targets on the right, edge weight showing throughput — then one card per line with plan vs. built, and raw inputs and surplus                                        |
+| **History**     | "Is this getting better or worse?"             | Every autosave kept as a digest: what changed since the last save, machines, power, uptime and buildings over the session, and a burn-down against the current Space Elevator phase                              |
 | **Progression** | "What have I unlocked?"                        | Milestone research by tier, then every milestone with its real cost                                                                                                                                              |
 
 Overview is the landing view on purpose: the question people open the tool with is
