@@ -65,6 +65,14 @@ export interface GameMachine {
 export interface GameBuilding {
   readonly id: MachineId;
   readonly name: string;
+  /**
+   * How much ground it stands on, in metres, along its own axes — width across
+   * X, length along Y, before any rotation is applied.
+   *
+   * From the game's hard clearance box. Absent for the things that declare
+   * none, which is most of what is not a building you place on the ground.
+   */
+  readonly footprintM?: { readonly width: number; readonly length: number } | undefined;
 }
 
 export interface GameMilestone {

@@ -49,6 +49,7 @@ const gameMachineSchema = z.object({
 const gameBuildingSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  footprintM: z.object({ width: z.number().positive(), length: z.number().positive() }).optional(),
 });
 
 const gameMilestoneSchema = z.object({

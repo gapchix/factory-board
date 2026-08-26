@@ -97,3 +97,44 @@ export function readNumber(value: unknown): number | undefined {
 export function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
+
+export interface ParsedFootprint {
+  /** Extent across the building's own X and Y, in centimetres. */
+  readonly widthCm: number;
+  readonly lengthCm: number;
+}
+
+/*
+ * `mClearanceData` is a list of boxes: the volume the building occupies, and
+ * sometimes a softer one in front of it for the space a player needs to stand
+ * and use it. The hard box is the building; the soft one is manners, and would
+ * draw a Constructor half again as big as it is.
+ */
+const CLEARANCE_PATTERN =
+  /\((?:Type=(\w+),)?ClearanceBox=\(Min=\(X=(-?[\d.]+),Y=(-?[\d.]+),Z=(-?[\d.]+)\),Max=\(X=(-?[\d.]+),Y=(-?[\d.]+),Z=(-?[\d.]+)\)/g;
+
+/**
+ * How much ground a building stands on, from the game's own clearance data.
+ *
+ * Checked against the wiki on the shapes that are easy to be wrong about: a
+ * Constructor comes out 8 × 10 m, a Smelter 5 × 10 m, a Miner Mk.1 6 × 14 m and
+ * a Coal-Powered Generator 10 × 26 m.
+ */
+export function parseClearance(raw: unknown): ParsedFootprint | undefined {
+  if (typeof raw !== 'string' || raw.length === 0) return undefined;
+
+  const boxes: { soft: boolean; widthCm: number; lengthCm: number }[] = [];
+  CLEARANCE_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CLEARANCE_PATTERN.exec(raw)) !== null) {
+    const [, type, minX, minY, , maxX, maxY] = match;
+    const widthCm = Number(maxX) - Number(minX);
+    const lengthCm = Number(maxY) - Number(minY);
+    if (!Number.isFinite(widthCm) || !Number.isFinite(lengthCm)) continue;
+    if (widthCm <= 0 || lengthCm <= 0) continue;
+    boxes.push({ soft: type === 'CT_Soft', widthCm, lengthCm });
+  }
+
+  const box = boxes.find((candidate) => !candidate.soft) ?? boxes[0];
+  return box ? { widthCm: box.widthCm, lengthCm: box.lengthCm } : undefined;
+}

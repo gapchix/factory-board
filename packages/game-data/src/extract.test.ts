@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseAmounts, parseProducedIn, parseUnlockedRecipes, type DocsGroup } from './docs.js';
+import {
+  parseAmounts,
+  parseClearance,
+  parseProducedIn,
+  parseUnlockedRecipes,
+  type DocsGroup,
+} from './docs.js';
 import { extractDatabase } from './extract.js';
 import { parseGameDatabase } from './schema.js';
 
@@ -189,5 +195,41 @@ describe('parseGameDatabase', () => {
         milestones: {},
       }),
     ).toThrow(/failed validation/);
+  });
+});
+
+describe('parseClearance', () => {
+  const constructor_ =
+    '((ClearanceBox=(Min=(X=-400.000000,Y=-500.000000,Z=0.000000),Max=(X=400.000000,Y=500.000000,Z=600.000000),IsValid=True)),(Type=CT_Soft,ClearanceBox=(Min=(X=-400.000000,Y=-900.000000,Z=0.000000),Max=(X=400.000000,Y=900.000000,Z=600.000000),IsValid=True)))';
+
+  it('reads the ground a building stands on, in centimetres', () => {
+    expect(parseClearance(constructor_)).toEqual({ widthCm: 800, lengthCm: 1000 });
+  });
+
+  // The soft box is the room a player needs to stand and use the machine. Taking
+  // it would draw a Constructor half again as long as it is.
+  it('takes the hard box over the soft one, wherever it comes in the list', () => {
+    const softFirst =
+      '((Type=CT_Soft,ClearanceBox=(Min=(X=-400.000000,Y=-900.000000,Z=0.000000),Max=(X=400.000000,Y=900.000000,Z=600.000000),IsValid=True)),(ClearanceBox=(Min=(X=-250.000000,Y=-500.000000,Z=0.000000),Max=(X=250.000000,Y=500.000000,Z=450.000000),IsValid=True)))';
+    expect(parseClearance(softFirst)).toEqual({ widthCm: 500, lengthCm: 1000 });
+  });
+
+  it('falls back to a soft box rather than to nothing', () => {
+    const onlySoft =
+      '((Type=CT_Soft,ClearanceBox=(Min=(X=-100.000000,Y=-200.000000,Z=0.000000),Max=(X=100.000000,Y=200.000000,Z=300.000000),IsValid=True)))';
+    expect(parseClearance(onlySoft)).toEqual({ widthCm: 200, lengthCm: 400 });
+  });
+
+  it('has nothing to say about a building that declares none', () => {
+    expect(parseClearance(undefined)).toBeUndefined();
+    expect(parseClearance('')).toBeUndefined();
+    expect(parseClearance('()')).toBeUndefined();
+    expect(parseClearance(42)).toBeUndefined();
+  });
+
+  it('ignores a box with no size to it', () => {
+    const empty =
+      '((ClearanceBox=(Min=(X=0.000000,Y=0.000000,Z=0.000000),Max=(X=0.000000,Y=0.000000,Z=0.000000),IsValid=False)),(ClearanceBox=(Min=(X=-300.000000,Y=-700.000000,Z=0.000000),Max=(X=300.000000,Y=700.000000,Z=400.000000),IsValid=True)))';
+    expect(parseClearance(empty)).toEqual({ widthCm: 600, lengthCm: 1400 });
   });
 });

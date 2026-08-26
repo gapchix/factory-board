@@ -10,6 +10,7 @@ import type {
 import {
   classesMatching,
   parseAmounts,
+  parseClearance,
   parseProducedIn,
   parseUnlockedRecipes,
   readNumber,
@@ -100,7 +101,15 @@ function readMachinePower(
   return { powerMW: (min + max) / 2, range: { min, max } };
 }
 
-/** Display names for every Build_ class, whether or not it makes anything. */
+/** Centimetres to metres, at the precision a map can use. */
+const CM_PER_METRE = 100;
+const round = (value: number) => Math.round(value * 10) / 10;
+
+/**
+ * Display names and footprints for every Build_ class, whether or not it makes
+ * anything. The footprint is what lets a map draw a factory rather than a dot
+ * cloud, and the game states it outright.
+ */
 function buildBuildings(docs: readonly DocsGroup[]): Record<string, GameBuilding> {
   const buildings: Record<string, GameBuilding> = {};
   for (const group of docs) {
@@ -108,7 +117,19 @@ function buildBuildings(docs: readonly DocsGroup[]): Record<string, GameBuilding
       if (!cls.ClassName?.startsWith('Build_')) continue;
       const id = cls.ClassName.replace(/^Build_|_C$/g, '');
       if (buildings[id]) continue;
-      buildings[id] = { id, name: readString(cls['mDisplayName']) ?? id };
+      const clearance = parseClearance(cls['mClearanceData']);
+      buildings[id] = {
+        id,
+        name: readString(cls['mDisplayName']) ?? id,
+        ...(clearance
+          ? {
+              footprintM: {
+                width: round(clearance.widthCm / CM_PER_METRE),
+                length: round(clearance.lengthCm / CM_PER_METRE),
+              },
+            }
+          : {}),
+      };
     }
   }
   return buildings;
