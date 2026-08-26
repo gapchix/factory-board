@@ -51,29 +51,48 @@ in step. The frame is decided from everything the map draws rather than from the
 alone, and whatever is still too far out gets a pointer at the edge saying what it is and
 how far ([ADR 10](adr/0010-the-frame-reaches-for-its-content.md)).
 
-Remaining tracks. They are independent; the order is a product call.
+Remaining tracks. They are independent; the order is a product call — **this is the next
+decision**, now that B3 is done.
 
-### B3. The map — a visual pass · next up
+### B3. The map — a visual pass · shipped
 
-The mechanics are right and the map is not yet handsome. Called out on 2026-08-25: it
-reads well, it needs to _look_ well. No brief beyond that yet, so treat the list below as
-what an eye found rather than as a specification — confirm before building.
+Confirmed on 2026-08-26 against the list below: the whitespace, the label collisions and
+the flatness were the three that landed. The chrome was not — the toolbar and legend are
+fine as they are.
 
-- **Labels crowd at the default zoom.** Machine names run into zone captions, and the
-  four-position search gives up rather than trying harder. Leader lines, or a caption
-  placed inside its zone, would both buy room.
-- **Whitespace.** Two thirds of the default frame is empty on a real base, because the
-  frame is a rectangle and a factory is not. Worth testing a tighter margin, or letting
-  the canvas take the content's aspect within bounds.
-- **"Everything" letterboxes badly.** A base 450 m wide and 1000 m deep hits the 860-unit
-  canvas ceiling, and the result is a thin ribbon of factory in a wide white field.
+**Whitespace.** Reach in `frameContent` is now bought with buildings rather than handed
+out flat, so a lone outlier can no longer widen the frame around a factory
+([ADR 11](adr/0011-reach-is-bought-with-buildings.md)) — on the save it was written
+against that was 28% of the width for one water extractor. The canvas takes the content's
+shape on both axes and the surface is cut to it, which is what ended the letterbox: the
+"Everything" view went from using 30% of the canvas width to effectively all of it, as a
+portrait panel ([ADR 12](adr/0012-the-canvas-takes-the-shape-of-the-base.md)). Frame
+margin and canvas padding both came down.
+
+**Labels.** Three rings of candidate positions instead of one, with diagonals past the
+first, and a leader line joining any label that had to move out to the mark it names.
+Zone captions moved inside their own zone, into a band cut out of the top of the box so
+no machine is ever drawn under its own zone's name, and they are drawn after the belts
+rather than before — a conveyor crossing a cell used to strike its name through. A
+landmark no longer outranks a starving machine when the two want the same space.
+
+**Flatness.** A survey grid on round world coordinates, so the ground between the cells
+reads as somewhere rather than as nothing — the buildings touch under 3% of the frame,
+so that space is most of the drawing. Zones are washed with the tone of the work going on
+inside them, the same one their card carries below. Belts are cased so crossings read as
+one run passing over another. Type carries a casing too, so it survives whatever it
+crosses. The scale bar is one square of the grid.
+
+Still open, and not part of what was asked for:
+
 - **Belts read as confetti.** Each conveyor is its own object, so a single run draws as
   a dozen short strokes with a gap at every join. Joining collinear runs end-to-start
   before drawing would give the base its skeleton back.
 - **Hover is the browser's.** Detail comes from a native `<title>`, which takes a second
   to appear and cannot be styled. A real hover card would carry uptime and recipe.
-- **The controls are plain.** Toolbar, legend and hint are three separate rows of small
-  type under a large drawing.
+- **A diagonal base still leaves corners empty.** No rectangle frames an L-shape tightly.
+  Rotating the drawing onto the base's principal axis is the only real answer and it
+  costs the reader a map that no longer points north — worth asking about before building.
 
 ### A. History — the factory over time
 

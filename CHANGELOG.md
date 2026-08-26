@@ -53,6 +53,31 @@ All notable changes to this project are documented here. The format follows
   rather than `TradingPost` and `MinerMk1`.
 - `groupNearby` in the layout package: reusable single-linkage grouping.
 
+- **A survey grid** under the base map, on round world coordinates, so the ground between
+  the cells reads as somewhere rather than as nothing. The scale bar is one grid square.
+- **Zones are washed with the tone of the work inside them** — the same one their card
+  carries — so the map says which part of the base is struggling before a label is read.
+- **Leader lines.** A label with no room beside its mark now moves out a ring or two and
+  keeps a line back to what it names, instead of being dropped.
+
+### Changed
+
+- **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls
+  the frame 55 m per building plus a share-weighted term for the size of the base. One
+  water extractor 115 m out was widening the reference save's frame by 28%
+  ([ADR 11](docs/adr/0011-reach-is-bought-with-buildings.md)). `FrameOptions.minReachM`
+  is replaced by `reachPerBuildingM`.
+- **The map canvas takes the shape of the base** on both axes, and its surface is cut to
+  it. A base 463 m across and 1011 m deep used 30% of the canvas width in the "Everything"
+  view; it is now a portrait panel that fills it
+  ([ADR 12](docs/adr/0012-the-canvas-takes-the-shape-of-the-base.md)).
+- Zone captions sit in a band cut out of the top of their own zone, and are drawn after
+  the belts — a conveyor crossing a cell used to strike its name through.
+- Belts and map type are cased in the surface colour, so crossings read as one run over
+  another and a label survives whatever it crosses.
+- A landmark no longer outranks a starving machine for label space. At a flat bonus a
+  lookout tower took the room a cell running at 0% needed.
+
 ### Fixed
 
 - Solver no longer manufactures raw ore through late-game Converter recipes. It answered a

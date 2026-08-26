@@ -188,15 +188,17 @@ happens in a Worker. The extracted database is ~120 KB of JSON for the full reci
 
 Recorded in full under [adr/](adr).
 
-| Decision                                                                           | Why                                                                                            |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [Client-side only](adr/0001-client-side-only.md)                                   | Saves are personal; a server adds risk and cost for no gain                                    |
-| [TypeScript 6, not 7](adr/0002-typescript-6-not-7.md)                              | `typescript-eslint` caps at `<6.1.0`; type-aware linting is worth more than the version number |
-| [Don't commit game data](adr/0003-do-not-commit-game-data.md)                      | It is Coffee Stain's content, and extraction gives version-exact data anyway                   |
-| [Raw resources terminate the solve](adr/0004-raw-resources-terminate-the-solve.md) | Otherwise the solver mines SAM to make iron                                                    |
-| [Build-time save loading](adr/0005-build-time-save-loading.md)                     | A static page cannot read a path from an env var — the browser has no disk                     |
-| [No charting library](adr/0006-no-charting-library.md)                             | Every figure is a magnitude or a ratio; a library would be weight without benefit              |
-| [No state library](adr/0007-no-state-library.md)                                   | Three fields of state, everything else derived                                                 |
-| [Machines anchor zones](adr/0008-machines-anchor-zones.md)                         | Clustering belts welds the whole base into one blob                                            |
-| [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)             | Magnifying enlarges the picture; redrawing reveals what would not fit                          |
-| [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md) | Framing the zones cropped a coal generator six metres past the edge                            |
+| Decision                                                                                     | Why                                                                                            |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [Client-side only](adr/0001-client-side-only.md)                                             | Saves are personal; a server adds risk and cost for no gain                                    |
+| [TypeScript 6, not 7](adr/0002-typescript-6-not-7.md)                                        | `typescript-eslint` caps at `<6.1.0`; type-aware linting is worth more than the version number |
+| [Don't commit game data](adr/0003-do-not-commit-game-data.md)                                | It is Coffee Stain's content, and extraction gives version-exact data anyway                   |
+| [Raw resources terminate the solve](adr/0004-raw-resources-terminate-the-solve.md)           | Otherwise the solver mines SAM to make iron                                                    |
+| [Build-time save loading](adr/0005-build-time-save-loading.md)                               | A static page cannot read a path from an env var — the browser has no disk                     |
+| [No charting library](adr/0006-no-charting-library.md)                                       | Every figure is a magnitude or a ratio; a library would be weight without benefit              |
+| [No state library](adr/0007-no-state-library.md)                                             | Three fields of state, everything else derived                                                 |
+| [Machines anchor zones](adr/0008-machines-anchor-zones.md)                                   | Clustering belts welds the whole base into one blob                                            |
+| [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)                       | Magnifying enlarges the picture; redrawing reveals what would not fit                          |
+| [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md)           | Framing the zones cropped a coal generator six metres past the edge                            |
+| [Reach is bought with buildings](adr/0011-reach-is-bought-with-buildings.md)                 | A flat allowance let one water extractor buy 28% of the frame's width                          |
+| [The canvas takes the shape of the base](adr/0012-the-canvas-takes-the-shape-of-the-base.md) | A portrait base on a landscape sheet drew as a ribbon using 30% of the width                   |

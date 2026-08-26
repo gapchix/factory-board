@@ -75,6 +75,46 @@ describe('frameContent', () => {
     expect(large.outside).toEqual([]);
   });
 
+  /** A block of 40 machines: a real factory to measure a neighbour against. */
+  const block = Array.from({ length: 40 }, (_, i) => p((i % 8) * 34, Math.floor(i / 8) * 29));
+
+  /*
+   * Empty frame is not free. In the reference save one water extractor 115 m
+   * west of the factory sat inside the flat allowance the old rule gave every
+   * group alike, and bought itself 28% of the frame's width — the base drew in
+   * the right three quarters of its own map. One building does not get to do
+   * that, however many the factory beside it has.
+   */
+  it('does not widen the frame for a lone building 130 m out', () => {
+    const lone = p(-130, 60);
+    const result = frameContent([...block, lone], at);
+    expect(result.outside).toEqual([lone]);
+    expect(result.bounds?.minX).toBe(0);
+  });
+
+  it('reaches for a wing at the same distance, because it can pay for itself', () => {
+    // Six buildings rather than one, exactly as far out. Six is below the seed
+    // threshold on a base of forty, so this is the reach rule deciding, not the
+    // seed rule — and between them they buy the pull the single one could not.
+    const wing = Array.from({ length: 6 }, (_, i) => p(-130 - (i % 2) * 12, 60 + i * 9));
+    const result = frameContent([...block, ...wing], at);
+    expect(result.outside).toEqual([]);
+    expect(result.bounds?.minX).toBe(-142);
+  });
+
+  /*
+   * Reach is measured per candidate rather than against the nearest one, so a
+   * shack the frame cannot afford must not hide a wing behind it that pays its
+   * own way. Absorbing the wing then sweeps the shack up on the next pass.
+   */
+  it('looks past an unaffordable neighbour to an affordable one behind it', () => {
+    const shack = [p(-120, 60)];
+    const wing = Array.from({ length: 6 }, (_, i) => p(-260 - (i % 2) * 12, 60 + i * 9));
+    const result = frameContent([...block, ...shack, ...wing], at);
+    expect(result.outside).toEqual([]);
+    expect(result.bounds?.minX).toBe(-272);
+  });
+
   it('does not let a small outpost set the extent of a large factory', () => {
     // 40 machines in a block: a five-building outpost is not a fifth of that, so
     // it has to be near enough to be absorbed, and it is not.
@@ -93,7 +133,7 @@ describe('frameContent', () => {
   });
 
   it('honours an explicit reach', () => {
-    const result = frameContent([...factory, ...outpost], at, { minReachM: 1000 });
+    const result = frameContent([...factory, ...outpost], at, { reachPerBuildingM: 1000 });
     expect(result.outside).toEqual([]);
   });
 });

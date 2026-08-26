@@ -59,22 +59,41 @@ const SvgText = chakra('text');
 const SvgG = chakra('g');
 
 /**
- * Fixed canvas, world letterboxed into it.
+ * The canvas takes the shape of the base, inside a box it may not exceed.
  *
- * Shaping the viewBox to the world means the SVG is upscaled to the container by
- * whatever the aspect ratio demands, and an 11px label renders at 45px. On a
- * fixed canvas one unit is about one pixel, so type is the size it says.
+ * One unit is one pixel and the SVG is drawn at its natural size, so an 11 px
+ * label renders at 11 px. That is the constraint the rest follows from: the
+ * viewBox cannot be shaped to the world and then stretched to the container,
+ * because the same stretch lands on the type.
+ *
+ * So instead the *canvas* is shaped to the world. Both sides are cut to the
+ * content rather than one, which is what stops a deep base from being drawn as
+ * a thin ribbon down the middle of a wide white sheet: 1000 m of factory
+ * across 450 m of ground used 30% of the old fixed width. Now it is a portrait
+ * panel with the factory filling it, centred in the surface it sits in.
  */
-const CANVAS_W = 1180;
-const MIN_CANVAS_H = 420;
-const MAX_CANVAS_H = 860;
-const PAD = 34;
+const MAX_CANVAS_W = 1180;
+const MIN_CANVAS_W = 380;
+const MAX_CANVAS_H = 880;
+const MIN_CANVAS_H = 300;
+const PAD = 30;
 
 const LABEL_SIZE = 10.5;
 const CHAR_W = 0.58;
-const MACHINE_R = 4.5;
+const MACHINE_R = 5;
 /** Uppercase plus 0.08em tracking runs about 25% wider than lower-case body text. */
 const ZONE_CAPTION_WIDEN = 1.25;
+/** Height of a zone's caption band. */
+const CAPTION_H = 15;
+/** Breathing room between a zone's machines and its boundary. */
+const ZONE_PAD = 13;
+/**
+ * How far out from a mark each ring of label positions sits. Past the first,
+ * a label is joined to its mark by a leader line.
+ */
+const LABEL_RINGS = [4, 13, 26];
+/** Clear space kept either side of a placed label, on top of its own width. */
+const LABEL_GAP = 4;
 /**
  * Machines running the same recipe merge into one mark with a count while they
  * are closer than this *on screen*. Four smelters side by side are one thing you
@@ -85,9 +104,13 @@ const MERGE_PX = 64;
 /** Machines this close in the world stay one cell however far you zoom in. */
 const MIN_MERGE_M = 2;
 
-/** Slack around the framed content, so labels have somewhere to go. */
-const FRAME_MARGIN = 0.08;
-const MIN_FRAME_MARGIN_M = 12;
+/**
+ * Slack around the framed content, so labels have somewhere to go. Small,
+ * because PAD already holds a margin in canvas units and leader lines mean a
+ * label no longer needs open ground right beside its mark.
+ */
+const FRAME_MARGIN = 0.03;
+const MIN_FRAME_MARGIN_M = 6;
 
 const MAX_ZOOM = 16;
 const ZOOM_STEP = 1.5;
@@ -107,6 +130,13 @@ const TONE_FILL: Record<StatusTone, string> = {
   ok: 'status.ok',
   warn: 'status.warn',
   crit: 'status.crit',
+};
+
+/** The same three tones washed out far enough to lie under a drawing. */
+const TONE_SUBTLE: Record<StatusTone, string> = {
+  ok: 'status.okSubtle',
+  warn: 'status.warnSubtle',
+  crit: 'status.critSubtle',
 };
 
 /** Endpoints of the routes we already draw as lines; dots would double them up. */
@@ -132,6 +162,7 @@ interface View {
 /** The frame the map opens on, and the scale that fits it to the canvas. */
 interface Home {
   readonly bounds: Bounds;
+  readonly canvasW: number;
   readonly canvasH: number;
   readonly scale: number;
   readonly center: { readonly x: number; readonly y: number };
@@ -256,13 +287,21 @@ export function BaseMap({
     const bounds = padBounds(raw);
     const worldW = Math.max(1, bounds.maxX - bounds.minX);
     const worldH = Math.max(1, bounds.maxY - bounds.minY);
+    // Fit the world into the largest canvas allowed, then cut the canvas back to
+    // what the fit actually used — on both axes, so neither is left holding a
+    // band of empty ground.
+    const fitted = Math.min((MAX_CANVAS_W - PAD * 2) / worldW, (MAX_CANVAS_H - PAD * 2) / worldH);
+    const canvasW = Math.round(
+      Math.min(MAX_CANVAS_W, Math.max(MIN_CANVAS_W, worldW * fitted + PAD * 2)),
+    );
     const canvasH = Math.round(
-      Math.min(MAX_CANVAS_H, Math.max(MIN_CANVAS_H, (CANVAS_W * worldH) / worldW)),
+      Math.min(MAX_CANVAS_H, Math.max(MIN_CANVAS_H, worldH * fitted + PAD * 2)),
     );
     return {
       bounds,
+      canvasW,
       canvasH,
-      scale: Math.min((CANVAS_W - PAD * 2) / worldW, (canvasH - PAD * 2) / worldH),
+      scale: Math.min((canvasW - PAD * 2) / worldW, (canvasH - PAD * 2) / worldH),
       center: { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 },
       outside: fit === 'all' ? [] : content.outside,
     };
@@ -288,7 +327,7 @@ export function BaseMap({
       max - min <= half * 2 ? (min + max) / 2 : Math.min(max - half, Math.max(min + half, value));
     return {
       zoom,
-      cx: axis(next.cx, frame.bounds.minX, frame.bounds.maxX, CANVAS_W / 2 / scale),
+      cx: axis(next.cx, frame.bounds.minX, frame.bounds.maxX, frame.canvasW / 2 / scale),
       cy: axis(next.cy, frame.bounds.minY, frame.bounds.maxY, frame.canvasH / 2 / scale),
     };
   }, []);
@@ -308,7 +347,7 @@ export function BaseMap({
       const zoom = Math.min(MAX_ZOOM, Math.max(1, from.zoom * factor));
       if (Math.abs(zoom - from.zoom) < 1e-6) return false;
       // Hold the world point under the cursor still while the scale changes.
-      const offsetX = anchor ? anchor.x - CANVAS_W / 2 : 0;
+      const offsetX = anchor ? anchor.x - frame.canvasW / 2 : 0;
       const offsetY = anchor ? anchor.y - frame.canvasH / 2 : 0;
       const worldX = from.cx + offsetX / (frame.scale * from.zoom);
       const worldY = from.cy + offsetY / (frame.scale * from.zoom);
@@ -338,7 +377,7 @@ export function BaseMap({
             cy: (target.minY + target.maxY) / 2,
             zoom:
               Math.min(
-                (CANVAS_W - FOCUS_PAD * 2) / width,
+                (frame.canvasW - FOCUS_PAD * 2) / width,
                 (frame.canvasH - FOCUS_PAD * 2) / depth,
               ) / frame.scale,
           },
@@ -373,10 +412,11 @@ export function BaseMap({
     if (!surface) return undefined;
     const onWheel = (event: WheelEvent) => {
       const svg = svgRef.current;
-      if (!svg) return;
+      const frame = stateRef.current.home;
+      if (!svg || !frame) return;
       const rect = svg.getBoundingClientRect();
       if (rect.width === 0) return;
-      const perPixel = CANVAS_W / rect.width;
+      const perPixel = frame.canvasW / rect.width;
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
       const moved = zoomBy(Math.exp((-event.deltaY * unit) / 480), {
         x: (event.clientX - rect.left) * perPixel,
@@ -390,18 +430,46 @@ export function BaseMap({
 
   const model = useMemo(() => {
     if (!home) return null;
-    const { canvasH } = home;
+    const { canvasW, canvasH } = home;
     const active = view ?? { cx: home.center.x, cy: home.center.y, zoom: 1 };
     const scale = home.scale * active.zoom;
-    const px = (x: number) => CANVAS_W / 2 + (x - active.cx) * scale;
+    const px = (x: number) => canvasW / 2 + (x - active.cx) * scale;
     const py = (y: number) => canvasH / 2 + (y - active.cy) * scale;
 
     const visible: Bounds = {
-      minX: active.cx - CANVAS_W / 2 / scale,
-      maxX: active.cx + CANVAS_W / 2 / scale,
+      minX: active.cx - canvasW / 2 / scale,
+      maxX: active.cx + canvasW / 2 / scale,
       minY: active.cy - canvasH / 2 / scale,
       maxY: active.cy + canvasH / 2 / scale,
     };
+
+    /*
+     * A survey grid on round world coordinates, which is the difference between
+     * ground and blank paper. A factory is a diagonal ribbon inside a rectangle
+     * however tightly it is framed — on this save the buildings touch under 3%
+     * of the frame — so the space between the cells is most of the drawing, and
+     * it should read as somewhere rather than as nothing. The lines are pinned
+     * to world metres, so they slide under the base as it is panned and hold
+     * still as it is zoomed, which is also what makes distance readable at a
+     * glance: every square is the scale bar.
+     */
+    const gridStepM = niceScale(1 / scale, 115);
+    const gridX: number[] = [];
+    const gridY: number[] = [];
+    for (
+      let x = Math.ceil(visible.minX / gridStepM) * gridStepM;
+      x <= visible.maxX;
+      x += gridStepM
+    ) {
+      gridX.push(px(x));
+    }
+    for (
+      let y = Math.ceil(visible.minY / gridStepM) * gridStepM;
+      y <= visible.maxY;
+      y += gridStepM
+    ) {
+      gridY.push(py(y));
+    }
 
     /*
      * Routes are drawn whole and clipped by the canvas rather than having their
@@ -414,7 +482,7 @@ export function BaseMap({
       const points = path.points.map(([x, y]) => [px(x), py(y)] as [number, number]);
       if (
         points.every(([x]) => x < 0) ||
-        points.every(([x]) => x > CANVAS_W) ||
+        points.every(([x]) => x > canvasW) ||
         points.every(([, y]) => y < 0) ||
         points.every(([, y]) => y > canvasH)
       ) {
@@ -435,7 +503,7 @@ export function BaseMap({
        */
       if (path.kind !== 'belt') continue;
       for (const marker of sampleAlong(points, ARROW_SPACING, { minLength: MIN_ARROW_RUN })) {
-        if (marker.x < 0 || marker.x > CANVAS_W || marker.y < 0 || marker.y > canvasH) continue;
+        if (marker.x < 0 || marker.x > canvasW || marker.y < 0 || marker.y > canvasH) continue;
         arrows.push(marker);
       }
     }
@@ -516,36 +584,76 @@ export function BaseMap({
             `${group.length}× ${first.machine}` +
             (first.landmark ? '' : ` — ${first.name}`) +
             (uptime === null ? '' : ` · ${Math.round(uptime * 100)}% uptime`),
-          // Landmarks first, then the worst performers: when two labels collide,
-          // those are the ones worth keeping.
+          /*
+           * Who wins a collision. Landmarks are the map's anchors and outrank a
+           * healthy machine, but not a starving one: at a flat +100 a lookout
+           * tower took the space a cell running at 0% needed, which is exactly
+           * backwards for a map whose job is to show what is struggling.
+           */
           priority:
-            (first.landmark ? 100 : 0) + (uptime === null ? 50 : 100 - uptime * 100) + group.length,
+            (first.landmark ? 40 : 0) + (uptime === null ? 50 : 100 - uptime * 100) + group.length,
           zoneId: first.zoneId,
         });
       }
     }
 
+    /*
+     * A zone gets the colour of the work going on inside it — the same tone its
+     * card carries below — so the map answers "which part of the base is
+     * struggling" from across the room, before a single label is read. Drawn as
+     * four grey dashed boxes it answered nothing.
+     */
     const zones = cluster.zones.map((zone) => {
-      const x = px(zone.bounds.minX) - 12;
-      const y = py(zone.bounds.minY) - 12;
+      const x = px(zone.bounds.minX) - ZONE_PAD;
+      const label = zoneNames[zone.id] ?? zone.label;
+      const width = Math.max(30, px(zone.bounds.maxX) - x + ZONE_PAD);
+      // The band is cut out of the top of the zone rather than laid over it, so
+      // no machine is ever drawn under its own zone's name.
+      const y = py(zone.bounds.minY) - ZONE_PAD - CAPTION_H;
+      const height = Math.max(30, py(zone.bounds.maxY) - y + ZONE_PAD);
+
+      let weighted = 0;
+      let weight = 0;
+      for (const [recipe, count] of Object.entries(zone.recipeCounts)) {
+        const uptime = snapshot.lines[recipe]?.uptime;
+        if (uptime === undefined || uptime === null) continue;
+        weighted += uptime * count;
+        weight += count;
+      }
+
+      // The caption belongs inside its own zone, in a band across the top. Above
+      // the box it competed for the same strip of map as the machine labels of
+      // whatever sits north of it, and lost about half those fights.
+      const captionW = label.length * LABEL_SIZE * CHAR_W * ZONE_CAPTION_WIDEN + 14;
+      const captionInside = width >= captionW && height >= CAPTION_H * 2.6;
+
       return {
         id: zone.id,
-        label: zoneNames[zone.id] ?? zone.label,
+        label,
         x,
         y,
-        width: Math.max(28, px(zone.bounds.maxX) - x + 12),
-        height: Math.max(28, py(zone.bounds.maxY) - y + 12),
+        width,
+        height,
+        captionW,
+        captionInside,
+        tone: weight > 0 ? uptimeTone(weighted / weight) : null,
         machines: zone.anchors.length,
         selected: zone.id === selectedZoneId,
       };
     });
 
     /*
-     * Label placement: try four positions per mark, take the first that is
-     * clear, and drop the label entirely rather than stack it. Hover still
+     * Label placement: try the ring of positions around a mark, take the first
+     * that is clear, and drop the label rather than stack it. Hover still
      * carries the name, and zooming in makes room for the ones that were cut.
      *
-     * The occupied set is seeded with the zone captions *and every mark*, so a
+     * Four positions — the four sides, touching — was too few, and the labels
+     * that lost ran into each other and into the zone captions anyway. There are
+     * now three rings: touching, a step out, and a stride out. The far two are
+     * ambiguous on their own, so a label placed there is joined to its mark by a
+     * leader line and the reader is never left guessing which machine it names.
+     *
+     * The occupied set is seeded with the zone captions and every mark, so a
      * label never lands on a machine it does not belong to.
      */
     const taken: Rect[] = [
@@ -553,10 +661,10 @@ export function BaseMap({
       // than a plain character count suggests. Under-estimating here is what
       // lets a machine label land on top of one.
       ...zones.map((zone) => ({
-        x: zone.x,
-        y: zone.y - 15,
-        w: zone.label.length * LABEL_SIZE * CHAR_W * ZONE_CAPTION_WIDEN + 10,
-        h: 16,
+        x: zone.x - LABEL_GAP,
+        y: zone.captionInside ? zone.y : zone.y - CAPTION_H - 3,
+        w: zone.captionW + LABEL_GAP * 2,
+        h: CAPTION_H + 3,
       })),
       ...marks.map((mark) => ({
         x: mark.x - markRadius(mark.count) - 1,
@@ -566,28 +674,87 @@ export function BaseMap({
       })),
     ];
 
-    const labels: { x: number; y: number; text: string; landmark: boolean }[] = [];
+    const labels: {
+      x: number;
+      y: number;
+      text: string;
+      landmark: boolean;
+      leader: { x1: number; y1: number; x2: number; y2: number } | null;
+    }[] = [];
     for (const mark of [...marks].sort((a, b) => b.priority - a.priority)) {
       const w = mark.name.length * LABEL_SIZE * CHAR_W;
       const h = LABEL_SIZE + 3;
       const r = markRadius(mark.count);
-      const options: { x: number; y: number; baseline: number }[] = [
-        { x: mark.x + r + 4, y: mark.y - h / 2, baseline: mark.y + 3.5 },
-        { x: mark.x - r - 4 - w, y: mark.y - h / 2, baseline: mark.y + 3.5 },
-        { x: mark.x - w / 2, y: mark.y - r - 4 - h, baseline: mark.y - r - 6 },
-        { x: mark.x - w / 2, y: mark.y + r + 4, baseline: mark.y + r + 4 + LABEL_SIZE },
-      ];
+
+      const options: { x: number; y: number; baseline: number; ring: number }[] = [];
+      for (const [ring, gap] of LABEL_RINGS.entries()) {
+        const out = r + gap;
+        options.push(
+          { x: mark.x + out, y: mark.y - h / 2, baseline: mark.y + 3.5, ring },
+          { x: mark.x - out - w, y: mark.y - h / 2, baseline: mark.y + 3.5, ring },
+          { x: mark.x - w / 2, y: mark.y - out - h, baseline: mark.y - out - 2, ring },
+          { x: mark.x - w / 2, y: mark.y + out, baseline: mark.y + out + LABEL_SIZE, ring },
+          // Diagonals only past the first ring: touching a corner reads as
+          // crooked, a step away reads as deliberate.
+          ...(ring === 0
+            ? []
+            : [
+                {
+                  x: mark.x + out * 0.72,
+                  y: mark.y - out * 0.72 - h,
+                  baseline: mark.y - out * 0.72 - 2,
+                  ring,
+                },
+                {
+                  x: mark.x - out * 0.72 - w,
+                  y: mark.y - out * 0.72 - h,
+                  baseline: mark.y - out * 0.72 - 2,
+                  ring,
+                },
+                {
+                  x: mark.x + out * 0.72,
+                  y: mark.y + out * 0.72,
+                  baseline: mark.y + out * 0.72 + LABEL_SIZE,
+                  ring,
+                },
+                {
+                  x: mark.x - out * 0.72 - w,
+                  y: mark.y + out * 0.72,
+                  baseline: mark.y + out * 0.72 + LABEL_SIZE,
+                  ring,
+                },
+              ]),
+        );
+      }
 
       const spot = options.find((option) => {
         const box = { x: option.x, y: option.y, w, h };
-        if (box.x < 2 || box.x + box.w > CANVAS_W - 2) return false;
+        if (box.x < 2 || box.x + box.w > canvasW - 2) return false;
         if (box.y < 2 || box.y + box.h > canvasH - 26) return false;
         return !taken.some((t) => overlaps(box, t));
       });
       if (!spot) continue;
 
-      taken.push({ x: spot.x, y: spot.y, w, h });
-      labels.push({ x: spot.x, y: spot.baseline, text: mark.name, landmark: mark.landmark });
+      // Reserve a little more than the type occupies. Two labels that merely
+      // fail to overlap still read as one run of words.
+      taken.push({ x: spot.x - LABEL_GAP, y: spot.y, w: w + LABEL_GAP * 2, h });
+      labels.push({
+        x: spot.x,
+        y: spot.baseline,
+        text: mark.name,
+        landmark: mark.landmark,
+        leader:
+          spot.ring === 0
+            ? null
+            : {
+                x1: mark.x,
+                y1: mark.y,
+                // Meet the label at whichever of its corners faces the mark, so
+                // the line stops at the type rather than running under it.
+                x2: spot.x + w / 2 < mark.x ? spot.x + w + 2 : spot.x - 2,
+                y2: spot.y + h / 2,
+              },
+      });
     }
 
     /*
@@ -596,15 +763,15 @@ export function BaseMap({
      * miner half a kilometre south rather than quietly cropping it away.
      */
     const edgeMarks = home.outside.map((placement) => {
-      const dx = px(placement.x) - CANVAS_W / 2;
+      const dx = px(placement.x) - canvasW / 2;
       const dy = py(placement.y) - canvasH / 2;
       const length = Math.max(1e-6, Math.hypot(dx, dy));
       const reach = Math.min(
-        Math.abs(dx) < 1e-6 ? Infinity : (CANVAS_W / 2 - EDGE_INSET) / Math.abs(dx),
+        Math.abs(dx) < 1e-6 ? Infinity : (canvasW / 2 - EDGE_INSET) / Math.abs(dx),
         Math.abs(dy) < 1e-6 ? Infinity : (canvasH / 2 - EDGE_INSET) / Math.abs(dy),
       );
       return {
-        x: CANVAS_W / 2 + dx * reach,
+        x: canvasW / 2 + dx * reach,
         y: canvasH / 2 + dy * reach,
         ux: dx / length,
         uy: dy / length,
@@ -630,8 +797,6 @@ export function BaseMap({
       };
     });
 
-    const barMetres = niceScale(1 / scale, 130);
-
     return {
       zones,
       marks,
@@ -639,10 +804,14 @@ export function BaseMap({
       routes,
       arrows,
       strays,
+      grid: { x: gridX, y: gridY },
       zoom: active.zoom,
       panned: view !== null,
+      canvasW,
       canvasH,
-      bar: { metres: barMetres, units: barMetres * scale },
+      // One square of the grid, so the bar measures what the reader can already
+      // see rather than an unrelated round number beside it.
+      bar: { metres: gridStepM, units: gridStepM * scale },
       extent: `${Math.round(visible.maxX - visible.minX)} × ${Math.round(
         visible.maxY - visible.minY,
       )} m`,
@@ -667,7 +836,7 @@ export function BaseMap({
     if (!drag || drag.id !== event.pointerId || !frame) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width === 0) return;
-    const perPixel = CANVAS_W / rect.width;
+    const perPixel = frame.canvasW / rect.width;
     const dx = (event.clientX - drag.x) * perPixel;
     const dy = (event.clientY - drag.y) * perPixel;
     // A few pixels of slop, so a click on a zone is not read as a drag.
@@ -707,7 +876,7 @@ export function BaseMap({
     const frame = stateRef.current.home;
     if (!frame) return;
     const from = currentView(frame);
-    const step = (CANVAS_W * 0.18) / (frame.scale * from.zoom);
+    const step = (frame.canvasW * 0.18) / (frame.scale * from.zoom);
     const pan = (dx: number, dy: number) =>
       setViewNow(clampView({ ...from, cx: from.cx + dx * step, cy: from.cy + dy * step }, frame));
 
@@ -819,16 +988,22 @@ export function BaseMap({
         bg="bg.surface"
         borderWidth="1px"
         borderColor="border.default"
-        px={2}
-        py={2}
+        p="6px"
         touchAction="pan-y"
+        // A portrait base makes a portrait canvas, and the surface is cut to it
+        // rather than the drawing being stranded in the middle of a wide box.
+        w="fit-content"
+        maxW="100%"
+        mx="auto"
         cursor={canPan ? 'grab' : 'default'}
         _active={{ cursor: canPan ? 'grabbing' : 'default' }}
         _focusVisible={{ outline: '2px solid', outlineColor: 'accent.solid', outlineOffset: '1px' }}
       >
         <svg
           ref={svgRef}
-          viewBox={`0 0 ${CANVAS_W} ${model.canvasH}`}
+          width={model.canvasW}
+          height={model.canvasH}
+          viewBox={`0 0 ${model.canvasW} ${model.canvasH}`}
           role="img"
           aria-label={`Map of the base, ${model.extent} in view, showing ${model.marks.length} machines and landmarks across ${model.zones.length} zones, joined by belts and power lines`}
           style={{ maxWidth: '100%', height: 'auto', display: 'block', touchAction: 'inherit' }}
@@ -839,11 +1014,37 @@ export function BaseMap({
         >
           <defs>
             <clipPath id={clipId}>
-              <rect x="0" y="0" width={CANVAS_W} height={model.canvasH} />
+              <rect x="0" y="0" width={model.canvasW} height={model.canvasH} />
             </clipPath>
           </defs>
 
           <g clipPath={`url(#${clipId})`}>
+            {/* The ground the factory stands on. */}
+            <g pointerEvents="none">
+              {model.grid.x.map((x, i) => (
+                <SvgLine
+                  key={`gx${i}`}
+                  x1={x}
+                  y1={0}
+                  x2={x}
+                  y2={model.canvasH}
+                  stroke="border.subtle"
+                  strokeWidth={1}
+                />
+              ))}
+              {model.grid.y.map((y, i) => (
+                <SvgLine
+                  key={`gy${i}`}
+                  x1={0}
+                  y1={y}
+                  x2={model.canvasW}
+                  y2={y}
+                  stroke="border.subtle"
+                  strokeWidth={1}
+                />
+              ))}
+            </g>
+
             {model.zones.map((zone) => (
               <SvgG
                 key={zone.id}
@@ -867,42 +1068,51 @@ export function BaseMap({
                   width={zone.width}
                   height={zone.height}
                   rx={2}
-                  fill={zone.selected ? 'accent.subtle' : 'bg.muted'}
-                  stroke={zone.selected ? 'accent.solid' : 'border.default'}
-                  strokeWidth={zone.selected ? 1.6 : 1}
-                  strokeDasharray={zone.selected ? '0' : '6 4'}
+                  fill={
+                    zone.selected
+                      ? 'accent.subtle'
+                      : zone.tone
+                        ? TONE_SUBTLE[zone.tone]
+                        : 'bg.muted'
+                  }
+                  stroke={
+                    zone.selected
+                      ? 'accent.solid'
+                      : zone.tone
+                        ? TONE_FILL[zone.tone]
+                        : 'border.default'
+                  }
+                  strokeWidth={zone.selected ? 1.6 : 1.2}
                   // The focused zone gets a crisp edge and a lighter wash: at the
                   // same opacity as the rest, the tint muddies the belts under it.
-                  fillOpacity={zone.selected ? 0.4 : 0.7}
-                  strokeOpacity={zone.selected ? 1 : 0.7}
+                  fillOpacity={zone.selected ? 0.4 : 0.85}
+                  strokeOpacity={zone.selected ? 1 : 0.42}
                 >
                   <title>
                     {zone.label} — {zone.machines} machines
                   </title>
                 </SvgRect>
-                <SvgText
-                  x={zone.x + 3}
-                  y={zone.y - 5}
-                  fill={zone.selected ? 'accent.solid' : 'fg.muted'}
-                  fontSize={`${LABEL_SIZE}px`}
-                  fontFamily="mono"
-                  letterSpacing="0.08em"
-                >
-                  {zone.label.toUpperCase()}
-                </SvgText>
               </SvgG>
             ))}
 
-            {/* Power first: it is the faintest layer and everything sits on top. */}
+            {/*
+             * Power first: it is the faintest layer and everything sits on top.
+             * Belts are drawn twice — a casing in the surface colour, then the
+             * line — so a crossing reads as one run passing over another rather
+             * than as a smudge where two strokes met.
+             */}
             <g fill="none" strokeLinecap="round" pointerEvents="none">
               {model.routes.power.map((d, i) => (
-                <SvgPath key={`w${i}`} d={d} stroke="fg.subtle" strokeWidth={0.7} opacity={0.45} />
+                <SvgPath key={`w${i}`} d={d} stroke="fg.subtle" strokeWidth={0.7} opacity={0.4} />
               ))}
               {model.routes.pipe.map((d, i) => (
-                <SvgPath key={`p${i}`} d={d} stroke="steel.400" strokeWidth={2.4} opacity={0.55} />
+                <SvgPath key={`p${i}`} d={d} stroke="steel.300" strokeWidth={2.6} opacity={0.7} />
               ))}
               {model.routes.belt.map((d, i) => (
-                <SvgPath key={`b${i}`} d={d} stroke="steel.500" strokeWidth={2.2} opacity={0.85} />
+                <SvgPath key={`bc${i}`} d={d} stroke="bg.surface" strokeWidth={5} opacity={0.75} />
+              ))}
+              {model.routes.belt.map((d, i) => (
+                <SvgPath key={`b${i}`} d={d} stroke="steel.500" strokeWidth={2.4} opacity={0.95} />
               ))}
             </g>
 
@@ -927,43 +1137,119 @@ export function BaseMap({
               ))}
             </g>
 
+            {/*
+             * Machines sit on the wiring, so each carries a ring of surface
+             * colour to lift it off the belt it stands on, and then a hairline
+             * of its own tone darkened — an edge, rather than the white halo
+             * that made every mark look like a sticker.
+             */}
             <g>
               {model.marks.map((mark, i) =>
                 mark.landmark ? (
                   <SvgRect
                     key={`m${i}`}
-                    x={mark.x - 3.5}
-                    y={mark.y - 3.5}
-                    width={7}
-                    height={7}
+                    x={mark.x - 4}
+                    y={mark.y - 4}
+                    width={8}
+                    height={8}
                     fill="bg.surface"
                     stroke="fg.muted"
-                    strokeWidth={1.5}
+                    strokeWidth={1.6}
                     cursor={mark.zoneId === undefined ? 'default' : 'pointer'}
                     onClick={() => selectZone(mark.zoneId)}
                   >
                     <title>{mark.title}</title>
                   </SvgRect>
                 ) : (
-                  <SvgRect
-                    key={`m${i}`}
-                    x={mark.x - markRadius(mark.count)}
-                    y={mark.y - markRadius(mark.count)}
-                    width={markRadius(mark.count) * 2}
-                    height={markRadius(mark.count) * 2}
-                    rx={1}
-                    fill={mark.tone ? TONE_FILL[mark.tone] : 'fg.subtle'}
-                    stroke="bg.surface"
-                    strokeWidth={1.5}
-                    cursor={mark.zoneId === undefined ? 'default' : 'pointer'}
-                    onClick={() => selectZone(mark.zoneId)}
-                  >
-                    <title>{mark.title}</title>
-                  </SvgRect>
+                  <SvgG key={`m${i}`} cursor={mark.zoneId === undefined ? 'default' : 'pointer'}>
+                    <SvgRect
+                      x={mark.x - markRadius(mark.count) - 1.4}
+                      y={mark.y - markRadius(mark.count) - 1.4}
+                      width={markRadius(mark.count) * 2 + 2.8}
+                      height={markRadius(mark.count) * 2 + 2.8}
+                      rx={2}
+                      fill="bg.surface"
+                      opacity={0.9}
+                    />
+                    <SvgRect
+                      x={mark.x - markRadius(mark.count)}
+                      y={mark.y - markRadius(mark.count)}
+                      width={markRadius(mark.count) * 2}
+                      height={markRadius(mark.count) * 2}
+                      rx={1.5}
+                      fill={mark.tone ? TONE_FILL[mark.tone] : 'fg.subtle'}
+                      stroke={mark.tone ? TONE_FILL[mark.tone] : 'fg.subtle'}
+                      strokeWidth={1.6}
+                      strokeOpacity={0.45}
+                      onClick={() => selectZone(mark.zoneId)}
+                    >
+                      <title>{mark.title}</title>
+                    </SvgRect>
+                  </SvgG>
                 ),
               )}
             </g>
 
+            {/*
+             * Zone names last of the drawing, on a plate of the surface colour.
+             * Inside the zone group they were drawn before the belts, and a
+             * conveyor crossing the top of a cell struck its name through.
+             */}
+            <g pointerEvents="none">
+              {model.zones.map((zone) => (
+                <g key={`zl${zone.id}`}>
+                  {zone.captionInside ? (
+                    <SvgRect
+                      x={zone.x + 1}
+                      y={zone.y + 1}
+                      width={zone.captionW}
+                      height={CAPTION_H}
+                      fill="bg.surface"
+                      fillOpacity={0.82}
+                    />
+                  ) : null}
+                  <SvgText
+                    x={zone.x + 6}
+                    y={zone.captionInside ? zone.y + 12 : zone.y - 5}
+                    fill={
+                      zone.selected ? 'accent.solid' : zone.tone ? TONE_FILL[zone.tone] : 'fg.muted'
+                    }
+                    fontSize={`${LABEL_SIZE}px`}
+                    fontFamily="mono"
+                    letterSpacing="0.08em"
+                    paintOrder="stroke"
+                    stroke="bg.surface"
+                    strokeWidth={2.5}
+                    strokeLinejoin="round"
+                  >
+                    {zone.label.toUpperCase()}
+                  </SvgText>
+                </g>
+              ))}
+            </g>
+
+            {/* Leader lines under the type they belong to. */}
+            <g pointerEvents="none">
+              {model.labels.map((label, i) =>
+                label.leader ? (
+                  <SvgLine
+                    key={`ll${i}`}
+                    x1={label.leader.x1}
+                    y1={label.leader.y1}
+                    x2={label.leader.x2}
+                    y2={label.leader.y2}
+                    stroke="fg.subtle"
+                    strokeWidth={0.8}
+                    opacity={0.65}
+                  />
+                ) : null,
+              )}
+            </g>
+
+            {/*
+             * Type carries a casing of the surface colour so it stays readable
+             * where it crosses a belt or a grid line, which is most places.
+             */}
             <g pointerEvents="none">
               {model.labels.map((label, i) => (
                 <SvgText
@@ -973,6 +1259,10 @@ export function BaseMap({
                   fill={label.landmark ? 'fg.muted' : 'fg.default'}
                   fontSize={`${LABEL_SIZE}px`}
                   fontFamily="mono"
+                  paintOrder="stroke"
+                  stroke="bg.surface"
+                  strokeWidth={3}
+                  strokeLinejoin="round"
                 >
                   {label.text}
                 </SvgText>
@@ -1014,6 +1304,10 @@ export function BaseMap({
                   fill="currentColor"
                   fontSize="10px"
                   fontFamily="mono"
+                  paintOrder="stroke"
+                  stroke="bg.surface"
+                  strokeWidth={3}
+                  strokeLinejoin="round"
                   textAnchor={stray.ux > 0.5 ? 'end' : stray.ux < -0.5 ? 'start' : 'middle'}
                 >
                   {stray.text}
@@ -1022,48 +1316,61 @@ export function BaseMap({
             ))}
           </g>
 
-          {/* Scale bar, bottom left. */}
+          {/*
+           * Scale bar, bottom left — one square of the grid, so the bar measures
+           * something already on the page. Cased rather than plated: a plate wide
+           * enough to hold it also covered whatever the map had drawn down there,
+           * which on this save was the pointer to a miner 630 m south.
+           */}
           <g pointerEvents="none">
-            <SvgLine
-              x1={PAD}
-              y1={model.canvasH - 18}
-              x2={PAD + model.bar.units}
-              y2={model.canvasH - 18}
-              stroke="fg.muted"
-              strokeWidth={2}
-            />
-            <SvgLine
-              x1={PAD}
-              y1={model.canvasH - 22}
-              x2={PAD}
-              y2={model.canvasH - 14}
-              stroke="fg.muted"
-              strokeWidth={2}
-            />
-            <SvgLine
-              x1={PAD + model.bar.units}
-              y1={model.canvasH - 22}
-              x2={PAD + model.bar.units}
-              y2={model.canvasH - 14}
-              stroke="fg.muted"
-              strokeWidth={2}
-            />
+            {/* Casing pass, then the bar. Children inherit the group's stroke. */}
+            {[0, 1].map((pass) => (
+              <SvgG
+                key={pass}
+                stroke={pass === 0 ? 'bg.surface' : 'fg.muted'}
+                strokeWidth={pass === 0 ? 5 : 2}
+                strokeLinecap={pass === 0 ? 'round' : 'butt'}
+                opacity={pass === 0 ? 0.85 : 1}
+              >
+                <line
+                  x1={PAD}
+                  y1={model.canvasH - 18}
+                  x2={PAD + model.bar.units}
+                  y2={model.canvasH - 18}
+                />
+                <line x1={PAD} y1={model.canvasH - 22} x2={PAD} y2={model.canvasH - 14} />
+                <line
+                  x1={PAD + model.bar.units}
+                  y1={model.canvasH - 22}
+                  x2={PAD + model.bar.units}
+                  y2={model.canvasH - 14}
+                />
+              </SvgG>
+            ))}
             <SvgText
               x={PAD + model.bar.units + 7}
               y={model.canvasH - 14}
               fill="fg.muted"
               fontSize="10.5px"
               fontFamily="mono"
+              paintOrder="stroke"
+              stroke="bg.surface"
+              strokeWidth={3}
+              strokeLinejoin="round"
             >
               {model.bar.metres} m
             </SvgText>
             <SvgText
-              x={CANVAS_W - PAD}
+              x={model.canvasW - PAD}
               y={model.canvasH - 14}
               fill="fg.subtle"
               fontSize="10.5px"
               fontFamily="mono"
               textAnchor="end"
+              paintOrder="stroke"
+              stroke="bg.surface"
+              strokeWidth={3}
+              strokeLinejoin="round"
             >
               N ↑
             </SvgText>

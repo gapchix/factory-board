@@ -12,10 +12,23 @@
  * count as part of the base helps set its extent — otherwise a factory built in
  * two halves would have one half framed and the other declared an outlier. The
  * frame then *grows towards* whatever is near it, absorbing the closest
- * remaining group while it is within reach, and reach scales with what has been
- * framed so far: a big factory reaches further than a small one. Whatever is
- * still out of reach is reported rather than discarded, so the caller can point
- * at it.
+ * remaining group while it is within reach. Whatever is still out of reach is
+ * reported rather than discarded, so the caller can point at it.
+ *
+ * Reach is where the map is won or lost, because empty frame is not free: it is
+ * the difference between a factory you can read and a smear in a white field. So
+ * reach is bought rather than given, and buildings are the currency. Each one in
+ * a group buys the frame a few tens of metres of pull, so a six-machine wing
+ * drags the frame a few hundred metres to meet it and a lone shack has to be
+ * practically touching. On top of that a group that is a real share of what you
+ * have built reaches further still, in proportion to the size of the base — the
+ * far half of a factory crosses the map to be included, and nothing else does.
+ *
+ * The rule this replaced gave every group the same flat allowance, on the
+ * reasoning that at the scale of a base a hundred metres is nothing. It is not:
+ * in the reference save one water extractor 115 m west of the factory bought
+ * itself 28% of the frame's width, and the base drew in the right three
+ * quarters of its own map with a rectangle of empty ground beside it.
  */
 
 import { groupNearby, type Bounds } from './cluster.js';
@@ -23,9 +36,12 @@ import { groupNearby, type Bounds } from './cluster.js';
 export interface FrameOptions {
   /** Points this close belong to the same part of the base. Default 80 m. */
   readonly clusterRadiusM?: number;
-  /** The frame reaches at least this far for a neighbour. Default 120 m. */
-  readonly minReachM?: number;
-  /** And further for a large base: this fraction of its longest side. Default 0.6. */
+  /** How far each building in a group pulls the frame towards it. Default 55 m. */
+  readonly reachPerBuildingM?: number;
+  /**
+   * And further for a group that is a real share of the base: this fraction of
+   * the frame's longest side, scaled by that share. Default 0.6.
+   */
   readonly reachRatio?: number;
 }
 
@@ -39,7 +55,13 @@ export interface FrameResult<T> {
 }
 
 const DEFAULT_CLUSTER_RADIUS_M = 80;
-const DEFAULT_MIN_REACH_M = 120;
+/**
+ * A machine is about ten metres across and zones cluster at thirty-two, so
+ * fifty-five metres per building is "a little further than the next cell over".
+ * One building has to be all but touching the frame; a wing of six reaches the
+ * length of a belt run.
+ */
+const DEFAULT_REACH_PER_BUILDING_M = 55;
 const DEFAULT_REACH_RATIO = 0.6;
 
 /**
@@ -89,7 +111,7 @@ export function frameContent<T>(
   if (items.length === 0) return { bounds: null, inside: [], outside: [] };
 
   const clusterRadius = options.clusterRadiusM ?? DEFAULT_CLUSTER_RADIUS_M;
-  const minReach = options.minReachM ?? DEFAULT_MIN_REACH_M;
+  const perBuilding = options.reachPerBuildingM ?? DEFAULT_REACH_PER_BUILDING_M;
   const reachRatio = options.reachRatio ?? DEFAULT_REACH_RATIO;
 
   const groups = groupNearby(items, position, clusterRadius)
@@ -104,26 +126,33 @@ export function frameContent<T>(
   );
   const pending = groups.filter((group) => !seeds.has(group));
   let bounds = [...seeds].reduce((box, group) => unionBounds(box, group.bounds), largest.bounds);
+  let framed = [...seeds].reduce((count, group) => count + group.members.length, 0);
 
   // Absorb the nearest group still within reach, then re-measure: each addition
-  // enlarges the frame, which lengthens its reach for the next one.
+  // enlarges the frame and the base it is measured against, so reach is
+  // recomputed for every candidate on every pass.
   for (;;) {
-    const reach = Math.max(
-      minReach,
-      reachRatio * Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY),
-    );
+    const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+    const reachFor = (members: number) =>
+      perBuilding * members + reachRatio * span * Math.min(1, members / framed);
+
     let nearest = -1;
     let nearestGap = Infinity;
     pending.forEach((group, index) => {
       const gap = boundsGap(bounds, group.bounds);
+      // A group out of its own reach is not a candidate at all: otherwise the
+      // nearest group being unaffordable would stop the frame considering a
+      // slightly further one that has the buildings to pay for itself.
+      if (gap > reachFor(group.members.length)) return;
       if (gap < nearestGap) {
         nearestGap = gap;
         nearest = index;
       }
     });
-    if (nearest < 0 || nearestGap > reach) break;
+    if (nearest < 0) break;
     const [absorbed] = pending.splice(nearest, 1);
     bounds = unionBounds(bounds, absorbed!.bounds);
+    framed += absorbed!.members.length;
   }
 
   const exiled = new Set(pending.flatMap((group) => group.members));
