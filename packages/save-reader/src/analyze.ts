@@ -1,5 +1,6 @@
 import type {
   ActualLine,
+  BuildingLink,
   BuildingPath,
   BuildingPlacement,
   BuildingRole,
@@ -181,6 +182,15 @@ function objectPath(value: unknown): string {
   return '';
 }
 
+/** The whole reference, not just its tail — connections point at components. */
+function objectPathFull(value: unknown): string {
+  if (value && typeof value === 'object' && 'pathName' in value) {
+    const path = (value as { pathName: unknown }).pathName;
+    return typeof path === 'string' ? path : '';
+  }
+  return '';
+}
+
 function num(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
@@ -272,6 +282,31 @@ function ownerOf(instanceName: string): string {
   return instanceName.slice(0, instanceName.lastIndexOf('.'));
 }
 
+/** `…Build_MinerMk1_C_2147250059.Output0` → `Output0`. */
+function partOf(instanceName: string): string {
+  return instanceName.slice(instanceName.lastIndexOf('.') + 1);
+}
+
+type Port = 'out' | 'in' | 'fluid' | 'either';
+
+/**
+ * Which way things move through a connection component, from its name.
+ *
+ * A belt's two ends are named for build order — `ConveyorAny0` is where items
+ * arrive and `ConveyorAny1` where they leave — and a machine names its ports
+ * outright. Splitters and mergers call theirs `Connection0..3` and say nothing,
+ * which is why direction is settled by whichever end of a link does know: every
+ * conveyor link has a belt on one side of it.
+ */
+function portOf(name: string): Port {
+  if (name.startsWith('ConveyorAny0')) return 'in';
+  if (name.startsWith('ConveyorAny1')) return 'out';
+  if (name.startsWith('Output')) return 'out';
+  if (name.startsWith('Input')) return 'in';
+  if (/Pipe/i.test(name)) return 'fluid';
+  return 'either';
+}
+
 interface LineAccumulator {
   machine: string;
   count: number;
@@ -326,6 +361,15 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   const fuelClasses = new Map<string, string>();
   const needsResource: { index: number; owner: string; role: BuildingRole }[] = [];
 
+  /*
+   * The factory's wiring, collected as it goes past and resolved at the end —
+   * a connection names a component, and the building that owns it may not have
+   * been read yet.
+   */
+  const placementOf = new Map<string, number>();
+  const pathOwners: string[] = [];
+  const connections: { self: string; other: string }[] = [];
+
   for (const level of Object.values(save.levels ?? {})) {
     for (const object of level.objects ?? []) {
       objectCount += 1;
@@ -335,6 +379,9 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       const recipe = objectPath(propValue(properties, 'mCurrentRecipe'));
 
       const instanceName = object.instanceName ?? '';
+      const connected = objectPathFull(propValue(properties, 'mConnectedComponent'));
+      if (connected && instanceName) connections.push({ self: instanceName, other: connected });
+
       if (instanceName.endsWith('.OutputInventory')) {
         const item = inventoryItem(properties);
         if (item) outputInventories.set(ownerOf(instanceName), item);
@@ -348,14 +395,18 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
         buildings[id] = (buildings[id] ?? 0) + 1;
 
         if (paths.length < MAX_PATHS) {
+          const route = (kind: BuildingPath['kind'], points: [number, number][]) => {
+            paths.push({ kind, points });
+            pathOwners.push(instanceName);
+          };
           if (/ConveyorBelt|ConveyorLift/.test(id)) {
             const points = readSpline(object);
-            if (points.length >= 2) paths.push({ kind: 'belt', points });
+            if (points.length >= 2) route('belt', points);
           } else if (/Pipeline/.test(id)) {
             const points = readSpline(object);
-            if (points.length >= 2) paths.push({ kind: 'pipe', points });
+            if (points.length >= 2) route('pipe', points);
           } else if (/PowerLine/.test(id)) {
-            for (const points of readWires(object)) paths.push({ kind: 'power', points });
+            for (const points of readWires(object)) route('power', points);
           }
         }
 
@@ -396,6 +447,8 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
             ...(role ? { role } : {}),
             ...(uptime === undefined ? {} : { uptime }),
           });
+
+          placementOf.set(instanceName, placements.length - 1);
 
           if (role === 'extraction' || role === 'power') {
             needsResource.push({ index: placements.length - 1, owner: instanceName, role });
@@ -439,6 +492,58 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   }
 
   /*
+   * The routes learn which building drew them, so a map can light up the exact
+   * belt that carries something rather than every belt near it.
+   */
+  const routed: BuildingPath[] = paths.map((path, index) => {
+    const building = placementOf.get(pathOwners[index] ?? '');
+    return building === undefined ? path : { ...path, building };
+  });
+
+  /*
+   * What feeds what. Every connection is declared from both ends, so each one
+   * is seen twice and emitted once; direction is settled by whichever end
+   * knows, because a splitter's ports say nothing and the belt on the other
+   * side of the link always does.
+   */
+  const links: BuildingLink[] = [];
+  const seen = new Set<string>();
+  for (const { self, other } of connections) {
+    const from = placementOf.get(ownerOf(self));
+    const to = placementOf.get(ownerOf(other));
+    if (from === undefined || to === undefined || from === to) continue;
+
+    const here = portOf(partOf(self));
+    const there = portOf(partOf(other));
+    const fluid = here === 'fluid' || there === 'fluid';
+    const kind: BuildingLink['kind'] = fluid ? 'pipe' : 'belt';
+
+    let start = from;
+    let end = to;
+    if (here === 'in' || there === 'out') {
+      start = to;
+      end = from;
+    } else if (here === 'out' || there === 'in') {
+      start = from;
+      end = to;
+    } else if (!fluid) {
+      // Neither end knows and it is not a pipe: leave it out rather than
+      // invent a direction for it.
+      continue;
+    }
+
+    // A pipe has no direction, so its two ends are one link however they are
+    // written down; a belt's are not interchangeable.
+    const key =
+      kind === 'pipe'
+        ? `pipe:${Math.min(start, end)}:${Math.max(start, end)}`
+        : `belt:${start}:${end}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    links.push({ from: start, to: end, kind });
+  }
+
+  /*
    * A generator names its fuel outright; an extractor has to be asked what is
    * sitting in its output buffer. Either answer only arrives once every object
    * has been seen, so the join happens here rather than in the loop.
@@ -475,7 +580,8 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     lines: resolved,
     buildings,
     placements,
-    paths,
+    paths: routed,
+    links,
     milestones: [...new Set(milestones)].sort(),
     phase,
     objectCount,

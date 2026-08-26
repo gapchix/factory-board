@@ -230,16 +230,15 @@ describe('analyzeSave · routes', () => {
         ]),
       ]),
     );
-    expect(snapshot.paths).toEqual([
-      {
-        kind: 'belt',
-        points: [
-          [10, 20],
-          [12, 20],
-          [14, 20],
-        ],
-      },
+    expect(snapshot.paths[0]?.kind).toBe('belt');
+    expect(snapshot.paths[0]?.points).toEqual([
+      [10, 20],
+      [12, 20],
+      [14, 20],
     ]);
+    // And it knows which belt drew it, so a chain can light up that exact run.
+    expect(snapshot.paths[0]?.building).toBe(0);
+    expect(snapshot.placements[0]?.machine).toBe('ConveyorBeltMk1');
   });
 
   it('does not normalise direction: a belt built the other way reads the other way', () => {
@@ -540,5 +539,128 @@ describe('analyzeSave · which way a building faces', () => {
       properties: {},
     };
     expect(analyzeSave(save([noRotation])).placements[0]?.facing).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------------------------- links */
+
+const building = (name: string, buildClass = 'ConstructorMk1'): RawSaveObject => ({
+  instanceName: instance(name),
+  typePath: `/Game/FactoryGame/Buildable/Factory/${buildClass}/Build_${buildClass}.Build_${buildClass}_C`,
+  transform: { translation: { x: 0, y: 0, z: 0 } },
+  properties: {},
+});
+
+/** A connection component, naming the one it is plugged into. */
+const port = (owner: string, part: string, into: string): RawSaveObject => ({
+  instanceName: instance(`${owner}.${part}`),
+  typePath: '/Script/FactoryGame.FGFactoryConnectionComponent',
+  properties: { mConnectedComponent: objectProp(instance(into)) },
+});
+
+/** The same link as the game writes it: declared from both ends. */
+const wire = (a: string, aPart: string, b: string, bPart: string): RawSaveObject[] => [
+  port(a, aPart, `${b}.${bPart}`),
+  port(b, bPart, `${a}.${aPart}`),
+];
+
+const named = (snapshot: ReturnType<typeof analyzeSave>) =>
+  snapshot.links.map(
+    (link) =>
+      `${snapshot.placements[link.from]?.machine} → ${snapshot.placements[link.to]?.machine} (${link.kind})`,
+  );
+
+describe('analyzeSave · what feeds what', () => {
+  it('reads a machine feeding a belt feeding a machine', () => {
+    const snapshot = analyzeSave(
+      save([
+        building('Build_MinerMk1_C_1', 'MinerMk1'),
+        building('Build_ConveyorBeltMk1_C_1', 'ConveyorBeltMk1'),
+        building('Build_SmelterMk1_C_1', 'SmelterMk1'),
+        ...wire('Build_MinerMk1_C_1', 'Output0', 'Build_ConveyorBeltMk1_C_1', 'ConveyorAny0'),
+        ...wire('Build_ConveyorBeltMk1_C_1', 'ConveyorAny1', 'Build_SmelterMk1_C_1', 'Input0'),
+      ]),
+    );
+    expect(named(snapshot)).toEqual([
+      'MinerMk1 → ConveyorBeltMk1 (belt)',
+      'ConveyorBeltMk1 → SmelterMk1 (belt)',
+    ]);
+  });
+
+  // Both ends declare the same connection, so every link is seen twice.
+  it('writes a link down once, however many ends declare it', () => {
+    const snapshot = analyzeSave(
+      save([
+        building('Build_ConveyorBeltMk1_C_1', 'ConveyorBeltMk1'),
+        building('Build_ConveyorBeltMk1_C_2', 'ConveyorBeltMk1'),
+        ...wire(
+          'Build_ConveyorBeltMk1_C_1',
+          'ConveyorAny1',
+          'Build_ConveyorBeltMk1_C_2',
+          'ConveyorAny0',
+        ),
+      ]),
+    );
+    expect(snapshot.links).toHaveLength(1);
+    expect(snapshot.links[0]).toEqual({ from: 0, to: 1, kind: 'belt' });
+  });
+
+  /*
+   * A splitter calls its ports Connection0..3 and says nothing about which way
+   * anything moves. The belt on the other side of the link always does, and
+   * that is what settles it.
+   */
+  it("takes a splitter's direction from the belt it is plugged into", () => {
+    const snapshot = analyzeSave(
+      save([
+        building('Build_ConveyorBeltMk1_C_1', 'ConveyorBeltMk1'),
+        building('Build_ConveyorAttachmentSplitter_C_1', 'ConveyorAttachmentSplitter'),
+        building('Build_ConveyorBeltMk1_C_2', 'ConveyorBeltMk1'),
+        // Belt one ends at the splitter; belt two starts there.
+        ...wire(
+          'Build_ConveyorBeltMk1_C_1',
+          'ConveyorAny1',
+          'Build_ConveyorAttachmentSplitter_C_1',
+          'Connection0',
+        ),
+        ...wire(
+          'Build_ConveyorAttachmentSplitter_C_1',
+          'Connection1',
+          'Build_ConveyorBeltMk1_C_2',
+          'ConveyorAny0',
+        ),
+      ]),
+    );
+    expect(named(snapshot)).toEqual([
+      'ConveyorBeltMk1 → ConveyorAttachmentSplitter (belt)',
+      'ConveyorAttachmentSplitter → ConveyorBeltMk1 (belt)',
+    ]);
+  });
+
+  it('keeps a pipe as one link, because fluid has no build order', () => {
+    const snapshot = analyzeSave(
+      save([
+        building('Build_WaterPump_C_1', 'WaterPump'),
+        building('Build_Pipeline_C_1', 'Pipeline'),
+        ...wire(
+          'Build_WaterPump_C_1',
+          'FGPipeConnectionFactory',
+          'Build_Pipeline_C_1',
+          'PipelineConnection0',
+        ),
+      ]),
+    );
+    expect(snapshot.links).toHaveLength(1);
+    expect(snapshot.links[0]?.kind).toBe('pipe');
+  });
+
+  it('ignores a connection to something that was never placed', () => {
+    const snapshot = analyzeSave(
+      save([
+        building('Build_MinerMk1_C_1', 'MinerMk1'),
+        port('Build_MinerMk1_C_1', 'Output0', 'Build_Ghost_C_9.ConveyorAny0'),
+      ]),
+    );
+    expect(snapshot.links).toEqual([]);
   });
 });

@@ -81,6 +81,33 @@ export interface BuildingPath {
   readonly kind: 'belt' | 'pipe' | 'power';
   /** [x, y] pairs in metres, in order. */
   readonly points: readonly (readonly [number, number])[];
+  /**
+   * Index into `placements` of the belt or pipe this route belongs to, so a
+   * drawing can light up the exact run that carries something.
+   */
+  readonly building?: number | undefined;
+}
+
+/**
+ * One thing feeding another: what leaves `from` arrives at `to`.
+ *
+ * The save states this outright. Every connection component names the one it
+ * is plugged into, and every connection is declared from both ends, so the
+ * factory is a graph rather than something to be guessed at from geometry.
+ * Direction comes out of the component names: a belt's `ConveyorAny0` is the
+ * end items arrive at and `ConveyorAny1` the end they leave by, and a machine
+ * names its `Input` and `Output` ports.
+ */
+export interface BuildingLink {
+  /** Index into `placements`: where the items leave. */
+  readonly from: number;
+  /** Index into `placements`: where they arrive. */
+  readonly to: number;
+  /**
+   * `pipe` links carry no direction — which way fluid moves depends on the
+   * pumps — so `from` and `to` are merely the two ends of one.
+   */
+  readonly kind: 'belt' | 'pipe';
 }
 
 export interface PhaseProgress {
@@ -116,6 +143,8 @@ export interface WorldSnapshot {
   readonly placements: readonly BuildingPlacement[];
   /** Belt, pipe and power-line routes, for drawing the base. */
   readonly paths: readonly BuildingPath[];
+  /** What feeds what, from the connections the save records. */
+  readonly links: readonly BuildingLink[];
   readonly milestones: readonly MilestoneId[];
   readonly phase: PhaseProgress | null;
   /** Total placed objects the parser returned, for sanity-checking a load. */
