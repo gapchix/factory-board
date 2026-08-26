@@ -93,6 +93,15 @@ export interface WorldSnapshot {
    * Unrelated to `GameDatabase.sourceBuildId`; never compare the two.
    */
   readonly saveBuildVersion: number;
+  /**
+   * When the game wrote this save, in milliseconds since the Unix epoch, or
+   * `null` where the header does not say.
+   *
+   * `playDurationSeconds` is the session's own clock and is what a series of
+   * saves should be ordered by; this is the wall clock, which is what a person
+   * recognises a save by.
+   */
+  readonly savedAt: number | null;
   readonly lines: Readonly<Record<RecipeId, ActualLine>>;
   /** Every placed building, counted by class, belts and foundations included. */
   readonly buildings: Readonly<Record<string, number>>;

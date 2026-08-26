@@ -190,6 +190,24 @@ function str(value: unknown, fallback = ''): string {
 }
 
 /**
+ * The header's `saveDateTime`, which arrives as a string of milliseconds since
+ * the Unix epoch.
+ *
+ * Sanity-checked rather than trusted: the field has been a number, a string and
+ * Unreal's own tick count across versions of the format, and a wrong reading
+ * here would put a save in the year 58000 and stretch a chart to nothing. A
+ * value outside living memory is treated as no answer at all.
+ */
+const YEAR_2000 = 946684800000;
+const YEAR_2100 = 4102444800000;
+
+function epochMillis(value: unknown): number | null {
+  const parsed = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
+  if (!Number.isFinite(parsed) || parsed < YEAR_2000 || parsed > YEAR_2100) return null;
+  return Math.round(parsed);
+}
+
+/**
  * The game's own productivity measurement: how much of the last window this
  * building spent producing.
  *
@@ -428,6 +446,7 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     sessionName: str(header?.['sessionName'], 'Unnamed save'),
     playDurationSeconds: num(header?.['playDurationSeconds']) ?? 0,
     saveBuildVersion: num(header?.['buildVersion']) ?? 0,
+    savedAt: epochMillis(header?.['saveDateTime']),
     lines: resolved,
     buildings,
     placements,

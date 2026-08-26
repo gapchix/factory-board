@@ -479,3 +479,25 @@ describe('analyzeSave · what a building is for', () => {
     expect(snapshot.placements[0]?.role).toBeUndefined();
   });
 });
+
+describe('analyzeSave · when the save was written', () => {
+  it('reads the save time from the header', () => {
+    const snapshot = analyzeSave(save([], { saveDateTime: '1787730343646' }));
+    expect(snapshot.savedAt).toBe(1787730343646);
+    expect(new Date(snapshot.savedAt ?? 0).toISOString()).toBe('2026-08-26T07:45:43.646Z');
+  });
+
+  it('takes a number as readily as a string', () => {
+    expect(analyzeSave(save([], { saveDateTime: 1787730343646 })).savedAt).toBe(1787730343646);
+  });
+
+  // The field has been a string, a number and Unreal's own tick count across
+  // versions. A misread would file a save under the year 58000 and stretch a
+  // chart of the session to nothing.
+  it('refuses a value outside living memory rather than guessing', () => {
+    expect(analyzeSave(save([], { saveDateTime: '638000000000000000' })).savedAt).toBeNull();
+    expect(analyzeSave(save([], { saveDateTime: '0' })).savedAt).toBeNull();
+    expect(analyzeSave(save([], { saveDateTime: 'yesterday' })).savedAt).toBeNull();
+    expect(analyzeSave(save([])).savedAt).toBeNull();
+  });
+});
