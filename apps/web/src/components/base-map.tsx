@@ -4,9 +4,11 @@ import { Box, Button, chakra, Flex, Text } from '@chakra-ui/react';
 import {
   frameContent,
   groupNearby,
+  joinRuns,
   sampleAlong,
   type Bounds,
   type ClusterResult,
+  type Polyline,
 } from '@factory-board/layout';
 import type { GameDatabase } from '@factory-board/planner';
 import type { BuildingPlacement, WorldSnapshot } from '@factory-board/save-reader';
@@ -23,7 +25,7 @@ import {
 } from 'react';
 import { buildingName, itemName } from '@/lib/format';
 import { uptimeTone, type StatusTone } from './charts';
-import { Label } from './primitives';
+import { Label, Meter } from './primitives';
 
 /**
  * A top-down plan of the base, drawn from the save.
@@ -142,6 +144,19 @@ const TONE_SUBTLE: Record<StatusTone, string> = {
 /** Endpoints of the routes we already draw as lines; dots would double them up. */
 const DRAWN_AS_ROUTE =
   /ConveyorBelt|ConveyorLift|PowerLine|Pipeline|ConveyorPole|PowerPole|PowerConnection/;
+/**
+ * The things that interrupt a run without being worth a name of their own.
+ *
+ * A belt stops either side of a splitter, so with nothing drawn in the gap the
+ * base's spine reads as confetti. On the reference save, twenty of the gaps
+ * between belt runs have one of these standing in them and twenty-one have a
+ * machine — which is drawn already, and is the honest reason that belt ends.
+ * Poles are deliberately absent: they hold a belt up, they do not break it.
+ */
+const FITTING = /ConveyorAttachment|ConveyorLift|StorageContainer|StorageIntegrated/;
+/** Fittings arrive with the zoom, like every other detail on this map. */
+const MIN_FITTING_SCALE = 3.5;
+const FITTING_R = 2.6;
 /** Worth a mark and a name even though they make nothing. */
 const LANDMARK =
   /SpaceElevator|TradingPost|Miner|Generator|WaterPump|Workshop|LookoutTower|ResourceSink|Portal/;
@@ -158,6 +173,42 @@ interface View {
   readonly cy: number;
   readonly zoom: number;
 }
+
+/** One drawn mark: a machine, a merged group of them, or a landmark. */
+interface Mark {
+  x: number;
+  y: number;
+  tone: StatusTone | null;
+  landmark: boolean;
+  name: string;
+  count: number;
+  machine: string;
+  uptime: number | null;
+  resource: string | undefined;
+  title: string;
+  priority: number;
+  zoneId: string | undefined;
+}
+
+/**
+ * What the pointer is over, and where to put the card about it.
+ *
+ * Detail used to come from a native `<title>`: a second's wait for a grey box
+ * that cannot be styled, carries no bar, and never appears twice in the same
+ * place. The position is taken once, when the pointer arrives, so the card
+ * holds still while it is being read.
+ */
+interface Hovered {
+  readonly mark: Mark;
+  readonly x: number;
+  readonly y: number;
+  readonly flipX: boolean;
+  readonly flipY: boolean;
+}
+
+const HOVER_W = 208;
+const HOVER_H = 78;
+const HOVER_GAP = 14;
 
 /** The frame the map opens on, and the scale that fits it to the canvas. */
 interface Home {
@@ -259,6 +310,7 @@ export function BaseMap({
 }) {
   const [fit, setFit] = useState<'base' | 'all'>('base');
   const [view, setView] = useState<View | null>(null);
+  const [hovered, setHovered] = useState<Hovered | null>(null);
 
   const clipId = `fb-map-${useId().replace(/:/g, '')}`;
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -285,6 +337,24 @@ export function BaseMap({
       ),
     [snapshot],
   );
+
+  /**
+   * The wiring, with each route drawn as the run it is rather than as the
+   * dozen buildings it was made of. Joined once per save, not per view: what
+   * continues what is a fact about the base, not about where you are looking.
+   *
+   * Power lines are left alone. A wire already carries both its endpoints, and
+   * a pole is a hub rather than a link in a chain.
+   */
+  const runs = useMemo(() => {
+    const byKind: Record<'belt' | 'pipe' | 'power', Polyline[]> = { belt: [], pipe: [], power: [] };
+    for (const path of snapshot.paths) byKind[path.kind].push(path.points);
+    return [
+      ...joinRuns(byKind.belt).map((points) => ({ kind: 'belt' as const, points })),
+      ...joinRuns(byKind.pipe).map((points) => ({ kind: 'pipe' as const, points })),
+      ...byKind.power.map((points) => ({ kind: 'power' as const, points })),
+    ];
+  }, [snapshot]);
 
   const home = useMemo((): Home | null => {
     const raw =
@@ -424,6 +494,7 @@ export function BaseMap({
       if (rect.width === 0) return;
       const perPixel = frame.canvasW / rect.width;
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+      setHovered(null);
       const moved = zoomBy(Math.exp((-event.deltaY * unit) / 480), {
         x: (event.clientX - rect.left) * perPixel,
         y: (event.clientY - rect.top) * perPixel,
@@ -484,7 +555,7 @@ export function BaseMap({
      */
     const routes = { belt: [] as string[], pipe: [] as string[], power: [] as string[] };
     const arrows: { x: number; y: number; angle: number }[] = [];
-    for (const path of snapshot.paths) {
+    for (const path of runs) {
       const points = path.points.map(([x, y]) => [px(x), py(y)] as [number, number]);
       if (
         points.every(([x]) => x < 0) ||
@@ -516,18 +587,6 @@ export function BaseMap({
 
     const uptimeOf = (recipe: string | undefined) =>
       recipe ? (snapshot.lines[recipe]?.uptime ?? null) : null;
-
-    interface Mark {
-      x: number;
-      y: number;
-      tone: StatusTone | null;
-      landmark: boolean;
-      name: string;
-      count: number;
-      title: string;
-      priority: number;
-      zoneId: string | undefined;
-    }
 
     interface Candidate {
       worldX: number;
@@ -596,6 +655,9 @@ export function BaseMap({
           landmark: first.landmark,
           name: group.length > 1 ? `${first.name} ×${group.length}` : first.name,
           count: group.length,
+          machine: first.machine,
+          uptime,
+          resource: first.resource ? itemName(db, first.resource) : undefined,
           title:
             `${group.length}× ${first.machine}` +
             (first.landmark ? '' : ` — ${first.name}`) +
@@ -807,6 +869,16 @@ export function BaseMap({
       };
     });
 
+    // Beads on the wiring: what a run stops either side of.
+    const fittings: { x: number; y: number }[] = [];
+    if (scale >= MIN_FITTING_SCALE) {
+      for (const placement of snapshot.placements) {
+        if (!FITTING.test(placement.machine)) continue;
+        if (!contains(visible, placement.x, placement.y)) continue;
+        fittings.push({ x: px(placement.x), y: py(placement.y) });
+      }
+    }
+
     return {
       zones,
       marks,
@@ -814,6 +886,7 @@ export function BaseMap({
       routes,
       arrows,
       strays,
+      fittings,
       grid: { x: gridX, y: gridY },
       zoom: active.zoom,
       panned: view !== null,
@@ -831,6 +904,7 @@ export function BaseMap({
     content.inside,
     db,
     home,
+    runs,
     selectedZoneId,
     snapshot,
     view,
@@ -847,6 +921,8 @@ export function BaseMap({
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
     suppressClick.current = false;
+    // Whatever the card was about is about to move under the pointer.
+    setHovered(null);
     dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
   };
 
@@ -887,6 +963,30 @@ export function BaseMap({
     onSelectZone(id === selectedZoneId ? null : id);
   };
 
+  /**
+   * The card is placed where the pointer arrived, and flipped to whichever side
+   * of it has room, so it never hangs off the map or over the mark it is about.
+   */
+  const showDetail = (event: ReactPointerEvent<SVGElement>, mark: Mark) => {
+    // A tap is how a zone is chosen on a touch screen; it should not also leave
+    // a card behind with nothing to dismiss it.
+    if (event.pointerType === 'touch' || dragRef.current) return;
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const rect = surface.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    setHovered({
+      mark,
+      x,
+      y,
+      flipX: x + HOVER_W + HOVER_GAP > rect.width,
+      flipY: y + HOVER_H + HOVER_GAP > rect.height,
+    });
+  };
+
+  const hideDetail = () => setHovered(null);
+
   const reset = () => {
     onSelectZone(null);
     setViewNow(null);
@@ -895,6 +995,7 @@ export function BaseMap({
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const frame = stateRef.current.home;
     if (!frame) return;
+    setHovered(null);
     const from = currentView(frame);
     const step = (frame.canvasW * 0.18) / (frame.scale * from.zoom);
     const pan = (dx: number, dy: number) =>
@@ -1009,6 +1110,7 @@ export function BaseMap({
         borderWidth="1px"
         borderColor="border.default"
         p="6px"
+        position="relative"
         touchAction="pan-y"
         // A portrait base makes a portrait canvas, and the surface is cut to it
         // rather than the drawing being stranded in the middle of a wide box.
@@ -1031,6 +1133,7 @@ export function BaseMap({
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
+          onPointerLeave={hideDetail}
         >
           <defs>
             <clipPath id={clipId}>
@@ -1136,6 +1239,24 @@ export function BaseMap({
               ))}
             </g>
 
+            {/*
+             * The fittings a run passes through, drawn in the belt's own colour
+             * so they read as beads on the line rather than as buildings.
+             */}
+            <g pointerEvents="none">
+              {model.fittings.map((fitting, i) => (
+                <SvgRect
+                  key={`f${i}`}
+                  x={fitting.x - FITTING_R}
+                  y={fitting.y - FITTING_R}
+                  width={FITTING_R * 2}
+                  height={FITTING_R * 2}
+                  fill="steel.500"
+                  opacity={0.9}
+                />
+              ))}
+            </g>
+
             {/* Which way the ore is going. */}
             <g pointerEvents="none">
               {model.arrows.map((arrow, i) => (
@@ -1181,12 +1302,21 @@ export function BaseMap({
                     stroke={mark.tone ? TONE_FILL[mark.tone] : 'fg.muted'}
                     strokeWidth={1.6}
                     cursor={mark.zoneId === undefined ? 'default' : 'pointer'}
+                    role="img"
+                    aria-label={mark.title}
                     onClick={() => selectZone(mark.zoneId)}
-                  >
-                    <title>{mark.title}</title>
-                  </SvgRect>
+                    onPointerEnter={(event) => showDetail(event, mark)}
+                    onPointerLeave={hideDetail}
+                  />
                 ) : (
-                  <SvgG key={`m${i}`} cursor={mark.zoneId === undefined ? 'default' : 'pointer'}>
+                  <SvgG
+                    key={`m${i}`}
+                    cursor={mark.zoneId === undefined ? 'default' : 'pointer'}
+                    role="img"
+                    aria-label={mark.title}
+                    onPointerEnter={(event) => showDetail(event, mark)}
+                    onPointerLeave={hideDetail}
+                  >
                     <SvgRect
                       x={mark.x - markRadius(mark.count) - 1.4}
                       y={mark.y - markRadius(mark.count) - 1.4}
@@ -1207,9 +1337,7 @@ export function BaseMap({
                       strokeWidth={1.6}
                       strokeOpacity={0.45}
                       onClick={() => selectZone(mark.zoneId)}
-                    >
-                      <title>{mark.title}</title>
-                    </SvgRect>
+                    />
                   </SvgG>
                 ),
               )}
@@ -1401,6 +1529,68 @@ export function BaseMap({
             </SvgText>
           </g>
         </svg>
+
+        {hovered ? (
+          <Box
+            position="absolute"
+            left={`${hovered.flipX ? hovered.x - HOVER_W - HOVER_GAP : hovered.x + HOVER_GAP}px`}
+            top={`${hovered.flipY ? hovered.y - HOVER_H - HOVER_GAP : hovered.y + HOVER_GAP}px`}
+            w={`${HOVER_W}px`}
+            bg="bg.surface"
+            borderWidth="1px"
+            borderColor="fg.muted"
+            borderLeftWidth="3px"
+            borderLeftColor={hovered.mark.tone ? TONE_FILL[hovered.mark.tone] : 'fg.muted'}
+            px={3}
+            py={2.5}
+            pointerEvents="none"
+            zIndex={1}
+          >
+            <Text fontSize="14px" fontWeight="600" lineHeight="1.25" truncate>
+              {hovered.mark.name}
+            </Text>
+            {/*
+             * A machine's heading is what it makes, so the second line is what
+             * it is made in. A landmark's heading is already the building, so
+             * the second line is what it handles — and the HUB, which makes and
+             * handles nothing, gets no second line rather than its own name
+             * twice.
+             */}
+            {(hovered.mark.landmark ? hovered.mark.resource : hovered.mark.machine) ? (
+              <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" truncate>
+                {hovered.mark.landmark ? hovered.mark.resource : hovered.mark.machine}
+              </Text>
+            ) : null}
+            {hovered.mark.uptime === null ? (
+              <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" mt={1.5}>
+                no measurement yet
+              </Text>
+            ) : (
+              <Flex align="center" gap={2} mt={2}>
+                <Meter
+                  value={hovered.mark.uptime}
+                  tone={hovered.mark.tone ?? uptimeTone(hovered.mark.uptime)}
+                />
+                {/* The bar carries the state; the number stays in text ink. */}
+                <Text
+                  fontFamily="mono"
+                  fontSize="11px"
+                  color="fg.muted"
+                  w="34px"
+                  textAlign="end"
+                  fontVariantNumeric="tabular-nums"
+                >
+                  {Math.round(hovered.mark.uptime * 100)}%
+                </Text>
+              </Flex>
+            )}
+            {hovered.mark.zoneId !== undefined && zoneNames[hovered.mark.zoneId] ? (
+              <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" mt={1.5} truncate>
+                in {zoneNames[hovered.mark.zoneId]}
+              </Text>
+            ) : null}
+          </Box>
+        ) : null}
       </Box>
 
       <Flex gap={4} mt={2.5} wrap="wrap" align="center">

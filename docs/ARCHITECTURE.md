@@ -215,3 +215,4 @@ Recorded in full under [adr/](adr).
 | [The canvas takes the shape of the base](adr/0012-the-canvas-takes-the-shape-of-the-base.md) | A portrait base on a landscape sheet drew as a ribbon using 30% of the width                   |
 | [Zones are clustered in passes](adr/0013-zones-are-clustered-in-passes.md)                   | Letting generators anchor zones alongside machines welded two factory cells into one           |
 | [A reference to a zone is a point](adr/0014-a-zone-reference-is-a-point.md)                  | Zone ids are positional and names derived; a coordinate survives the next autosave             |
+| [Runs are joined, fittings are drawn](adr/0015-runs-are-joined-fittings-are-drawn.md)        | Reaching across the gaps bought one join in a hundred; the thing in the gap says more          |

@@ -83,16 +83,35 @@ inside them, the same one their card carries below. Belts are cased so crossings
 one run passing over another. Type carries a casing too, so it survives whatever it
 crosses. The scale bar is one square of the grid.
 
-Still open, and not part of what was asked for:
+Two of the three left open were closed on 2026-08-26; see B4 below. Still open:
 
-- **Belts read as confetti.** Each conveyor is its own object, so a single run draws as
-  a dozen short strokes with a gap at every join. Joining collinear runs end-to-start
-  before drawing would give the base its skeleton back.
-- **Hover is the browser's.** Detail comes from a native `<title>`, which takes a second
-  to appear and cannot be styled. A real hover card would carry uptime and recipe.
 - **A diagonal base still leaves corners empty.** No rectangle frames an L-shape tightly.
   Rotating the drawing onto the base's principal axis is the only real answer and it
   costs the reader a map that no longer points north — worth asking about before building.
+
+### B4. The map — the wiring · shipped
+
+**Belts read as runs.** `joinRuns` joins what actually continues, end-to-start and never
+reversed: 101 belt objects become 59 runs and 25 pipes become 16, and direction chevrons
+space themselves along a route instead of per segment.
+
+**What is standing in the gap is drawn** rather than reached across. Every belt end on the
+reference save was measured: 44 meet another and are joined, 20 have a splitter or merger
+in the gap, 21 have a machine, 3 a container. Joining _through_ a fitting was built and
+measured before being thrown away — it bought one join in a hundred, because a splitter
+has two belts leaving it and the link is genuinely ambiguous
+([ADR 15](adr/0015-runs-are-joined-fittings-are-drawn.md)). So the fittings are drawn as
+beads on the line, arriving with the zoom, and they explain 64 of the 118 run ends.
+
+**A real hover card**, in place of the native `<title>` that took a second to appear and
+could not be styled: what the mark is, what it is made in or what it handles, its uptime
+as a bar, and the zone it stands in. It is placed where the pointer arrived and flips to
+whichever side has room.
+
+Still not built, and now the honest next step for the wiring: **machines are drawn at a
+fixed size in pixels**, so the further you zoom in, the further a machine's mark sits from
+the belt that feeds it. Drawing buildings at their true footprint needs a size per
+building class out of `Docs.json` and the rotation of each placement out of the save.
 
 ### B2. Zones — the rest · shipped
 

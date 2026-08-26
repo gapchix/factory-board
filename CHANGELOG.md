@@ -89,6 +89,18 @@ All notable changes to this project are documented here. The format follows
 - 33 more tests, including the app's zone naming, pinning and plan-by-zone rules —
   `apps/*/src/**/*.test.ts` is part of the suite now.
 
+- **Belts and pipes are drawn as runs, not as buildings.** `joinRuns` in
+  `@factory-board/layout` joins what continues, end-to-start and never reversed: 101 belt
+  objects become 59 runs on the reference save, 25 pipes become 16, and direction chevrons
+  space themselves along a route rather than per segment.
+- **The fittings that break a run are drawn** — splitters, mergers, lifts and containers,
+  as beads in the belt's own colour, appearing with the zoom. They explain 64 of the 118
+  run ends; the machines already drawn explain most of the rest
+  ([ADR 15](docs/adr/0015-runs-are-joined-fittings-are-drawn.md)).
+- **A hover card on the map**, carrying what a mark is, what it is made in or what it
+  handles, its uptime as a bar, and the zone it stands in. It appears where the pointer
+  arrived and flips to whichever side of it has room.
+
 ### Changed
 
 - **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls
@@ -116,6 +128,9 @@ All notable changes to this project are documented here. The format follows
 - A lone machine standing inside a zone joins it instead of being counted as a stray. A
   stray is one that is alone _and_ nowhere near anything, which is the thing worth
   reporting.
+- Map detail no longer comes from a native `<title>`, which took a second to appear,
+  could not be styled and could not carry a bar. Marks keep the same text as an
+  `aria-label`, so what a screen reader hears is unchanged.
 
 ### Fixed
 
