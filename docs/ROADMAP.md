@@ -84,11 +84,19 @@ inside them, the same one their card carries below. Belts are cased so crossings
 one run passing over another. Type carries a casing too, so it survives whatever it
 crosses. The scale bar is one square of the grid.
 
-Two of the three left open were closed on 2026-08-26; see B4 below. Still open:
+Two of the three left open were closed on 2026-08-26; see B4 below. The third was closed
+on 2026-08-27 by measuring it rather than building it:
 
-- **A diagonal base still leaves corners empty.** No rectangle frames an L-shape tightly.
-  Rotating the drawing onto the base's principal axis is the only real answer and it
-  costs the reader a map that no longer points north — worth asking about before building.
+- **The empty ground was never the diagonal, and the map is not rotated.** The buildings
+  touch 2.5% of the frame. The tightest rotation over every angle is 64°, and it buys
+  13.6% of area, takes the ground covered to 2.9%, and points north down and to the left
+  — so it was declined. The emptiness comes from the base being three places hundreds of
+  metres apart, which no rotation makes adjacent. What was built instead is the margin:
+  outposts leave the frame and are drawn in a rail beside it, at their own scale, saying
+  how far away they are and which way
+  ([ADR 20](adr/0020-outposts-go-in-the-margin.md)). On the reference save that took the
+  frame from 417 × 145 m to the factory's own 151 × 145 m, and the scale from 2.53 to
+  **5.22 units per metre** — everything at more than twice the size, in a frame it fills.
 
 ### B4. The map — the wiring · shipped
 

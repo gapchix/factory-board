@@ -24,6 +24,7 @@ import {
   type ReactNode,
 } from 'react';
 import { buildingName, itemName } from '@/lib/format';
+import { liftOutposts, outpostsOf } from '@/lib/outposts';
 import { uptimeTone, type StatusTone } from './charts';
 import { MapCard, placeCard, type MapCardPlacement } from './map-card';
 import { Label } from './primitives';
@@ -60,6 +61,7 @@ const SvgPath = chakra('path');
 const SvgLine = chakra('line');
 const SvgText = chakra('text');
 const SvgG = chakra('g');
+const SvgCircle = chakra('circle');
 
 /**
  * The canvas takes the shape of the base, inside a box it may not exceed.
@@ -80,6 +82,21 @@ const MIN_CANVAS_W = 380;
 const MAX_CANVAS_H = 880;
 const MIN_CANVAS_H = 300;
 const PAD = 30;
+
+/**
+ * The margin the outposts are drawn in, the way an atlas insets an island it
+ * cannot fit on the plate. Everything here is in canvas units.
+ */
+const RAIL_W = 210;
+const RAIL_PAD = 10;
+/** Shortest an inset may be, which is what reserves the rail its height. */
+const INSET_H = 108;
+/** And the tallest, so two outposts do not become two half-page boxes. */
+const INSET_MAX_H = 190;
+const INSET_GAP = 8;
+/** Room at the top of an inset for its name and how far away it is. */
+const INSET_CAPTION_H = 30;
+const INSET_MARK_R = 3.2;
 
 const LABEL_SIZE = 10.5;
 const CHAR_W = 0.58;
@@ -127,7 +144,6 @@ const ARROW = 'M 0 0 L -5 -2.9 L -5 2.9 Z';
 
 /** How far inside the edge a pointer to off-map content sits. */
 const EDGE_INSET = 18;
-const EDGE_MERGE_PX = 46;
 
 const TONE_FILL: Record<StatusTone, string> = {
   ok: 'status.ok',
@@ -204,11 +220,19 @@ interface Hovered {
   readonly at: MapCardPlacement;
 }
 
-/** The frame the map opens on, and the scale that fits it to the canvas. */
+/**
+ * The frame the map opens on, and the scale that fits it to the canvas.
+ *
+ * `canvasW` is the *map*, not the drawing: when there are outposts to show, the
+ * rail sits to the right of it and the SVG is `canvasW + railW` across. Keeping
+ * the name for the map means every projection, clamp and hit test below is
+ * measured against the thing it was always measured against.
+ */
 interface Home {
   readonly bounds: Bounds;
   readonly canvasW: number;
   readonly canvasH: number;
+  readonly railW: number;
   readonly scale: number;
   readonly center: { readonly x: number; readonly y: number };
   readonly outside: readonly BuildingPlacement[];
@@ -332,6 +356,30 @@ export function BaseMap({
     [snapshot],
   );
 
+  /*
+   * Of what the frame can hold, what is worth holding.
+   *
+   * `frameContent` refuses the furthest buildings outright; this refuses the
+   * ones it accepts but cannot afford. On the reference save that is a copper
+   * wing 185 m east and a water outpost 194 m west — ten buildings between them
+   * that stretch the frame from 151 m to 417 m, and halve the scale the other
+   * thirty-six are drawn at.
+   */
+  const lifted = useMemo(
+    () => liftOutposts(content.inside, (placement) => ({ x: placement.x, y: placement.y })),
+    [content.inside],
+  );
+
+  /** Everything drawn in the margin: what the frame refused, and what it gave up. */
+  const outposts = useMemo(() => {
+    const frame = lifted.core ?? content.bounds;
+    if (fit === 'all' || !frame) return [];
+    return [
+      ...lifted.outposts,
+      ...outpostsOf(content.outside, (placement) => ({ x: placement.x, y: placement.y }), frame),
+    ].sort((a, b) => a.distanceM - b.distanceM);
+  }, [content.bounds, content.outside, lifted, fit]);
+
   /**
    * The wiring, with each route drawn as the run it is rather than as the
    * dozen buildings it was made of. Joined once per save, not per view: what
@@ -352,30 +400,41 @@ export function BaseMap({
 
   const home = useMemo((): Home | null => {
     const raw =
-      fit === 'all' ? (cluster.bounds ?? content.bounds) : (content.bounds ?? cluster.bounds);
+      fit === 'all'
+        ? (cluster.bounds ?? content.bounds)
+        : (lifted.core ?? content.bounds ?? cluster.bounds);
     if (!raw) return null;
     const bounds = padBounds(raw);
     const worldW = Math.max(1, bounds.maxX - bounds.minX);
     const worldH = Math.max(1, bounds.maxY - bounds.minY);
+    // The rail is taken off the top before anything is fitted, so the map is
+    // drawn in what is left rather than being covered by the margin.
+    const railW = outposts.length > 0 ? RAIL_W : 0;
+    const maxMapW = MAX_CANVAS_W - railW;
+    // However short the map turns out, the rail has to hold its insets.
+    const railH = outposts.length > 0 ? RAIL_PAD * 2 + outposts.length * (INSET_H + INSET_GAP) : 0;
     // Fit the world into the largest canvas allowed, then cut the canvas back to
     // what the fit actually used — on both axes, so neither is left holding a
     // band of empty ground.
-    const fitted = Math.min((MAX_CANVAS_W - PAD * 2) / worldW, (MAX_CANVAS_H - PAD * 2) / worldH);
+    const fitted = Math.min((maxMapW - PAD * 2) / worldW, (MAX_CANVAS_H - PAD * 2) / worldH);
     const canvasW = Math.round(
-      Math.min(MAX_CANVAS_W, Math.max(MIN_CANVAS_W, worldW * fitted + PAD * 2)),
+      Math.min(maxMapW, Math.max(MIN_CANVAS_W, worldW * fitted + PAD * 2)),
     );
     const canvasH = Math.round(
-      Math.min(MAX_CANVAS_H, Math.max(MIN_CANVAS_H, worldH * fitted + PAD * 2)),
+      Math.max(railH, Math.min(MAX_CANVAS_H, Math.max(MIN_CANVAS_H, worldH * fitted + PAD * 2))),
     );
     return {
       bounds,
       canvasW,
       canvasH,
+      railW,
       scale: Math.min((canvasW - PAD * 2) / worldW, (canvasH - PAD * 2) / worldH),
       center: { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 },
-      outside: fit === 'all' ? [] : content.outside,
+      // The arrows at the edge point at what the margin holds, so the two agree
+      // about what is off the map ([ADR 10](../../../../docs/adr/0010-the-frame-reaches-for-its-content.md)).
+      outside: outposts.flatMap((outpost) => outpost.members),
     };
-  }, [cluster.bounds, content, fit]);
+  }, [cluster.bounds, content, lifted, outposts, fit]);
 
   const setViewNow = useCallback((next: View | null) => {
     stateRef.current.view = next;
@@ -824,6 +883,34 @@ export function BaseMap({
     }
 
     /*
+     * What each outpost is called, and which one a given building belongs to.
+     *
+     * Worked out once and used by both the arrow at the edge and the box in the
+     * margin, so the two can never disagree about what is out there. They did:
+     * the arrow measured to the furthest building and the box to the centre, and
+     * the same copper wing was announced as 220 m and 190 m in the same picture.
+     */
+    const outpostLabels = outposts.map((outpost) => {
+      // Named for the zone most of it stands in. A lone miner half a kilometre
+      // out belongs to no zone, and is named for what it is instead.
+      const tally = new Map<string, number>();
+      for (const member of outpost.members) {
+        const id = zoneAt(member.x, member.y);
+        const name = id ? (zoneNames[id] ?? cluster.zones.find((z) => z.id === id)?.label) : null;
+        if (name) tally.set(name, (tally.get(name) ?? 0) + 1);
+      }
+      return (
+        [...tally].sort((a, b) => b[1] - a[1])[0]?.[0] ??
+        buildingName(db, outpost.members[0]!.machine)
+      );
+    });
+
+    const outpostOf = new Map<BuildingPlacement, number>();
+    outposts.forEach((outpost, index) => {
+      for (const member of outpost.members) outpostOf.set(member, index);
+    });
+
+    /*
      * What the frame left out does not simply vanish. Each stray is projected
      * onto the edge of the canvas as a pointer, so the map admits there is a
      * miner half a kilometre south rather than quietly cropping it away.
@@ -843,23 +930,91 @@ export function BaseMap({
         uy: dy / length,
         angle: (Math.atan2(dy, dx) * 180) / Math.PI,
         name: buildingName(db, placement.machine),
-        distance: Math.hypot(placement.x - home.center.x, placement.y - home.center.y),
+        outpost: outpostOf.get(placement) ?? -1,
       };
     });
 
-    const strays = groupNearby(edgeMarks, (mark) => mark, EDGE_MERGE_PX).map((group) => {
+    /*
+     * One arrow per outpost, carrying the name of the box in the margin it
+     * points at — grouped by which outpost a building belongs to rather than by
+     * where it happened to land on the edge, so the arrows and the boxes are the
+     * same list. How far away it is, is the margin's to say, and saying it twice
+     * is how the two came to disagree.
+     */
+    const byOutpost = new Map<number, typeof edgeMarks>();
+    for (const mark of edgeMarks) {
+      const list = byOutpost.get(mark.outpost);
+      if (list) list.push(mark);
+      else byOutpost.set(mark.outpost, [mark]);
+    }
+
+    const strays = [...byOutpost].map(([index, group]) => {
       const first = group[0]!;
-      const distance = Math.round(Math.max(...group.map((mark) => mark.distance)) / 10) * 10;
       return {
         x: group.reduce((sum, mark) => sum + mark.x, 0) / group.length,
         y: group.reduce((sum, mark) => sum + mark.y, 0) / group.length,
         ux: first.ux,
         uy: first.uy,
         angle: first.angle,
-        text:
-          group.length === 1
-            ? `${first.name} · ${distance} m`
-            : `${group.length} buildings · ${distance} m`,
+        text: outpostLabels[index] ?? first.name,
+      };
+    });
+
+    /*
+     * The margin. Each outpost is drawn in its own box at its own scale, named
+     * for the zone it is, and told how far away it lies and in which direction.
+     * Nothing is moved and nothing is dropped: the main map simply stops paying
+     * for the ground between here and there.
+     */
+    // The rail was reserved at the shortest an inset may be; whatever height
+    // the map turned out to need, the insets share it rather than leaving a
+    // column of empty margin under them.
+    const insetH =
+      outposts.length === 0
+        ? INSET_H
+        : Math.min(
+            INSET_MAX_H,
+            Math.max(
+              INSET_H,
+              (canvasH - RAIL_PAD * 2 - (outposts.length - 1) * INSET_GAP) / outposts.length,
+            ),
+          );
+
+    const insets = outposts.map((outpost, index) => {
+      const top = RAIL_PAD + index * (insetH + INSET_GAP);
+      const boxW = RAIL_W - RAIL_PAD * 2;
+      const plotTop = top + INSET_CAPTION_H;
+      const plotH = insetH - INSET_CAPTION_H - RAIL_PAD;
+      const plotW = boxW - RAIL_PAD * 2;
+
+      const label = outpostLabels[index] ?? buildingName(db, outpost.members[0]!.machine);
+
+      const worldW = Math.max(1, outpost.bounds.maxX - outpost.bounds.minX);
+      const worldH = Math.max(1, outpost.bounds.maxY - outpost.bounds.minY);
+      const inner = Math.min(
+        (plotW - INSET_MARK_R * 2) / worldW,
+        (plotH - INSET_MARK_R * 2) / worldH,
+      );
+      const cx = (outpost.bounds.minX + outpost.bounds.maxX) / 2;
+      const cy = (outpost.bounds.minY + outpost.bounds.maxY) / 2;
+
+      return {
+        key: `${label}-${Math.round(outpost.distanceM)}-${index}`,
+        label,
+        // Rounded to ten metres: the reader is being told which way to walk,
+        // not given a survey.
+        note: `${Math.round(outpost.distanceM / 10) * 10} m ${outpost.compass}`,
+        count: outpost.members.length,
+        top,
+        boxW,
+        marks: outpost.members.map((member) => {
+          const uptime = member.uptime ?? uptimeOf(member.recipe);
+          return {
+            x: RAIL_PAD + plotW / 2 + (member.x - cx) * inner,
+            y: plotTop + plotH / 2 + (member.y - cy) * inner,
+            tone: uptime === null ? null : uptimeTone(uptime),
+          };
+        }),
       };
     });
 
@@ -880,6 +1035,9 @@ export function BaseMap({
       routes,
       arrows,
       strays,
+      insets,
+      insetH,
+      railW: home.railW,
       fittings,
       grid: { x: gridX, y: gridY },
       zoom: active.zoom,
@@ -1111,9 +1269,9 @@ export function BaseMap({
       >
         <svg
           ref={svgRef}
-          width={model.canvasW}
+          width={model.canvasW + model.railW}
           height={model.canvasH}
-          viewBox={`0 0 ${model.canvasW} ${model.canvasH}`}
+          viewBox={`0 0 ${model.canvasW + model.railW} ${model.canvasH}`}
           role="img"
           aria-label={`Map of the base, ${model.extent} in view, showing ${model.marks.length} machines and landmarks across ${model.zones.length} zones, joined by belts and power lines`}
           style={{ maxWidth: '100%', height: 'auto', display: 'block', touchAction: 'inherit' }}
@@ -1410,6 +1568,65 @@ export function BaseMap({
               ))}
             </g>
           </g>
+
+          {/*
+            The margin, outside the clip that holds the map: what the frame
+            could not afford, drawn at its own scale rather than shrunk into
+            the same picture.
+          */}
+          {model.insets.length > 0 ? (
+            <g transform={`translate(${model.canvasW} 0)`} pointerEvents="none">
+              <SvgLine
+                x1={0.5}
+                y1={RAIL_PAD}
+                x2={0.5}
+                y2={model.canvasH - RAIL_PAD}
+                stroke="border.default"
+                strokeWidth={1}
+              />
+              {model.insets.map((inset) => (
+                <g key={inset.key}>
+                  <SvgRect
+                    x={RAIL_PAD}
+                    y={inset.top}
+                    width={inset.boxW}
+                    height={model.insetH}
+                    fill="bg.muted"
+                    stroke="border.default"
+                    strokeWidth={1}
+                  />
+                  <SvgText
+                    x={RAIL_PAD + 8}
+                    y={inset.top + 15}
+                    fill="fg.default"
+                    fontSize={`${LABEL_SIZE}px`}
+                    fontFamily="mono"
+                    letterSpacing="0.08em"
+                  >
+                    {inset.label.toUpperCase()}
+                  </SvgText>
+                  <SvgText
+                    x={RAIL_PAD + 8}
+                    y={inset.top + 26}
+                    fill="fg.muted"
+                    fontSize={`${LABEL_SIZE - 1}px`}
+                    fontFamily="mono"
+                  >
+                    {`${inset.note} · ${inset.count} bldg`}
+                  </SvgText>
+                  {inset.marks.map((mark, i) => (
+                    <SvgCircle
+                      key={i}
+                      cx={mark.x.toFixed(1)}
+                      cy={mark.y.toFixed(1)}
+                      r={INSET_MARK_R}
+                      fill={mark.tone ? TONE_FILL[mark.tone] : 'fg.subtle'}
+                    />
+                  ))}
+                </g>
+              ))}
+            </g>
+          ) : null}
 
           {/* Pointers to what the frame left out. */}
           <g>

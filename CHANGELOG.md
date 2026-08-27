@@ -158,6 +158,14 @@ All notable changes to this project are documented here. The format follows
 - **What a machine is making reads off the factory map.** Machines making the same thing
   within 30 m are one block carrying one caption — `Iron Ingot ×4` — grouped with
   `groupNearby` from `@factory-board/layout`. 7 more tests.
+- **Outposts are drawn in a margin beside the base map**, the way an atlas insets an
+  island it cannot fit on the plate: each in its own box at its own scale, named for its
+  zone and labelled with how far away it is and in which direction —
+  `190 m E · 6 bldg`. A group leaves the frame when the factory would keep less than
+  three fifths of the map's longest side by including it, and never when it holds a fifth
+  or more of the buildings ([ADR 20](docs/adr/0020-outposts-go-in-the-margin.md)).
+  On the reference save the frame goes from 417 × 145 m to the factory's own
+  151 × 145 m, and the scale from 2.53 to 5.22 units per metre. 10 more tests.
 
 ### Changed
 
@@ -171,6 +179,14 @@ All notable changes to this project are documented here. The format follows
   five-generator coal plant from 40%.
 - Zone captions on the factory map are cased in the surface colour, like the schematic
   map's type, so a belt crossing one no longer strikes it through.
+- **One arrow at the edge per outpost, carrying the name of the box it points at.**
+  Pointers used to be grouped by where they landed on the edge and to state a distance of
+  their own, measured to the furthest building while the margin measured to the centre —
+  so the same copper wing was announced as 220 m and 190 m in one picture. Distance is
+  now stated once, by the margin.
+- **The base map is not rotated onto its principal axis**, and the roadmap item asking for
+  it is closed. Measured over every angle: the tightest rotation is 64°, saves 13.6% of
+  frame area, moves the ground actually covered from 2.5% to 2.9%, and costs north.
 
 - **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls
   the frame 55 m per building plus a share-weighted term for the size of the base. One
