@@ -129,7 +129,15 @@ export default function FactoryMap({
 
   const [palette, setPalette] = useState<Palette | null>(null);
   const [status, setStatus] = useState<'starting' | 'drawn' | 'failed'>('starting');
-  const [zoom, setZoom] = useState(1);
+  /**
+   * What the toolbar says: the camera scale it is reporting, and the home
+   * scale it is reporting it against. Both the percentage and the scale bar
+   * read this one number, so they can never disagree with each other — and it
+   * is set to where a flight is going rather than where the camera has got to,
+   * because a flight converges for about a second after it has visibly
+   * arrived and a readout that lags by a second reads as broken.
+   */
+  const [shown, setShown] = useState({ scale: 1, home: 1 });
   /**
    * Whether the surface has been measured yet. A ref would be enough to read
    * the size, but not to re-run the effect that flies to a zone: arriving on
@@ -137,6 +145,8 @@ export default function FactoryMap({
    * move, and nothing re-ran once there was.
    */
   const [sized, setSized] = useState(false);
+  /** Whether the pointer is over a signpost, so the surface can say it is a control. */
+  const [overChip, setOverChip] = useState(false);
   const [hovered, setHovered] = useState<{
     content: MapCardContent;
     at: MapCardPlacement;
@@ -273,6 +283,41 @@ export default function FactoryMap({
     };
   }, [data]);
 
+  /*
+   * How far the camera may roam, which is a different question from what it
+   * opens on. `bounds` deliberately refuses to frame the far-flung — that is
+   * ADR 11 doing its job — but bounding the *pan* by it as well meant the
+   * places it refused to frame could not be reached at all: at 900% the slack
+   * is a couple of metres, so flying to a coal outpost 655 m out pinned the
+   * camera against the edge of the factory and showed empty ground.
+   *
+   * So the frame is bought with buildings and the leash is not: everything
+   * drawn is somewhere you are allowed to go.
+   */
+  const limits = useMemo(() => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const grow = (x: number, y: number) => {
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    };
+    for (const building of data.buildings) {
+      const reach = Math.max(building.w, building.l) / 2;
+      grow(building.x - reach, building.y - reach);
+      grow(building.x + reach, building.y + reach);
+    }
+    for (const zone of data.zones) {
+      grow(zone.minX, zone.minY);
+      grow(zone.maxX, zone.maxY);
+    }
+    for (const route of data.routes) for (const [x, y] of route.points) grow(x, y);
+    return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : bounds;
+  }, [data, bounds]);
+
   /* ---------------------------------------------------------- the palette */
 
   useEffect(() => {
@@ -341,7 +386,7 @@ export default function FactoryMap({
       if (!placedRef.current) {
         cameraRef.current = { ...home };
         placedRef.current = true;
-        setZoom(1);
+        setShown({ scale: home.scale, home: home.scale });
       }
       scene.update(cameraRef.current, width, height);
       scene.highlight(null, selectedZoneId);
@@ -363,9 +408,6 @@ export default function FactoryMap({
           ) {
             cameraRef.current = { ...target };
             targetRef.current = null;
-            // Flying to a zone changes the scale, and the readout is the only
-            // thing on screen that says how far in you are.
-            setZoom(target.scale / homeRef.current.scale);
           }
           scene.update(cameraRef.current, sizeRef.current.width, sizeRef.current.height);
         }
@@ -407,8 +449,13 @@ export default function FactoryMap({
       if (following) {
         cameraRef.current = { ...homeRef.current };
         targetRef.current = null;
-        setZoom(1);
       }
+      // The home scale moved, so the percentage means something different now
+      // even for a reader who has not touched anything.
+      setShown((prev) => ({
+        scale: following ? homeRef.current.scale : prev.scale,
+        home: homeRef.current.scale,
+      }));
       sceneRef.current?.update(cameraRef.current, width, height);
     });
     observer.observe(surface);
@@ -425,17 +472,17 @@ export default function FactoryMap({
     (camera: Camera): Camera => {
       const home = homeRef.current;
       const scale = Math.min(MAX_ZOOM, Math.max(home.scale * MIN_ZOOM_FACTOR, camera.scale));
-      // Panning is bounded by the base plus a screen of slack, so the factory can
-      // never be lost off the edge of an empty world.
+      // Panning is bounded by everything drawn, plus a screen of slack, so the
+      // base can never be lost off the edge of an empty world.
       const slackX = sizeRef.current.width / scale / 2;
       const slackY = sizeRef.current.height / scale / 2;
       return {
         scale,
-        x: Math.min(bounds.maxX + slackX, Math.max(bounds.minX - slackX, camera.x)),
-        y: Math.min(bounds.maxY + slackY, Math.max(bounds.minY - slackY, camera.y)),
+        x: Math.min(limits.maxX + slackX, Math.max(limits.minX - slackX, camera.x)),
+        y: Math.min(limits.maxY + slackY, Math.max(limits.minY - slackY, camera.y)),
       };
     },
-    [bounds],
+    [limits],
   );
 
   const zoomBy = useCallback(
@@ -454,7 +501,7 @@ export default function FactoryMap({
       cameraRef.current = clamp(next);
       targetRef.current = null;
       redraw();
-      setZoom(cameraRef.current.scale / homeRef.current.scale);
+      setShown({ scale: cameraRef.current.scale, home: homeRef.current.scale });
     },
     [clamp, redraw],
   );
@@ -485,7 +532,7 @@ export default function FactoryMap({
       return;
     }
     const { width, height } = sizeRef.current;
-    targetRef.current = clamp(
+    const target = clamp(
       fitCamera(
         {
           minX: zone.bounds.minX - 12,
@@ -498,6 +545,10 @@ export default function FactoryMap({
         0.8,
       ),
     );
+    targetRef.current = target;
+    // The readout says where the camera is going as it sets off, rather than
+    // catching up a second later when the flight has finished converging.
+    setShown({ scale: target.scale, home: homeRef.current.scale });
   }, [selectedZoneId, zones, clamp, sized]);
 
   useEffect(() => {
@@ -551,6 +602,17 @@ export default function FactoryMap({
     if (event.pointerType === 'touch') return;
     const at = worldAt(event.clientX, event.clientY);
     if (!at) return;
+
+    // A signpost is chrome sitting over the drawing, so it takes the pointer
+    // before anything in the world does.
+    const chip = sceneRef.current?.signpostAt(at.screenX, at.screenY) ?? null;
+    setOverChip(chip !== null);
+    if (chip !== null) {
+      sceneRef.current?.highlight(null, selectedZoneId);
+      setHovered(null);
+      return;
+    }
+
     const building = buildingAt(at.x, at.y);
     sceneRef.current?.highlight(building, selectedZoneId);
     if (!building) {
@@ -586,6 +648,16 @@ export default function FactoryMap({
     if (drag?.moved) return;
     const at = worldAt(event.clientX, event.clientY);
     if (!at) return;
+
+    // Clicking a signpost is asking to go there, which is what selecting the
+    // zone already does — camera, ring and deep link together.
+    const chip = sceneRef.current?.signpostAt(at.screenX, at.screenY) ?? null;
+    if (chip !== null) {
+      showChain(null);
+      onSelectZone(chip);
+      return;
+    }
+
     const building = buildingAt(at.x, at.y);
 
     if (building) {
@@ -609,21 +681,23 @@ export default function FactoryMap({
   const flyTo = (index: number) => {
     const placement = snapshot.placements[index];
     if (!placement) return;
-    targetRef.current = clamp({
+    const target = clamp({
       x: placement.x,
       y: placement.y,
       scale: Math.max(cameraRef.current.scale, 6),
     });
+    targetRef.current = target;
+    setShown({ scale: target.scale, home: homeRef.current.scale });
   };
 
   const reset = () => {
     targetRef.current = { ...homeRef.current };
-    setZoom(1);
+    setShown({ scale: homeRef.current.scale, home: homeRef.current.scale });
     setHovered(null);
     showChain(null);
   };
 
-  const metresPerStep = niceStep(cameraRef.current.scale || 1);
+  const metresPerStep = niceStep(shown.scale || 1);
   const tone: StatusTone | null = null;
   void tone;
 
@@ -643,7 +717,7 @@ export default function FactoryMap({
           textAlign="center"
           fontVariantNumeric="tabular-nums"
         >
-          {Math.round(zoom * 100)}%
+          {Math.round((shown.scale / shown.home) * 100)}%
         </Text>
         <MapButton label="Zoom in" onClick={() => zoomBy(ZOOM_STEP)}>
           +
@@ -661,7 +735,7 @@ export default function FactoryMap({
         borderWidth="1px"
         borderColor="border.default"
         overflow="hidden"
-        cursor={dragRef.current ? 'grabbing' : 'grab'}
+        cursor={dragRef.current ? 'grabbing' : overChip ? 'pointer' : 'grab'}
         touchAction="pan-y"
         onPointerDown={(event) => {
           if (event.button !== 0) return;
@@ -673,6 +747,7 @@ export default function FactoryMap({
         onPointerLeave={() => {
           dragRef.current = null;
           setHovered(null);
+          setOverChip(false);
           sceneRef.current?.highlight(null, selectedZoneId);
         }}
       >
@@ -691,11 +766,7 @@ export default function FactoryMap({
         {hovered ? <MapCard content={hovered.content} at={hovered.at} /> : null}
 
         <Flex position="absolute" left="10px" bottom="8px" align="center" gap={2}>
-          <Box
-            h="1px"
-            bg="fg.muted"
-            w={`${Math.round(metresPerStep * (cameraRef.current.scale || 1))}px`}
-          />
+          <Box h="1px" bg="fg.muted" w={`${Math.round(metresPerStep * (shown.scale || 1))}px`} />
           <Label color="fg.muted">{metresPerStep} m</Label>
         </Flex>
       </Box>

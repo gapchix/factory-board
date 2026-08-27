@@ -208,10 +208,32 @@ So the schematic is gone — `base-map.tsx`, the outpost margin rail, the toggle
 already does: uptime colour, washed and named zones, and merging what wants merging by
 product rather than by pixel.
 
-One thing went with it and has not been replaced. The schematic drew a pointer at the
-frame edge for anything too far out, and then a whole rail of them. The factory map opens
-on the factory and says nothing at all about the coal outpost 700 m east — it is only
-reachable from the zone cards below. **That is the first thing to fix.**
+One thing went with it. The schematic drew a pointer at the frame edge for anything too
+far out, and then a whole rail of them; the factory map opened on the factory and said
+nothing at all about the coal outpost. That was the first thing fixed — see B8.
+
+### B8. Signposts — what is off the map · shipped
+
+The regression B7 left open, closed the same day
+([ADR 22](adr/0022-signposts-are-worked-out-at-the-camera.md)).
+
+Every place entirely off screen gets a chip on the edge it lies beyond: name, an arrow,
+how far in metres, how it is running, and a click that flies there. It is worked out
+against the **current camera** rather than the opening frame, which is the whole
+difference between this and the rail it replaces — pan into the water extractors and the
+chip for them goes away while one for the factory appears behind you.
+
+On the reference save the opening view draws two: **COPPER ORE, 460 m, 75%** and
+**COAL, 615 m, 50%** — which are exactly the far ends of the two belt runs that used to
+leave the frame and never explain themselves. Zoom into the iron factory and there are
+six. Four to an edge, and the rest become one chip counting them.
+
+**And it turned out you could not get there anyway.** Panning was bounded by the opening
+frame plus a screen of slack, and the opening frame deliberately refuses to include the
+far-flung ([ADR 11](adr/0011-reach-is-bought-with-buildings.md)). At 900% that slack is a
+couple of metres, so flying to the coal outpost pinned the camera on the edge of the
+factory and drew empty ground — the outposts were unreachable at any useful zoom, by any
+means, and nothing said so. The frame is bought with buildings; the leash is not.
 
 ### B2. Zones — the rest · shipped
 

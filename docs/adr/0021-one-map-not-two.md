@@ -65,7 +65,9 @@ view. Roughly 2,100 lines and one of the two things that had to agree.
   opens on the factory — `frameContent` and [ADR 11](0011-reach-is-bought-with-buildings.md)
   still decide that — and a coal outpost 700 m out is simply off-screen with nothing
   saying so. It is reachable: the zone cards below list it and "show on map" flies the
-  camera there. **This is the one real regression, and the first thing to fix.**
+  camera there. This was the one real regression, and it was the first thing fixed:
+  [ADR 22](0022-signposts-are-worked-out-at-the-camera.md) puts a chip on the frame edge
+  for every place off screen, worked out against the camera rather than the frame.
 - **`frameContent`, `joinRuns` and `groupNearby` survive**; they were always the factory
   map's too. [ADR 11](0011-reach-is-bought-with-buildings.md),
   [ADR 13](0013-zones-are-clustered-in-passes.md),

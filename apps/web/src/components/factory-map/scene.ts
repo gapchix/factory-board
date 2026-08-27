@@ -1,6 +1,13 @@
 import { Container, Graphics, Sprite, Text, type Application, type Texture } from 'pixi.js';
 import { captionOf, type LabelBlock } from './blocks';
 import { cornersOf, niceStep, type Camera } from './geometry';
+import {
+  distanceLabel,
+  signpostAt,
+  signpostsFor,
+  SIGNPOST_DEFAULTS,
+  type Signpost,
+} from './signposts';
 
 export { containsPoint, cornersOf, fitCamera, niceStep } from './geometry';
 export type { Camera } from './geometry';
@@ -137,6 +144,11 @@ export interface Scene {
   /** Ring the building under the pointer, and the selected zone. */
   highlight(building: SceneBuilding | null, zoneId: string | null): void;
   /**
+   * The zone whose signpost is under this point on the surface, if any. Null
+   * for empty surface and for the chip that only counts the rest.
+   */
+  signpostAt(x: number, y: number): string | null;
+  /**
    * Light one chain and dim the rest of the base, or clear it with null.
    */
   spotlight(members: ReadonlySet<number> | null): void;
@@ -167,8 +179,10 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
   const fog = new Graphics();
   const chainLayer = new Graphics();
   const grid = new Graphics();
+  const signs = new Container();
 
-  overlay.addChild(grid);
+  // Chrome, so it goes over everything including the grid.
+  overlay.addChild(grid, signs);
   world.addChild(
     zoneShapes,
     routes,
@@ -359,6 +373,115 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
     blockLabels.push({ text, block, width: text.width, height: text.height });
   }
 
+  /* ------------------------------------------------------------ signposts */
+
+  /*
+   * A chip is a plate, a tone bar, an arrow and two lines of type, and there
+   * are never many. They are pooled rather than rebuilt: which place a chip
+   * stands for changes as the camera moves, but a chip is a chip.
+   */
+  interface Chip {
+    readonly root: Container;
+    readonly plate: Graphics;
+    readonly arrow: Graphics;
+    readonly name: Text;
+    readonly detail: Text;
+    tone: number;
+    name_: string;
+    detail_: string;
+  }
+
+  const { chipWidth: CHIP_W, chipHeight: CHIP_H } = SIGNPOST_DEFAULTS;
+  /** Room for type between the arrow and the far edge, in characters of mono. */
+  const CHIP_CHARS = 15;
+  const chips: Chip[] = [];
+  let signposts: readonly Signpost[] = [];
+
+  const chipStyle = (size: number, fill: number, spacing = 0) => ({
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' as const,
+    fontSize: size,
+    letterSpacing: spacing,
+    fill,
+  });
+
+  const makeChip = (): Chip => {
+    const root = new Container();
+    const plate = new Graphics();
+    /*
+     * The arrow says which way, and only that. State is the bar's job — giving
+     * it to both meant tinting a shape filled in the ink colour, which is
+     * near-black on a light theme and near-white on a dark one, so the same
+     * chip came out charcoal in one and gold in the other.
+     */
+    const arrow = new Graphics().poly([0, -4, 7.5, 0, 0, 4]).fill({ color: palette.muted });
+    arrow.position.set(15, CHIP_H / 2);
+    const name = new Text({ text: '', style: chipStyle(10.5, palette.ink, 0.8) });
+    name.position.set(26, 5);
+    const detail = new Text({ text: '', style: chipStyle(10, palette.muted) });
+    detail.position.set(26, 18.5);
+    root.addChild(plate, arrow, name, detail);
+    signs.addChild(root);
+    const chip: Chip = { root, plate, arrow, name, detail, tone: -1, name_: '', detail_: '' };
+    chips.push(chip);
+    return chip;
+  };
+
+  /** The plate only changes when the place it stands for does. */
+  const drawPlate = (chip: Chip, tone: number) => {
+    if (chip.tone === tone) return;
+    chip.tone = tone;
+    chip.plate
+      .clear()
+      .roundRect(0, 0, CHIP_W, CHIP_H, 2)
+      .fill({ color: palette.surface, alpha: 0.94 })
+      .stroke({ color: palette.ink, width: 1, alpha: 0.3 })
+      .rect(0, 0, 3, CHIP_H)
+      .fill({ color: tone });
+  };
+
+  const clip = (text: string) =>
+    text.length > CHIP_CHARS ? `${text.slice(0, CHIP_CHARS - 1)}…` : text;
+
+  const drawSignposts = (camera: Camera, width: number, height: number) => {
+    signposts = signpostsFor(data.zones, { ...camera, width, height });
+
+    signposts.forEach((post, index) => {
+      const chip = chips[index] ?? makeChip();
+      chip.root.visible = true;
+      chip.root.position.set(post.x, post.y);
+
+      const tone = post.id === null ? palette.grid : toneOf(palette, post.uptime).solid;
+      drawPlate(chip, tone);
+
+      // The count of what would not fit points nowhere in particular.
+      chip.arrow.visible = post.id !== null;
+      chip.arrow.rotation = post.bearing;
+
+      const name = clip(post.label).toUpperCase();
+      if (chip.name_ !== name) {
+        chip.name_ = name;
+        chip.name.text = name;
+      }
+      /*
+       * How far, and how it is doing. The percentage stays in text ink and the
+       * bar down the side carries the state — the warning step does not clear
+       * the contrast threshold for type. See AGENTS.md.
+       */
+      const detail =
+        post.id === null
+          ? 'off the map'
+          : post.uptime === null
+            ? distanceLabel(post.distanceM)
+            : `${distanceLabel(post.distanceM)} · ${Math.round(post.uptime * 100)}%`;
+      if (chip.detail_ !== detail) {
+        chip.detail_ = detail;
+        chip.detail.text = detail;
+      }
+    });
+
+    for (let i = signposts.length; i < chips.length; i += 1) chips[i]!.root.visible = false;
+  };
+
   /* --------------------------------------------------------------- camera */
 
   let lastCamera: Camera = { x: 0, y: 0, scale: 1 };
@@ -507,6 +630,8 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
     shadows.visible = camera.scale >= MIN_DRAWN_PX / 4;
     flowLayer.visible = camera.scale >= 1.2;
     if (chain && Math.abs(camera.scale - chainScale) > 1e-4) drawChain(camera.scale);
+
+    drawSignposts(camera, width, height);
   };
 
   let chain: ReadonlySet<number> | null = null;
@@ -603,6 +728,7 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
     highlight,
     spotlight,
     advance,
+    signpostAt: (x, y) => signpostAt(signposts, x, y)?.id ?? null,
     destroy() {
       texture.destroy(true);
       world.destroy({ children: true });

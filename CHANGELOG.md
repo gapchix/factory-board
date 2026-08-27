@@ -225,6 +225,13 @@ All notable changes to this project are documented here. The format follows
   lines removed, including the outpost margin rail.
 - A browser that cannot start WebGL now gets no map rather than the schematic, and is
   pointed at the zone cards below, which carry the same figures in text.
+- **Signposts to what is off the map.** Every place entirely off screen gets a chip on
+  the edge it lies beyond, carrying its name, an arrow, how far away it is in metres and
+  how it is running; clicking one flies there. Worked out against the current camera
+  rather than the opening frame, so it keeps telling the truth as the reader moves
+  ([ADR 22](docs/adr/0022-signposts-are-worked-out-at-the-camera.md)). On the reference
+  save the opening view draws two and the iron factory six, and four to an edge is the
+  most it will draw before the rest become a count.
 
 ### Fixed
 
@@ -284,3 +291,11 @@ All notable changes to this project are documented here. The format follows
   never has, and nothing re-ran once it did.
 - The zoom readout follows the camera when it flies to a zone. It only ever tracked the
   buttons and the wheel, so focusing a zone left it reading 100% at eight times that.
+- Outposts are reachable. Panning was bounded by the opening frame plus a screen of
+  slack, and the opening frame deliberately refuses to include the far-flung, so at 900%
+  the coal outpost could not be reached by dragging, by flying to its zone, or at all —
+  the camera pinned against the edge of the factory and drew empty ground. The frame is
+  bought with buildings; the leash is now everything drawn.
+- The scale bar and the zoom readout can no longer disagree. Both are derived from one
+  piece of state rather than the readout from state and the bar from a ref the render
+  had not seen move.
