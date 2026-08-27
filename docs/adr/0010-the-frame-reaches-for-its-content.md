@@ -2,6 +2,9 @@
 
 **Status:** accepted · 2026-08-25
 **Supersedes:** the closing section of [ADR 8](0008-machines-anchor-zones.md)
+**Half-kept:** `frameContent` still decides what the map opens on. The pointers drawn at
+the frame edge for content left outside went with the schematic map
+([ADR 21](0021-one-map-not-two.md)), and nothing has replaced them.
 
 ## Context
 

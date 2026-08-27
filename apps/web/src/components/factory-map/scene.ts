@@ -8,22 +8,20 @@ export type { Camera } from './geometry';
 /**
  * The factory, drawn.
  *
- * The schematic map answers "what is broken and roughly where" from marks and
- * labels. This one answers "what did I build" — every machine at the size and
- * angle it actually stands, on the belts that actually feed it. That is only
- * possible because the game states both: the clearance box in `Docs.json` says
- * how much ground a building takes, and the save stores the rotation it was
- * placed at.
+ * Every machine at the size and angle it actually stands, on the belts that
+ * actually feed it. That is only possible because the game states both: the
+ * clearance box in `Docs.json` says how much ground a building takes, and the
+ * save stores the rotation it was placed at.
  *
  * Nothing here knows what a Satisfactory is. It takes shapes, colours and a
  * camera, and draws them; the page works out which shape means what.
  *
  * The camera moves the world rather than the drawing being rebuilt at each
- * view, which is the opposite of the schematic map's bargain
- * ([ADR 9](../../../docs/adr/0009-the-map-redraws-at-the-view.md)) and the
- * reason this one can be dragged at sixty frames a second. The cost is that
- * everything scales with the zoom — so type is counter-scaled by hand, and the
- * grid is drawn in screen space rather than world space.
+ * view, which is what lets this be dragged at sixty frames a second. The cost
+ * is that everything scales with the zoom — so type is counter-scaled by hand,
+ * and the grid is drawn in screen space rather than world space. The map this
+ * replaced took the opposite bargain and redrew at every view
+ * ([ADR 21](../../../../docs/adr/0021-one-map-not-two.md)).
  */
 
 export interface Palette {

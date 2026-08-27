@@ -57,6 +57,9 @@ remote.
 
 ### B3. The map — a visual pass · shipped
 
+> **The map this describes was deleted on 2026-08-27** ([ADR 21](adr/0021-one-map-not-two.md)).
+> Kept as the record of what it cost to learn. `frameContent` and its seed rule ([ADR 11](adr/0011-reach-is-bought-with-buildings.md)) carried over and still decide what the surviving map opens on; the label rings, the leader lines, the survey grid and the margin rail did not.
+
 Confirmed on 2026-08-26 against the list below: the whitespace, the label collisions and
 the flatness were the three that landed. The chrome was not — the toolbar and legend are
 fine as they are.
@@ -100,6 +103,9 @@ on 2026-08-27 by measuring it rather than building it:
 
 ### B4. The map — the wiring · shipped
 
+> **The map this describes was deleted on 2026-08-27** ([ADR 21](adr/0021-one-map-not-two.md)).
+> Kept as the record of what it cost to learn. `joinRuns` carried over. Drawing the fitting rather than reaching across the gap carried over too, and further than this asked for: splitters and mergers are now drawn at their real footprint instead of as beads on a line. The hover card is shared code and survived intact.
+
 **Belts read as runs.** `joinRuns` joins what actually continues, end-to-start and never
 reversed: 101 belt objects become 59 runs and 25 pipes become 16, and direction chevrons
 space themselves along a route instead of per segment.
@@ -122,12 +128,13 @@ fixed size in pixels**, so the further you zoom in, the further a machine's mark
 the belt that feeds it. Drawing buildings at their true footprint needs a size per
 building class out of `Docs.json` and the rotation of each placement out of the save.
 
-### B5. The factory view — a second map, on a canvas · shipped
+### B5. The factory view — the map, on a canvas · shipped
 
-The schematic map abstracts: merged marks, placed labels, a frame that reaches. That is
-what makes it good at "what is broken and roughly where", and what stops it answering
-"what did I actually build". So there are two maps now, switched from the Base view, and
-the schematic is untouched ([ADR 17](adr/0017-a-second-map-on-a-canvas.md)).
+The schematic map abstracted: merged marks, placed labels, a frame that reaches. That is
+what made it good at "what is broken and roughly where", and what stopped it answering
+"what did I actually build". So this arrived as a second map beside it
+([ADR 17](adr/0017-a-second-map-on-a-canvas.md)) — and two days later became the only one
+([ADR 21](adr/0021-one-map-not-two.md)), because everything worth building landed here.
 
 The factory view draws **every building at its real size and angle**. The game's
 `Docs.json` states the ground each one stands on in `mClearanceData` — a Constructor is
@@ -162,8 +169,8 @@ is 90 m of ground with nothing near it.
 Next for it, in rough order: drawing the belts a run at a time so a whole route can be
 traced, and the clearance boxes that sit off-centre. Captions still hang below their own
 block and can cross a machine standing there — they are cased, so they stay legible;
-candidate positions and leader lines, which is how the schematic map answers this, are
-the honest fix and are not built here.
+candidate positions and leader lines, which is how the schematic map answered this, are
+the honest fix and are not built here — and now there is no second map to read them off.
 
 ### B6. Trace the chain · shipped
 
@@ -186,9 +193,25 @@ Belts, splitters and mergers are walked through rather than counted, so a hop is
 machine. Pipes are walked in both directions, because which way fluid moves depends on
 the pumps — which is how a water extractor is found behind a coal generator.
 
-Next for the chain: the same thing on the schematic map, which has nowhere to put the
-panel yet; and rates rather than uptimes, once the throughput of a belt can be worked out
-rather than guessed.
+Next for the chain: rates rather than uptimes, once the throughput of a belt can be worked
+out rather than guessed.
+
+### B7. One map, not two · shipped
+
+[ADR 17](adr/0017-a-second-map-on-a-canvas.md) shipped the factory map beside the
+schematic and warned itself that the two would have to agree. Two days later the score
+was in: trace-the-chain went to the factory map, block captions went to the factory map,
+true footprints were never possible on the other one. Nothing had gone the other way.
+
+So the schematic is gone — `base-map.tsx`, the outpost margin rail, the toggle, about
+2,100 lines ([ADR 21](adr/0021-one-map-not-two.md)). What it was good at, the survivor
+already does: uptime colour, washed and named zones, and merging what wants merging by
+product rather than by pixel.
+
+One thing went with it and has not been replaced. The schematic drew a pointer at the
+frame edge for anything too far out, and then a whole rail of them. The factory map opens
+on the factory and says nothing at all about the coal outpost 700 m east — it is only
+reachable from the zone cards below. **That is the first thing to fix.**
 
 ### B2. Zones — the rest · shipped
 

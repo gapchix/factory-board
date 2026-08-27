@@ -77,8 +77,6 @@ export interface ZoneView {
 export interface ZoneBoard {
   readonly zones: readonly ZoneView[];
   readonly cluster: ClusterResult<BuildingPlacement>;
-  readonly names: Readonly<Record<string, string>>;
-  readonly uptimes: Readonly<Record<string, number | null>>;
   /** Bounding box of everything placed, as text. */
   readonly spread: string;
 }
@@ -290,20 +288,13 @@ export function buildZoneBoard(
     zone.slug = slugify(zone.name);
   }
 
-  const names: Record<string, string> = {};
-  const uptimes: Record<string, number | null> = {};
-  for (const zone of zones) {
-    names[zone.id] = zone.name;
-    uptimes[zone.id] = zone.uptime;
-  }
-
   const spread = cluster.bounds
     ? `${Math.round(cluster.bounds.maxX - cluster.bounds.minX)} x ${Math.round(
         cluster.bounds.maxY - cluster.bounds.minY,
       )} m`
     : '-';
 
-  return { zones, cluster, names, uptimes, spread };
+  return { zones, cluster, spread };
 }
 
 /**

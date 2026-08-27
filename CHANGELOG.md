@@ -216,6 +216,15 @@ All notable changes to this project are documented here. The format follows
 - Map detail no longer comes from a native `<title>`, which took a second to appear,
   could not be styled and could not carry a bar. Marks keep the same text as an
   `aria-label`, so what a screen reader hears is unchanged.
+- **One map, not two.** The SVG schematic and the Schematic/Factory toggle are gone; the
+  WebGL factory map is the map of the base
+  ([ADR 21](docs/adr/0021-one-map-not-two.md)). Everything built after the two maps
+  shipped — tracing the chain, a name per block, true footprints — had landed on the
+  factory map only, so the schematic was a view that had stopped receiving work while
+  still costing a toggle and a promise to keep both drawings in agreement. About 2,100
+  lines removed, including the outpost margin rail.
+- A browser that cannot start WebGL now gets no map rather than the schematic, and is
+  pointed at the zone cards below, which carry the same figures in text.
 
 ### Fixed
 
@@ -265,3 +274,13 @@ All notable changes to this project are documented here. The format follows
 - `humanise` produces "Miner Mk.1" rather than "Miner Mk1". Its regex had been written
   with escape sequences that were interpreted before they reached the file, leaving two
   literal backspace bytes around a pattern that matched "Mkd".
+- The map opens at the size it fits to. The surface was measured inside the init effect,
+  before the browser had laid it out, so the first fit ran against the fallback width and
+  the real one arrived too late to move the camera — the Base view opened at 161% of
+  itself with the copper wing off the edge, and only Reset ever showed what it meant to
+  show.
+- `/base?zone=coal-power` flies to the zone rather than only selecting it. The effect that
+  moves the camera bailed out while the surface had no measured size, which on arrival it
+  never has, and nothing re-ran once it did.
+- The zoom readout follows the camera when it flies to a zone. It only ever tracked the
+  buttons and the wheel, so focusing a zone left it reading 100% at eight times that.

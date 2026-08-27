@@ -46,13 +46,13 @@ the bundle. The page itself never touches your disk — it cannot, and shouldn't
 
 ## The views
 
-|                 |                                                                                                                                                                                                                                        |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan                                                                                                                   |
-| **Base**        | Two maps of the same base — a schematic, and the factory itself with every building at the size and angle you built it — machines coloured by uptime, grouped into zones named for what they make, mine or burn, nameable and linkable |
-| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus                                                                                                                                                                |
-| **History**     | Every autosave kept, so the session draws itself: what changed since the last save, machines, power and uptime over time, and a phase burn-down                                                                                        |
-| **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                                                                 |
+|                 |                                                                                                                                                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan                                                                                                       |
+| **Base**        | The factory drawn as it stands, every building at the size and angle you built it, coloured by uptime — click one to trace what feeds it. Grouped into zones named for what they make, mine or burn, nameable and linkable |
+| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus                                                                                                                                                    |
+| **History**     | Every autosave kept, so the session draws itself: what changed since the last save, machines, power and uptime over time, and a phase burn-down                                                                            |
+| **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                                                     |
 
 ## Why extract instead of ship the data?
 

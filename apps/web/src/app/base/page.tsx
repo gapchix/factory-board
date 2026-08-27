@@ -1,9 +1,8 @@
 'use client';
 
-import { Box, Button, chakra, Flex, Grid, Text } from '@chakra-ui/react';
+import { Box, chakra, Flex, Grid, Text } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { BaseMap } from '@/components/base-map';
 import { BarRow, ChartFrame, MeterRow, StatRow, StatTile, uptimeTone } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
 import { Field, Label, Mono, SectionHeading } from '@/components/primitives';
@@ -14,9 +13,9 @@ import { buildZoneBoard, slugify, withZoneName, zoneBySlug, type ZoneView } from
 import { useBoard } from '@/state/board';
 
 /*
- * The factory view brings a WebGL renderer with it, which has no business in
- * the bundle of a page that may never show it — and none at all on the server,
- * where there is no canvas to draw on.
+ * The map brings a WebGL renderer with it, which has no business in the bundle
+ * of the four pages that never draw one — and none at all on the server, where
+ * there is no canvas to draw on.
  */
 const FactoryMap = dynamic(() => import('@/components/factory-map'), {
   ssr: false,
@@ -282,12 +281,6 @@ export default function BasePage() {
   const [zoneSlug, setZoneSlug] = useState<string | null>(() =>
     typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('zone'),
   );
-  /**
-   * Which drawing of the base is on screen. Two views of one thing, neither
-   * replacing the other: the schematic abstracts the base into marks and
-   * labels, the factory draws what is actually standing there.
-   */
-  const [view, setView] = useState<'schematic' | 'factory'>('schematic');
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
@@ -386,63 +379,16 @@ export default function BasePage() {
       <Box mt={9} ref={mapRef}>
         <SectionHeading
           title="The map"
-          note={
-            view === 'schematic'
-              ? 'machines coloured by uptime · hover for detail'
-              : 'every building at its real size and angle'
-          }
-          controls={
-            <Flex borderWidth="1px" borderColor="border.default">
-              {(
-                [
-                  ['schematic', 'Schematic'],
-                  ['factory', 'Factory'],
-                ] as const
-              ).map(([id, label], index) => (
-                <Button
-                  key={id}
-                  size="xs"
-                  borderRadius="0"
-                  variant="ghost"
-                  fontFamily="mono"
-                  fontSize="11px"
-                  letterSpacing="0.08em"
-                  textTransform="uppercase"
-                  px={3}
-                  borderRightWidth={index === 0 ? '1px' : '0'}
-                  borderColor="border.default"
-                  bg={view === id ? 'accent.solid' : 'transparent'}
-                  color={view === id ? 'accent.contrast' : 'fg.muted'}
-                  _hover={view === id ? {} : { color: 'accent.solid' }}
-                  aria-pressed={view === id}
-                  onClick={() => setView(id)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </Flex>
-          }
+          note="every building at its real size and angle · coloured by uptime"
         />
 
-        {view === 'schematic' ? (
-          <BaseMap
-            db={db}
-            snapshot={snapshot}
-            cluster={cluster}
-            zoneNames={board.names}
-            zoneUptimes={board.uptimes}
-            selectedZoneId={selectedZoneId}
-            onSelectZone={selectZone}
-          />
-        ) : (
-          <FactoryMap
-            db={db}
-            snapshot={snapshot}
-            zones={zones}
-            selectedZoneId={selectedZoneId}
-            onSelectZone={selectZone}
-          />
-        )}
+        <FactoryMap
+          db={db}
+          snapshot={snapshot}
+          zones={zones}
+          selectedZoneId={selectedZoneId}
+          onSelectZone={selectZone}
+        />
       </Box>
 
       <Box mt={9}>

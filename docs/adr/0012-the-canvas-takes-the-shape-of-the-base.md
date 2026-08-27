@@ -1,6 +1,6 @@
 # 12. The canvas takes the shape of the base
 
-**Status:** accepted · 2026-08-26
+**Status:** superseded by [ADR 21](0021-one-map-not-two.md) · 2026-08-26
 **Refines:** the fixed canvas in [ADR 9](0009-the-map-redraws-at-the-view.md)
 
 ## Context

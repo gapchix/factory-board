@@ -1,6 +1,6 @@
 # 17. A second map, drawn on a canvas, beside the schematic — not instead of it
 
-**Status:** accepted · 2026-08-26
+**Status:** accepted · 2026-08-26 · partly superseded by [ADR 21](0021-one-map-not-two.md)
 
 ## Context
 

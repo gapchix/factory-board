@@ -1,6 +1,6 @@
 # 20. Outposts go in the margin, and the map is not rotated
 
-**Status:** accepted · 2026-08-27
+**Status:** superseded by [ADR 21](0021-one-map-not-two.md) · 2026-08-27
 
 Supersedes the open question left by [ADR 11](0011-reach-is-bought-with-buildings.md)
 and closes the last item of roadmap B3.

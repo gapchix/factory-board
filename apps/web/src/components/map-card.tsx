@@ -5,13 +5,16 @@ import { uptimeTone, type StatusTone } from './charts';
 import { Meter } from './primitives';
 
 /**
- * What the pointer is over, on either map.
+ * What the pointer is over on the map.
  *
  * Detail used to come from a native `<title>`: a second's wait for a grey box
- * that cannot be styled and carries no bar. Both maps show the same card, in
- * the same place relative to the pointer, because they are two drawings of one
- * base and disagreeing about how a machine is doing would be worse than either
- * of them being wrong.
+ * that cannot be styled and carries no bar. This is a card of our own, placed
+ * where the pointer arrived and flipped to whichever side has room.
+ *
+ * It lives outside the map because it once served two of them, and it stays
+ * here because it is presentation with no idea how the thing under the pointer
+ * was found — which is what makes it safe to reuse the next time something on
+ * this board wants to say "here is a machine, and here is how it is doing".
  */
 
 export const CARD_W = 208;

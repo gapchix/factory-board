@@ -26,19 +26,19 @@ import {
 } from './scene';
 
 /**
- * The factory as it stands, drawn on a WebGL canvas.
+ * The factory as it stands, drawn on a WebGL canvas. The map of the base.
  *
- * A second view rather than a replacement. The schematic map is an abstraction
- * that answers "what is broken and roughly where" — merged marks, placed
- * labels, a frame that reaches for its content. This one answers a different
- * question, "what did I actually build", and answers it by drawing every
- * machine at the size and angle it really stands: the game's clearance data
- * gives the footprint, the save gives the rotation.
+ * It draws every machine at the size and angle it really stands: the game's
+ * clearance data gives the footprint, the save gives the rotation. There was a
+ * schematic of merged marks and placed labels alongside it for a while, on the
+ * theory that legibility and fidelity were incompatible bargains. They were
+ * not — this one answers both questions
+ * ([ADR 21](../../../../docs/adr/0021-one-map-not-two.md)).
  *
  * The camera moves the world instead of the drawing being rebuilt at each view,
- * which is what makes it drag and zoom at sixty frames a second where the
- * schematic redraws. Neither bargain is better than the other, which is exactly
- * why both are here.
+ * which is what makes it drag and zoom at sixty frames a second. The cost is
+ * that everything scales with the zoom, so type is counter-scaled by hand and
+ * the grid is drawn in screen space.
  */
 
 /** Anything already drawn as a route; a rectangle would only double it up. */
@@ -647,8 +647,9 @@ export default function FactoryMap({
         {status === 'failed' ? (
           <Flex align="center" justify="center" h="100%" px={6}>
             <Text fontSize="14px" color="fg.muted" textAlign="center" maxW="52ch">
-              This browser could not start WebGL, so the factory cannot be drawn here. The schematic
-              map above works without it.
+              This browser could not start WebGL, so the base cannot be drawn. Everything the map
+              says is also in the zone cards below — what each part of the base is for, how it is
+              running, and what the plan still wants built there.
             </Text>
           </Flex>
         ) : null}
@@ -692,9 +693,9 @@ export default function FactoryMap({
       </Flex>
 
       <Text fontSize="13px" color="fg.subtle" mt={2.5} maxW="88ch">
-        Drag to pan, scroll to zoom, click a machine to focus its zone. Footprints come from the
-        game&apos;s own clearance data and the rotation each building was placed at; belts carry the
-        direction their items travel.
+        Drag to pan, scroll to zoom. Click a machine to trace what feeds it, or the ground to focus
+        the zone you clicked in. Footprints come from the game&apos;s own clearance data and the
+        rotation each building was placed at; belts carry the direction their items travel.
       </Text>
 
       {/* The theme, asked one colour at a time. */}

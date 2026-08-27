@@ -1,6 +1,6 @@
 # 9. The map redraws at the view rather than magnifying it
 
-**Status:** accepted · 2026-08-25
+**Status:** superseded by [ADR 21](0021-one-map-not-two.md) · 2026-08-25
 
 ## Context
 

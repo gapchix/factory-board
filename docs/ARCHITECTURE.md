@@ -93,9 +93,8 @@ apps/web/src/
 ├── components/
 │   ├── primitives.tsx      Label, Panel, table parts, form controls
 │   ├── charts.tsx          StatTile, BarRow, MeterRow, ChartFrame
-│   ├── base-map.tsx        top-down plan of the base
-│   ├── factory-map/        the same base on a WebGL canvas: scene, geometry, camera
-│   ├── map-card.tsx        the hover card both maps share
+│   ├── factory-map/        the base on a WebGL canvas: scene, geometry, camera
+│   ├── map-card.tsx        the hover card the map shows
 │   ├── flow-diagram.tsx    the plan as a layered DAG
 │   ├── board.tsx           the production-line cards
 │   └── panels.tsx          dropzone, target editor, balance, progression
@@ -206,23 +205,26 @@ happens in a Worker. The extracted database is ~120 KB of JSON for the full reci
 
 Recorded in full under [adr/](adr).
 
-| Decision                                                                                     | Why                                                                                                 |
-| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [Client-side only](adr/0001-client-side-only.md)                                             | Saves are personal; a server adds risk and cost for no gain                                         |
-| [TypeScript 6, not 7](adr/0002-typescript-6-not-7.md)                                        | `typescript-eslint` caps at `<6.1.0`; type-aware linting is worth more than the version number      |
-| [Don't commit game data](adr/0003-do-not-commit-game-data.md)                                | It is Coffee Stain's content, and extraction gives version-exact data anyway                        |
-| [Raw resources terminate the solve](adr/0004-raw-resources-terminate-the-solve.md)           | Otherwise the solver mines SAM to make iron                                                         |
-| [Build-time save loading](adr/0005-build-time-save-loading.md)                               | A static page cannot read a path from an env var — the browser has no disk                          |
-| [No charting library](adr/0006-no-charting-library.md)                                       | Every figure is a magnitude or a ratio; a library would be weight without benefit                   |
-| [No state library](adr/0007-no-state-library.md)                                             | A handful of fields of state, everything else derived                                               |
-| [Machines anchor zones](adr/0008-machines-anchor-zones.md)                                   | Clustering belts welds the whole base into one blob                                                 |
-| [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)                       | Magnifying enlarges the picture; redrawing reveals what would not fit                               |
-| [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md)           | Framing the zones cropped a coal generator six metres past the edge                                 |
-| [Reach is bought with buildings](adr/0011-reach-is-bought-with-buildings.md)                 | A flat allowance let one water extractor buy 28% of the frame's width                               |
-| [The canvas takes the shape of the base](adr/0012-the-canvas-takes-the-shape-of-the-base.md) | A portrait base on a landscape sheet drew as a ribbon using 30% of the width                        |
-| [Zones are clustered in passes](adr/0013-zones-are-clustered-in-passes.md)                   | Letting generators anchor zones alongside machines welded two factory cells into one                |
-| [A reference to a zone is a point](adr/0014-a-zone-reference-is-a-point.md)                  | Zone ids are positional and names derived; a coordinate survives the next autosave                  |
-| [Runs are joined, fittings are drawn](adr/0015-runs-are-joined-fittings-are-drawn.md)        | Reaching across the gaps bought one join in a hundred; the thing in the gap says more               |
-| [History keeps a digest](adr/0016-history-keeps-a-digest.md)                                 | A snapshot is 40 KB of mostly placements; a session's history is a kilobyte a save                  |
-| [A second map, on a canvas](adr/0017-a-second-map-on-a-canvas.md)                            | Legibility and fidelity are incompatible bargains; the schematic keeps one, the factory the other   |
-| [The save says what feeds what](adr/0018-the-save-says-what-feeds-what.md)                   | Every connection is declared from both ends; guessing from geometry was worth one join in a hundred |
+| Decision                                                                                     | Why                                                                                                  |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [Client-side only](adr/0001-client-side-only.md)                                             | Saves are personal; a server adds risk and cost for no gain                                          |
+| [TypeScript 6, not 7](adr/0002-typescript-6-not-7.md)                                        | `typescript-eslint` caps at `<6.1.0`; type-aware linting is worth more than the version number       |
+| [Don't commit game data](adr/0003-do-not-commit-game-data.md)                                | It is Coffee Stain's content, and extraction gives version-exact data anyway                         |
+| [Raw resources terminate the solve](adr/0004-raw-resources-terminate-the-solve.md)           | Otherwise the solver mines SAM to make iron                                                          |
+| [Build-time save loading](adr/0005-build-time-save-loading.md)                               | A static page cannot read a path from an env var — the browser has no disk                           |
+| [No charting library](adr/0006-no-charting-library.md)                                       | Every figure is a magnitude or a ratio; a library would be weight without benefit                    |
+| [No state library](adr/0007-no-state-library.md)                                             | A handful of fields of state, everything else derived                                                |
+| [Machines anchor zones](adr/0008-machines-anchor-zones.md)                                   | Clustering belts welds the whole base into one blob                                                  |
+| [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)                       | _Superseded._ Magnifying enlarges the picture; redrawing reveals what would not fit                  |
+| [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md)           | Framing the zones cropped a coal generator six metres past the edge                                  |
+| [Reach is bought with buildings](adr/0011-reach-is-bought-with-buildings.md)                 | A flat allowance let one water extractor buy 28% of the frame's width                                |
+| [The canvas takes the shape of the base](adr/0012-the-canvas-takes-the-shape-of-the-base.md) | _Superseded._ A portrait base on a landscape sheet drew as a ribbon using 30% of the width           |
+| [Zones are clustered in passes](adr/0013-zones-are-clustered-in-passes.md)                   | Letting generators anchor zones alongside machines welded two factory cells into one                 |
+| [A reference to a zone is a point](adr/0014-a-zone-reference-is-a-point.md)                  | Zone ids are positional and names derived; a coordinate survives the next autosave                   |
+| [Runs are joined, fittings are drawn](adr/0015-runs-are-joined-fittings-are-drawn.md)        | Reaching across the gaps bought one join in a hundred; the thing in the gap says more                |
+| [History keeps a digest](adr/0016-history-keeps-a-digest.md)                                 | A snapshot is 40 KB of mostly placements; a session's history is a kilobyte a save                   |
+| [A second map, on a canvas](adr/0017-a-second-map-on-a-canvas.md)                            | PixiJS over WebGL, theme colours read as numbers, hit-testing a rotated rectangle is ours            |
+| [The save says what feeds what](adr/0018-the-save-says-what-feeds-what.md)                   | Every connection is declared from both ends; guessing from geometry was worth one join in a hundred  |
+| [A name per block, not per machine](adr/0019-a-name-per-block-not-per-machine.md)            | Colour is spent on health; what a machine makes arrives as type, once per block                      |
+| [Outposts go in the margin](adr/0020-outposts-go-in-the-margin.md)                           | _Superseded._ Rotation was measured at 13.6% of area and declined; the rail lifted scale 2.53 → 5.22 |
+| [One map, not two](adr/0021-one-map-not-two.md)                                              | Every feature after ADR 17 landed on the factory map only; the schematic had stopped being a view    |
