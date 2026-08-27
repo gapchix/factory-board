@@ -79,6 +79,13 @@ const TOKENS = {
 
 type TokenName = keyof typeof TOKENS;
 
+/** Whether the camera is still sitting exactly where a fit left it. */
+function sameCamera(a: Camera, b: Camera): boolean {
+  return (
+    Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01 && Math.abs(a.scale - b.scale) < 1e-6
+  );
+}
+
 /** Any CSS colour to a number, by asking a canvas what it painted. */
 function toNumber(colour: string): number {
   const canvas = document.createElement('canvas');
@@ -123,6 +130,13 @@ export default function FactoryMap({
   const [palette, setPalette] = useState<Palette | null>(null);
   const [status, setStatus] = useState<'starting' | 'drawn' | 'failed'>('starting');
   const [zoom, setZoom] = useState(1);
+  /**
+   * Whether the surface has been measured yet. A ref would be enough to read
+   * the size, but not to re-run the effect that flies to a zone: arriving on
+   * `/base?zone=coal-power` sets the selection before there is a camera to
+   * move, and nothing re-ran once there was.
+   */
+  const [sized, setSized] = useState(false);
   const [hovered, setHovered] = useState<{
     content: MapCardContent;
     at: MapCardPlacement;
@@ -349,6 +363,9 @@ export default function FactoryMap({
           ) {
             cameraRef.current = { ...target };
             targetRef.current = null;
+            // Flying to a zone changes the scale, and the readout is the only
+            // thing on screen that says how far in you are.
+            setZoom(target.scale / homeRef.current.scale);
           }
           scene.update(cameraRef.current, sizeRef.current.width, sizeRef.current.height);
         }
@@ -374,9 +391,24 @@ export default function FactoryMap({
       const width = Math.round(entry?.contentRect.width ?? 0);
       const height = Math.round(entry?.contentRect.height ?? 0);
       if (width === 0 || height === 0) return;
+      setSized(true);
+      /*
+       * The surface is measured inside the init effect, before the browser has
+       * laid it out, so the first fit is against the fallback width and the
+       * real one only arrives here. A camera still sitting exactly where a fit
+       * put it has not been touched by anyone, so it moves with the fit —
+       * otherwise the map opens at 161% of itself with the copper wing off the
+       * edge, and only a press of Reset ever shows what it meant to show.
+       */
+      const following = sameCamera(cameraRef.current, homeRef.current);
       sizeRef.current = { width, height };
       appRef.current?.renderer.resize(width, height);
       homeRef.current = fitCamera(bounds, width, height);
+      if (following) {
+        cameraRef.current = { ...homeRef.current };
+        targetRef.current = null;
+        setZoom(1);
+      }
       sceneRef.current?.update(cameraRef.current, width, height);
     });
     observer.observe(surface);
@@ -466,7 +498,7 @@ export default function FactoryMap({
         0.8,
       ),
     );
-  }, [selectedZoneId, zones, clamp]);
+  }, [selectedZoneId, zones, clamp, sized]);
 
   useEffect(() => {
     sceneRef.current?.highlight(null, selectedZoneId);
