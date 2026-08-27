@@ -155,8 +155,22 @@ All notable changes to this project are documented here. The format follows
   light the exact runs it passes through.
 - Clicking the ground on the factory map picks out the zone you clicked in; clicking a
   machine traces it. 12 more tests.
+- **What a machine is making reads off the factory map.** Machines making the same thing
+  within 30 m are one block carrying one caption — `Iron Ingot ×4` — grouped with
+  `groupNearby` from `@factory-board/layout`. 7 more tests.
 
 ### Changed
+
+- **Map captions appear when there is room rather than at a fixed zoom.** Machine names
+  used to be held back until 320% because four smelters in a row drew "Iron Ingot" four
+  times on top of itself; named once per block, a caption needs only 22 px of block on
+  screen and a space nothing has taken
+  ([ADR 19](docs/adr/0019-a-name-per-block-not-per-machine.md)). Zone and block captions
+  are placed against one list of what is spoken for, zones first and then blocks
+  largest-first. On the reference save the whole iron chain names itself at 304% and the
+  five-generator coal plant from 40%.
+- Zone captions on the factory map are cased in the surface colour, like the schematic
+  map's type, so a belt crossing one no longer strikes it through.
 
 - **Reach in `frameContent` is bought with buildings**, not handed out flat: a group pulls
   the frame 55 m per building plus a share-weighted term for the size of the base. One

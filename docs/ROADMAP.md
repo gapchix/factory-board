@@ -141,9 +141,21 @@ washed and named, and hovering gives the same card the schematic gives — hit-t
 against each building's own rotated rectangle. Selection, the `?zone=` link and the card
 are shared between both maps.
 
-Next for it, in rough order: showing what a machine is _making_ rather than only how it
-is doing, drawing the belts a run at a time so a whole route can be traced, and the
-clearance boxes that sit off-centre.
+**What it is making now reads off the map.** The colour channel stays on uptime — that is
+the one question this map is best at, and spending it twice answers neither — so the
+product arrives as type instead. Machines making the same thing within 30 m are one
+block carrying one caption, `Iron Ingot ×4`, and a caption appears when there is room for
+it rather than at a fixed zoom ([ADR 19](adr/0019-a-name-per-block-not-per-machine.md)).
+That is what the old rule cost: names were held back until 320%. On the reference save
+the whole iron chain — ingot, plate, rod, screws, reinforced plate, rotor, Smart Plating —
+now names itself at 304%, while the five-generator coal plant is named from 40%, where it
+is 90 m of ground with nothing near it.
+
+Next for it, in rough order: drawing the belts a run at a time so a whole route can be
+traced, and the clearance boxes that sit off-centre. Captions still hang below their own
+block and can cross a machine standing there — they are cased, so they stay legible;
+candidate positions and leader lines, which is how the schematic map answers this, are
+the honest fix and are not built here.
 
 ### B6. Trace the chain · shipped
 

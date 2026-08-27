@@ -1,4 +1,5 @@
 import { Container, Graphics, Sprite, Text, type Application, type Texture } from 'pixi.js';
+import { captionOf, type LabelBlock } from './blocks';
 import { cornersOf, niceStep, type Camera } from './geometry';
 
 export { containsPoint, cornersOf, fitCamera, niceStep } from './geometry';
@@ -62,6 +63,8 @@ export interface SceneBuilding {
   readonly zoneId: string | undefined;
   readonly name: string;
   readonly detail: string;
+  /** What it makes, for the block it belongs to. Empty if it makes nothing. */
+  readonly product: string;
 }
 
 export interface SceneZone {
@@ -85,6 +88,8 @@ export interface SceneData {
   readonly buildings: readonly SceneBuilding[];
   readonly zones: readonly SceneZone[];
   readonly routes: readonly SceneRoute[];
+  /** Machines grouped by what they make, so a name is drawn once per block. */
+  readonly blocks: readonly LabelBlock[];
 }
 
 /** Smallest building on the map still worth drawing as a shape rather than a dot. */
@@ -95,9 +100,18 @@ const MAX_FLOW = 1400;
 /** Metres a chevron travels per second. Slow: this is a hint, not a fairground. */
 const FLOW_SPEED = 7;
 const LABEL_SIZE = 11;
-/** Zone captions appear once a zone is worth reading; machine names later still. */
+/** Zone captions appear once a zone is worth reading. */
 const ZONE_LABEL_SCALE = 0.25;
-const NAME_LABEL_SCALE = 3.2;
+/**
+ * A block has to be this many pixels across before it is named, so a speck two
+ * pixels wide is never captioned by something forty times its size. Past that
+ * the only thing holding a name back is another name already in the space.
+ */
+const BLOCK_LABEL_MIN_PX = 22;
+/** Clear air kept around a caption when deciding whether the next one fits. */
+const LABEL_PAD_PX = 3;
+/** How far below its block a caption hangs, in pixels. */
+const LABEL_DROP_PX = 4;
 
 function toneOf(palette: Palette, uptime: number | null): { solid: number; soft: number } {
   if (uptime === null) return { solid: palette.muted, soft: palette.grid };
@@ -289,7 +303,14 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
 
   /* ---------------------------------------------------------------- names */
 
-  const zoneLabels: { text: Text; x: number; y: number }[] = [];
+  /*
+   * Type is cased in the surface colour, so a name survives whatever it
+   * crosses — the same treatment the schematic map gives its labels, and for
+   * the same reason: a conveyor running through a caption strikes it through.
+   */
+  const casing = { color: palette.surface, width: 3, join: 'round' as const };
+
+  const zoneLabels: { text: Text; x: number; y: number; width: number; height: number }[] = [];
   for (const zone of data.zones) {
     const text = new Text({
       text: zone.label.toUpperCase(),
@@ -298,28 +319,46 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
         fontSize: LABEL_SIZE,
         letterSpacing: 1.1,
         fill: toneOf(palette, zone.uptime).solid,
+        stroke: casing,
       },
     });
     text.anchor.set(0, 1);
     labels.addChild(text);
-    zoneLabels.push({ text, x: zone.minX - 3, y: zone.minY - 5 });
+    zoneLabels.push({
+      text,
+      x: zone.minX - 3,
+      y: zone.minY - 5,
+      width: text.width,
+      height: text.height,
+    });
   }
 
-  const nameLabels: { text: Text; x: number; y: number }[] = [];
-  for (const building of data.buildings) {
-    if (building.kind === 'other') continue;
+  /*
+   * One caption per block of machines making the same thing, rather than one
+   * per machine. Four smelters in a row are one answer, and drawing it four
+   * times drew it four times on top of itself — which is why machine names used
+   * to be held back until the map was at three hundred percent. Named once,
+   * they can arrive as soon as there is room.
+   *
+   * The width is measured now, while the text is still at its own scale. It is
+   * counter-scaled at draw time, so this stays its width on screen at every
+   * zoom, and it is what decides whether a caption fits.
+   */
+  const blockLabels: { text: Text; block: LabelBlock; width: number; height: number }[] = [];
+  for (const block of data.blocks) {
     const text = new Text({
-      text: building.name,
+      text: captionOf(block),
       style: {
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: LABEL_SIZE - 0.5,
         fill: palette.muted,
+        stroke: casing,
       },
     });
     text.anchor.set(0.5, 0);
     text.visible = false;
     labels.addChild(text);
-    nameLabels.push({ text, x: building.x, y: building.y + building.l / 2 });
+    blockLabels.push({ text, block, width: text.width, height: text.height });
   }
 
   /* --------------------------------------------------------------- camera */
@@ -401,15 +440,68 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
 
     // Type is counter-scaled so it stays the size it says, whatever the zoom.
     const inverse = 1 / camera.scale;
+
+    /*
+     * Every caption on the map competes for the same screen, so they are all
+     * placed against one list of what is already spoken for. Zone names go
+     * down first: a zone names a whole cell, and losing it to one of the
+     * machine blocks inside it would be a worse trade than the other way
+     * round.
+     */
+    const taken: { left: number; right: number; top: number; bottom: number }[] = [];
+
     for (const label of zoneLabels) {
       label.text.scale.set(inverse);
       label.text.position.set(label.x, label.y);
       label.text.visible = camera.scale >= ZONE_LABEL_SCALE;
+      if (!label.text.visible) continue;
+      const left = (label.x - camera.x) * camera.scale + width / 2;
+      const bottom = (label.y - camera.y) * camera.scale + height / 2;
+      taken.push({
+        left: left - LABEL_PAD_PX,
+        right: left + label.width + LABEL_PAD_PX,
+        top: bottom - label.height - LABEL_PAD_PX,
+        bottom: bottom + LABEL_PAD_PX,
+      });
     }
-    for (const label of nameLabels) {
-      label.text.scale.set(inverse);
-      label.text.position.set(label.x, label.y + 2 * inverse);
-      label.text.visible = camera.scale >= NAME_LABEL_SCALE;
+    /*
+     * Captions arrive with the zoom, and nothing but room decides when. A block
+     * is named once it is wide enough on screen to be worth naming and nothing
+     * already named has taken the space; blocks come biggest first, so when two
+     * want the same strip of screen the one standing for more machines keeps
+     * it. No fixed zoom threshold, which is what lets a coal plant be named
+     * from far out while a lone constructor waits for the base to spread out
+     * around it.
+     */
+    for (const entry of blockLabels) {
+      const { block, text } = entry;
+      text.scale.set(inverse);
+      let visible = block.width * camera.scale >= BLOCK_LABEL_MIN_PX;
+      if (visible) {
+        const centreX = (block.x - camera.x) * camera.scale + width / 2;
+        const top = (block.y - camera.y) * camera.scale + height / 2 + LABEL_DROP_PX;
+        const half = entry.width / 2 + LABEL_PAD_PX;
+        const rect = {
+          left: centreX - half,
+          right: centreX + half,
+          top: top - LABEL_PAD_PX,
+          bottom: top + entry.height + LABEL_PAD_PX,
+        };
+        // A caption off screen must not hold the space against one in view.
+        visible = rect.right > 0 && rect.left < width && rect.bottom > 0 && rect.top < height;
+        if (visible) {
+          visible = !taken.some(
+            (other) =>
+              rect.left < other.right &&
+              rect.right > other.left &&
+              rect.top < other.bottom &&
+              rect.bottom > other.top,
+          );
+          if (visible) taken.push(rect);
+        }
+      }
+      text.visible = visible;
+      if (visible) text.position.set(block.x, block.y + LABEL_DROP_PX * inverse);
     }
 
     // Below a couple of pixels a footprint is a smudge; the shadow under it is

@@ -12,6 +12,7 @@ import type { ZoneView } from '@/lib/zones';
 import { uptimeTone, type StatusTone } from '../charts';
 import { MapCard, placeCard, type MapCardContent, type MapCardPlacement } from '../map-card';
 import { Label } from '../primitives';
+import { blocksOf } from './blocks';
 import {
   containsPoint,
   createScene,
@@ -154,6 +155,22 @@ export default function FactoryMap({
       const machine = buildingName(db, placement.machine);
       const resource = placement.resource ? itemName(db, placement.resource) : undefined;
 
+      /*
+       * What this machine would put its name to on the map. A manufacturer and
+       * a miner are both named by what comes out of them; a generator makes
+       * power, which is not an item, so it is named by what it is. Anything
+       * making nothing — a foundation, a wall, a constructor with no recipe
+       * set — says nothing and is never part of a block.
+       */
+      const produces =
+        placement.role === 'production'
+          ? (product && itemName(db, product)) || ''
+          : placement.role === 'extraction'
+            ? (resource ?? '')
+            : placement.role === 'power'
+              ? machine
+              : '';
+
       buildings.push({
         index,
         x: placement.x,
@@ -166,6 +183,7 @@ export default function FactoryMap({
         zoneId: zoneAt(placement.x, placement.y),
         name: product ? itemName(db, product) : machine,
         detail: placement.recipe ? machine : (resource ?? ''),
+        product: produces,
       });
     });
     // The floor first, so everything else stands on it.
@@ -186,6 +204,7 @@ export default function FactoryMap({
 
     return {
       buildings,
+      blocks: blocksOf(buildings),
       zones: zones.map((zone) => ({
         id: zone.id,
         label: zone.name,
