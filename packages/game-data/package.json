@@ -2,7 +2,27 @@
   "name": "@factory-board/game-data",
   "version": "0.1.0",
   "description": "Extract a typed Satisfactory recipe/item/milestone database from your own game install.",
+  "keywords": [
+    "satisfactory",
+    "docs-json",
+    "recipes",
+    "items",
+    "milestones",
+    "extractor",
+    "cli",
+    "zod",
+    "game-data",
+    "coffee-stain"
+  ],
   "license": "MIT",
+  "author": "Vladislav Gapchinsky (https://gapchix.io)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gapchix/factory-board.git",
+    "directory": "packages/game-data"
+  },
+  "bugs": "https://github.com/gapchix/factory-board/issues",
+  "homepage": "https://github.com/gapchix/factory-board/tree/main/packages/game-data#readme",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,17 +34,27 @@
     "./schema": {
       "types": "./dist/schema.d.ts",
       "default": "./dist/schema.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "factory-board-extract": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "!src/**/*.test.ts"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc --build",
-    "extract": "npm run build && node dist/cli.js"
+    "extract": "npm run build && node dist/cli.js",
+    "prepublishOnly": "tsc --build --force"
   },
   "dependencies": {
     "@factory-board/planner": "0.1.0",

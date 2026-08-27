@@ -2,7 +2,27 @@
   "name": "@factory-board/layout",
   "version": "0.1.0",
   "description": "Spatial and graph layout for Satisfactory factory data: zone clustering and production-flow layering.",
+  "keywords": [
+    "satisfactory",
+    "layout",
+    "clustering",
+    "single-linkage",
+    "sugiyama",
+    "dag",
+    "graph",
+    "polyline",
+    "map",
+    "geometry"
+  ],
   "license": "MIT",
+  "author": "Vladislav Gapchinsky (https://gapchix.io)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gapchix/factory-board.git",
+    "directory": "packages/layout"
+  },
+  "bugs": "https://github.com/gapchix/factory-board/issues",
+  "homepage": "https://github.com/gapchix/factory-board/tree/main/packages/layout#readme",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,13 +30,23 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "!src/**/*.test.ts"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "prepublishOnly": "tsc --build --force"
   }
 }

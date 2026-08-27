@@ -2,7 +2,27 @@
   "name": "@factory-board/save-reader",
   "version": "0.1.0",
   "description": "Reduce a Satisfactory save file to the production lines, buildings and progress it contains.",
+  "keywords": [
+    "satisfactory",
+    "save",
+    "sav",
+    "parser",
+    "save-file",
+    "production",
+    "uptime",
+    "milestones",
+    "space-elevator",
+    "coffee-stain"
+  ],
   "license": "MIT",
+  "author": "Vladislav Gapchinsky (https://gapchix.io)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gapchix/factory-board.git",
+    "directory": "packages/save-reader"
+  },
+  "bugs": "https://github.com/gapchix/factory-board/issues",
+  "homepage": "https://github.com/gapchix/factory-board/tree/main/packages/save-reader#readme",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,14 +30,24 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "!src/**/*.test.ts"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "prepublishOnly": "tsc --build --force"
   },
   "dependencies": {
     "@etothepii/satisfactory-file-parser": "^4.1.2",

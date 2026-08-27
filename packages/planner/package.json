@@ -2,7 +2,26 @@
   "name": "@factory-board/planner",
   "version": "0.1.0",
   "description": "Expand Satisfactory production targets into machine counts, power and raw ore rates.",
+  "keywords": [
+    "satisfactory",
+    "factory",
+    "planner",
+    "production",
+    "ratios",
+    "calculator",
+    "solver",
+    "gamedev",
+    "coffee-stain"
+  ],
   "license": "MIT",
+  "author": "Vladislav Gapchinsky (https://gapchix.io)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gapchix/factory-board.git",
+    "directory": "packages/planner"
+  },
+  "bugs": "https://github.com/gapchix/factory-board/issues",
+  "homepage": "https://github.com/gapchix/factory-board/tree/main/packages/planner#readme",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,13 +29,23 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "!src/**/*.test.ts"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "prepublishOnly": "tsc --build --force"
   }
 }
