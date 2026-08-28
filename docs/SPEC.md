@@ -22,14 +22,16 @@ That gap — between the plan and the world — is what this project fills.
    them into every machine, at every step, with power draw and raw ore rates.
 2. **Load.** You drop in a `.sav`. It is parsed in the browser — nothing is uploaded.
 3. **Compare.** Every production line shows planned machines against built machines, plus
-   the game's own uptime measurement for that line.
+   the game's own uptime measurement for that line — and _why_ it is what it is, read
+   from each machine's own input and output buffers
+   ([ADR 24](adr/0024-the-buffers-say-why.md)).
 4. **Track.** Milestone research and Space Elevator delivery progress, read from the save.
 
 ## The views
 
 | View            | Answers                                        | Shows                                                                                                                                                                                                                          |
 | --------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Overview**    | "How is the factory doing right now?"          | Bottlenecks ranked worst-first, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery                                                                               |
+| **Overview**    | "How is the factory doing right now?"          | Bottlenecks ranked worst-first, each naming what starved it or what it is backed up with, power draw and machine census by type, progress against the plan, infrastructure counts, Space Elevator delivery                     |
 | **Base**        | "Where is everything, and where is it broken?" | The factory itself, every building at its real size and angle. Machines coloured by uptime, grouped into zones named after what they make, extract or burn — nameable, linkable, and showing what the plan wants built in each |
 | **Planner**     | "What am I building towards?"                  | The plan drawn as a flow — ore on the left, targets on the right, edge weight showing throughput — then one card per line with plan vs. built, and raw inputs and surplus                                                      |
 | **History**     | "Is this getting better or worse?"             | Every autosave kept as a digest: what changed since the last save, machines, power, uptime and buildings over the session, and a burn-down against the current Space Elevator phase                                            |
@@ -55,8 +57,10 @@ watched, so the dashboard follows autosaves as you play.
 ## Non-goals
 
 - **Not a save editor.** Read-only, always. Nothing this tool does can corrupt a save.
-- **Not a map.** SCIM already does that well; resource node positions and purity are not
-  in save files anyway (only mutated state is stored).
+- **Not a resource map.** Node positions and purity are world-generation data and are not
+  in a save file at all; SCIM has them and this cannot. What _is_ drawn is the base you
+  built, from the save's own placements — which turned out to be most of what the board is
+  ([ADR 21](adr/0021-one-map-not-two.md)).
 - **Not a server.** No accounts, no upload, no database. See [ADR 0001](adr/0001-client-side-only.md).
 - **Not an optimiser.** It solves the plan you specify; it does not search for a better one.
 
