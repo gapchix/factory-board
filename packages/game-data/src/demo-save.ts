@@ -210,6 +210,20 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
     to: readonly [number, number],
   ): Record<string, unknown> => ({ kind: 'belt', points: [from, [to[0], from[1]], to] });
 
+  /**
+   * A power line, which the map draws as a straight run between its ends.
+   *
+   * Poles themselves are never drawn as buildings — the map treats them as
+   * infrastructure and shows the wiring instead — so the grid is only visible
+   * if the wires are here. Without them the demo had a power *story* (one grid
+   * comfortable, one with no generation on it) and nothing on the map to show
+   * it, which is the sort of gap only a reader notices.
+   */
+  const wire = (
+    from: readonly [number, number],
+    to: readonly [number, number],
+  ): Record<string, unknown> => ({ kind: 'power', points: [from, to] });
+
   const paths = [
     belt([-114, -34], [-60, -30]),
     belt([-114, 6], [-60, 10]),
@@ -222,6 +236,25 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
     belt([110, 6], [110, 32]),
     belt([110, -20], [110, 32]),
     belt([-144, 74], [-130, 70]),
+
+    /* The main grid: burners out to a spine, and the spine out to each row. */
+    wire([-40, 66], [-12, 66]),
+    wire([-12, 66], [4, 44]),
+    wire([4, 44], [-56, 44]),
+    wire([-56, 44], [-60, 14]),
+    wire([-56, 44], [-114, 30]),
+    wire([-114, 30], [-120, -30]),
+    wire([4, 44], [4, 18]),
+    wire([4, 44], [64, 36]),
+    wire([64, 36], [110, 36]),
+    wire([110, 36], [110, 10]),
+
+    /*
+     * And the second grid, which is two buildings joined to each other and to
+     * nothing that generates. Everything on it reads as stopped, and only the
+     * grid explains why.
+     */
+    wire([-150, 74], [-134, 72]),
   ];
 
   /*
@@ -278,6 +311,7 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       StorageContainerMk1: 3,
       TradingPost: 1,
       ConveyorBeltMk1: 11,
+      PowerLine: 11,
       PowerPoleMk1: 6,
     },
     stored: {

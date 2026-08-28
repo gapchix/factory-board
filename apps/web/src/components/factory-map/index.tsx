@@ -901,6 +901,11 @@ export default function FactoryMap({
           <Box w="14px" h="3px" bg="steel.300" />
           <Label>pipes</Label>
         </Flex>
+        {/* Drawn since the map was drawn, and never explained until now. */}
+        <Flex align="center" gap={1.5}>
+          <Box w="14px" h="1px" bg="fg.subtle" />
+          <Label>power lines</Label>
+        </Flex>
       </Flex>
 
       <Text fontSize="13px" color="fg.subtle" mt={2.5} maxW="88ch">

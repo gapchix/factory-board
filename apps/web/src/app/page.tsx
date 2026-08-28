@@ -16,7 +16,7 @@ import {
 import { SaveDropzone } from '@/components/panels';
 import { Label, SectionHeading } from '@/components/primitives';
 import { diagnose, explain } from '@/lib/diagnose';
-import { itemName, machineName, machineRank, playTime, rate } from '@/lib/format';
+import { buildingName, itemName, machineName, machineRank, playTime, rate } from '@/lib/format';
 import { PHASES } from '@/lib/phases';
 import { gameDatabase as db } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
@@ -377,7 +377,14 @@ export default function OverviewPage() {
           {view.infrastructure.map(([id, count]) => (
             <BarRow
               key={id}
-              name={id.replace(/([a-z])([A-Z])/g, '$1 $2')}
+              /*
+               * `buildingName` for the same reason the map uses it: the database
+               * knows these are called "Biomass Burner" and "The HUB", and splitting
+               * the class name here printed "Generator Biomass_Automated" at the
+               * reader instead. It falls back to the same humanising for anything
+               * the game ships without a display name.
+               */
+              name={buildingName(db, id)}
               value={count}
               max={maxInfra}
               tone="muted"

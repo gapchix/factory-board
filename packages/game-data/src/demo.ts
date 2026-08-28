@@ -94,6 +94,7 @@ export const demoDatabase: GameDatabase = {
     building('StorageContainerMk1', 'Storage Container', 5, 10),
     building('TradingPost', 'The HUB', 18, 26),
     building('ConveyorBeltMk1', 'Conveyor Belt Mk.1'),
+    building('PowerLine', 'Power Line'),
     building('PowerPoleMk1', 'Power Pole Mk.1', 2, 2),
   ]),
   recipes: byId([

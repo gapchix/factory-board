@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
-import { defaultSave, demoSave } from '@/lib/default-snapshot';
+import { defaultIsDemo, defaultSave, demoSave } from '@/lib/default-snapshot';
 import { playTime } from '@/lib/format';
 import { useBoard } from '@/state/board';
 import { useSaveLoader } from '@/hooks/use-save-loader';
@@ -87,7 +87,13 @@ export function Header() {
    * about a fictional factory are indistinguishable from numbers about a real
    * one once they are on the screen, and the whole board is numbers.
    */
-  const isDemo = source?.kind === 'demo' || source?.name === 'demo';
+  /*
+   * Two different things that used to be one, and the conflation locked the
+   * page in the demo: the *baked* save can be the demo (no game installed),
+   * and the reader can *ask* for the demo. Only the second has a way back.
+   */
+  const showingDemo = source?.kind === 'demo' || defaultIsDemo;
+  const canReturn = defaultSave !== null && !defaultIsDemo;
 
   /*
    * Swapping the demo in and out is a dispatch, not a reload: it replaces the
@@ -96,8 +102,9 @@ export function Header() {
    * script to run.
    */
   const showDemo = () => {
-    const demo = demoSave();
-    if (demo) dispatch({ type: 'loaded', snapshot: demo, source: { kind: 'demo', name: 'demo' } });
+    if (demoSave) {
+      dispatch({ type: 'loaded', snapshot: demoSave, source: { kind: 'demo', name: 'demo' } });
+    }
   };
 
   /*
@@ -107,7 +114,7 @@ export function Header() {
    * rather than a bin.
    */
   const restore = () => {
-    if (!defaultSave) return dispatch({ type: 'clearSave' });
+    if (!defaultSave || defaultIsDemo) return dispatch({ type: 'clearSave' });
     dispatch({
       type: 'loaded',
       snapshot: defaultSave.snapshot,
@@ -151,15 +158,15 @@ export function Header() {
         {snapshot ? (
           <Flex
             borderWidth="1px"
-            borderColor={isDemo ? 'accent.solid' : 'border.default'}
+            borderColor={showingDemo ? 'accent.solid' : 'border.default'}
             wrap="wrap"
           >
             {[
               ['Session', snapshot.sessionName],
               ['Played', playTime(snapshot.playDurationSeconds)],
               [
-                isDemo ? 'Showing' : source?.kind === 'default' ? 'Auto-loaded' : 'File',
-                isDemo ? 'a demo base' : (source?.name ?? '—'),
+                showingDemo ? 'Showing' : source?.kind === 'default' ? 'Auto-loaded' : 'File',
+                showingDemo ? 'a demo base' : (source?.name ?? '—'),
               ],
             ].map(([label, value], index) => (
               <Box
@@ -208,7 +215,7 @@ export function Header() {
           {snapshot ? 'Load another' : 'Load save'}
         </Button>
 
-        {isDemo ? null : (
+        {showingDemo || !demoSave ? null : (
           <Button
             size="sm"
             variant="outline"
@@ -236,16 +243,16 @@ export function Header() {
             fontSize="11px"
             letterSpacing="0.1em"
             textTransform="uppercase"
-            onClick={isDemo ? restore : () => dispatch({ type: 'clearSave' })}
+            onClick={showingDemo && canReturn ? restore : () => dispatch({ type: 'clearSave' })}
           >
-            {isDemo && defaultSave ? 'Your save' : 'Clear'}
+            {showingDemo && canReturn ? 'Your save' : 'Clear'}
           </Button>
         ) : null}
 
         <ThemeToggle />
       </Flex>
 
-      {isDemo ? (
+      {showingDemo ? (
         <Flex
           bg="accent.subtle"
           borderTopWidth="1px"
@@ -265,7 +272,7 @@ export function Header() {
             <Box as="span" fontFamily="mono">
               .sav
             </Box>{' '}
-            on the page{defaultSave ? ', use the button above to go back to your own save,' : ''} or
+            on the page{canReturn ? ', use the button above to go back to your own save,' : ''} or
             run{' '}
             <Box as="span" fontFamily="mono">
               npm run extract

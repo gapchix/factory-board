@@ -191,7 +191,25 @@ export const defaultSave: DefaultSave | null = read();
  * because the demo uses the game's own recipe and item ids. So the button works
  * whatever is installed.
  */
-export function demoSave(): WorldSnapshot | null {
+function readDemo(): WorldSnapshot | null {
   const parsed = snapshotSchema.safeParse(demoSnapshot());
   return parsed.success ? parsed.data : null;
 }
+
+/**
+ * Worked out once, at module load, so a caller can ask whether there is a demo
+ * *before* offering a button for it. A control that silently does nothing when
+ * pressed is worse than one that is not there.
+ */
+export const demoSave: WorldSnapshot | null = readDemo();
+
+/**
+ * Whether the save the app opened on is itself the demo.
+ *
+ * It is, on any machine without the game — and that changes what the header can
+ * offer. There is no "back to your save" when the baked-in save *is* the demo,
+ * and a button promising one is a button that does nothing. This is read from
+ * the envelope rather than from the snapshot's name, because a real session
+ * could be called anything, "demo" included.
+ */
+export const defaultIsDemo: boolean = defaultSave?.source === 'demo';

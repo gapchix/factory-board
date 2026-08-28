@@ -354,8 +354,23 @@ All notable changes to this project are documented here. The format follows
   `npm run demo` is still there for the other case: it exercises the whole no-install
   fallback, database included, which the button does not.
 
+- The map legend explains **power lines**, which it has drawn since it was first drawn and
+  never named.
+
 ### Fixed
 
+- The demo base has power lines and a wired second grid. It carried a power _story_ — one
+  circuit comfortable, one with no generation on it — and nothing on the map to show it,
+  because poles are drawn as wiring rather than as buildings and no wiring existed.
+- Switching to the demo and back could get stuck. The header treated "the baked-in save
+  happens to be the demo" and "the reader asked for the demo" as one thing, so on a machine
+  with no game the Demo button vanished and "Your save" restored the demo again. They are
+  separate now, and the demo is resolved once at load so a button is never offered for a
+  snapshot that failed to parse.
+- The Infrastructure panel names buildings from the database instead of splitting the class
+  name itself: 'Biomass Burner' and 'The HUB', not 'Generator Biomass_Automated' and
+  'Trading Post'. It has its own humanising fallback for anything the game ships unnamed,
+  which is why the local one was never missed.
 - **CI is green again, and had not been for some time.** `describe.skipIf` skips the
   tests it guards and still runs the factory that declares them, so the integration suite’s
   `readFileSync` threw ENOENT at collection on any machine without the game — every CI
