@@ -6,6 +6,7 @@ import type { WorldSnapshot } from '@factory-board/save-reader';
 import { useMemo, useState, type DragEvent } from 'react';
 import { itemName, rate, unit } from '@/lib/format';
 import { duration, planForPhase } from '@/lib/phase-plan';
+import type { BuildStep } from '@/lib/build-order';
 import type { PlanPower } from '@/lib/power-plan';
 import { PHASES, PRESETS } from '@/lib/phases';
 import { buildZoneBoard, zoneAt } from '@/lib/zones';
@@ -96,6 +97,80 @@ function coverage(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = Math.round(minutes % 60);
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
+/* ----------------------------------------------------------- build order */
+
+/**
+ * What to build first, and what is not worth building yet.
+ *
+ * "21 still to build" is a number, not a plan. A Steel Beam constructor placed
+ * before anything makes steel is twenty minutes spent on a machine that will
+ * sit idle, and the board knew that and never said it.
+ */
+export function BuildOrder({ steps }: { steps: readonly BuildStep[] }) {
+  const ready = steps.filter((step) => step.ready);
+  const blocked = steps.filter((step) => !step.ready);
+
+  const rows = (list: readonly BuildStep[], from: number) =>
+    list.map((step, index) => (
+      <Flex
+        key={step.recipe}
+        gap={3}
+        align="baseline"
+        wrap="wrap"
+        py={1.5}
+        borderTopWidth={index === 0 ? '0' : '1px'}
+        borderColor="border.subtle"
+      >
+        <Mono fontSize="11px" color="fg.subtle" w="18px" flex="none" textAlign="end">
+          {from + index + 1}
+        </Mono>
+        <Text fontSize="14px" fontWeight="600" w="180px" flex="none" truncate>
+          {step.name}
+        </Text>
+        <Mono fontSize="12px" color="fg.muted" w="150px" flex="none">
+          {step.count}× {step.machine}
+        </Mono>
+        <Text fontSize="12.5px" lineHeight="1.45" color="fg.muted">
+          {step.ready
+            ? step.unlocks.length > 0
+              ? `Unblocks ${step.unlocks.join(', ')}.`
+              : 'Nothing is waiting on it.'
+            : `Waiting on ${step.blockedBy.join(' and ')}.`}
+        </Text>
+      </Flex>
+    ));
+
+  return (
+    <Panel px={5} py={4}>
+      <Flex gap={2} align="baseline" wrap="wrap" mb={2}>
+        <Label color="fg">Build now</Label>
+        <Text fontSize="12.5px" color="fg.muted">
+          everything these eat already arrives from somewhere
+        </Text>
+      </Flex>
+      {ready.length > 0 ? (
+        rows(ready, 0)
+      ) : (
+        <Text fontSize="13.5px" color="fg.subtle">
+          Nothing can be built yet — every step is waiting on another.
+        </Text>
+      )}
+
+      {blocked.length > 0 ? (
+        <Box mt={5} pt={3} borderTopWidth="1px" borderColor="border.default">
+          <Flex gap={2} align="baseline" wrap="wrap" mb={2}>
+            <Label color="fg">Not yet</Label>
+            <Text fontSize="12.5px" color="fg.muted">
+              nothing makes what these eat, so they would stand idle
+            </Text>
+          </Flex>
+          {rows(blocked, ready.length)}
+        </Box>
+      ) : null}
+    </Panel>
+  );
 }
 
 /* ----------------------------------------------------------------- power */

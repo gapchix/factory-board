@@ -339,6 +339,15 @@ All notable changes to this project are documented here. The format follows
   permanently, because numbers about a base that does not exist look exactly like numbers
   about one that does.
 
+- **What to build first.** "21 still to build" is a number, not a plan. The missing
+  machines are now ordered by what they unblock: a step can be built today when everything
+  its recipe eats is either raw or already coming off a machine that exists, and everything
+  else says what it is waiting for. On the reference save that puts Steel Ingot first —
+  it unblocks five other steps — and holds back the five that would stand idle without it.
+  Deliberately not a schedule: no time estimates, no critical path, only the difference
+  between a machine that will run when you build it and one that will not
+  ([ADR 28](docs/adr/0028-the-planner-plans-against-the-world.md)).
+
 ### Fixed
 
 - Plan ghosts on the map name themselves. They were dashed rectangles with no caption and

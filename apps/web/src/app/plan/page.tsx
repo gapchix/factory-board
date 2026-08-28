@@ -5,8 +5,16 @@ import { solve } from '@factory-board/planner';
 import { useMemo } from 'react';
 import { BoardGrid } from '@/components/board';
 import { FlowDiagram } from '@/components/flow-diagram';
-import { Balance, PhaseProposal, PlanPowerPanel, Summary, TargetEditor } from '@/components/panels';
+import {
+  Balance,
+  BuildOrder,
+  PhaseProposal,
+  PlanPowerPanel,
+  Summary,
+  TargetEditor,
+} from '@/components/panels';
 import { SectionHeading } from '@/components/primitives';
+import { buildOrder } from '@/lib/build-order';
 import { diagnose } from '@/lib/diagnose';
 import { powerForPlan } from '@/lib/power-plan';
 import { gameDatabase as db } from '@/lib/game-database';
@@ -54,6 +62,16 @@ export default function PlanPage() {
     [snapshot, result],
   );
 
+  /*
+   * The order the machines are worth placing in. Not a schedule — only the
+   * difference between a machine that will run when you build it and one that
+   * will stand idle waiting for a chain nobody has started.
+   */
+  const order = useMemo(
+    () => (snapshot ? buildOrder(db, result, snapshot) : []),
+    [snapshot, result],
+  );
+
   const built = useMemo(() => {
     if (!snapshot) return { machines: 0, powerMW: 0 };
     let machines = 0;
@@ -98,6 +116,16 @@ export default function PlanPage() {
             }
           />
           <PlanPowerPanel power={power} />
+        </Box>
+      ) : null}
+
+      {order.length > 0 ? (
+        <Box as="section" mb={9}>
+          <SectionHeading
+            title="What to build first"
+            note={`${order.filter((step) => step.ready).length} of ${order.length} can be built today`}
+          />
+          <BuildOrder steps={order} />
         </Box>
       ) : null}
 

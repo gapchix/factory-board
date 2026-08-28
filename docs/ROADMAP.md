@@ -422,6 +422,18 @@ Verifying that needed a plan that survived opening the map, and one did not — 
 Fixed note in the changelog. **A plan did not survive a page load at all**, so every
 observation this project made about the Planner going unused was taken through that bug.
 
+**And the Planner stopped being a calculator**
+([ADR 28](adr/0028-the-planner-plans-against-the-world.md)). It solved the targets and
+reported the answer, and the answer did not know the factory existed — so it told you to
+build three more Iron Rod constructors while the Overview, two panels up, said the rod line
+was backed up with five thousand of them in a container.
+
+Now a card that disagrees with the diagnosis says so; the warehouse is credited as _time_,
+because a plan is a rate and a stock is a quantity and only their ratio is honest; the flow
+says how much of each step is standing and dashes what is not; power is answered per grid,
+where a fuse actually blows; and the missing machines are put in the order that unblocks the
+most — Steel Ingot first, because five other steps are waiting behind it.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.
