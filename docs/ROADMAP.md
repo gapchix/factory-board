@@ -434,6 +434,38 @@ says how much of each step is standing and dashes what is not; power is answered
 where a fuse actually blows; and the missing machines are put in the order that unblocks the
 most — Steel Ingot first, because five other steps are waiting behind it.
 
+### F. A base of its own · shipped
+
+[ADR 0003](adr/0003-do-not-commit-game-data.md) keeps the recipe database out of the
+repository because it is Coffee Stain's content. That is right, and what it did not weigh
+is the floor it put under everyone who does not already have the game open on the same
+machine: `npm run dev` was `process.exit(1)`, not a degraded view. Anyone the
+repository was shared with saw an error rather than an app, CI could never build
+`apps/web`, and nothing could be hosted because there was nothing to serve.
+
+So the board ships a base of its own
+([ADR 29](adr/0029-the-board-ships-a-base-of-its-own.md)) — a hand-written database of the
+early game and a factory that does not exist, both written from scratch rather than
+extracted. It is built to be **interesting rather than merely valid**, because a base where
+everything runs at 100% demonstrates nothing:
+
+    Concrete       UNPOWERED        grid 1 is over capacity — 9 MW asked for, 0 MW built
+    Cable          STARVING         short of Wire — 900 sitting in a container
+    Rotor          STARVING         short of Screw — 640 sitting in a container
+    Iron Rod       BACKED UP        800 waiting, 2,400 more in storage
+    Iron Ingot     NO REASON FOUND  powered, fed, not backed up, yet still slow
+    Smart Plating  never measured   12 built and boxed, 18 delivered of 50
+
+Every page says so, permanently: numbers about a fictional factory look exactly like
+numbers about a real one, and the whole board is numbers.
+
+**What it unblocked.** `npm install && npm run dev` works on any machine. CI
+type-checks the web app and **builds** it, both for the first time — a static export that
+only ever built on the maintainer's own machine is one nobody else can be sure still works.
+The integration tests still skip there on purpose: they pin real numbers against the real
+extracted database, and pointing them at the demo would turn a check on reality into a
+check that the fixture matches itself.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.
@@ -448,8 +480,8 @@ All three are designed to be useful outside this app.
 - Favicon and app icons
 - Alternate-recipe picker: show what a swap costs in machines and power
 - Export/import a plan as JSON
-- A small fixture game database so CI can type-check and build `apps/web`, which today
-  it cannot ([ADR 0003](adr/0003-do-not-commit-game-data.md))
+- ~~A small fixture game database so CI can type-check and build `apps/web`~~ — done
+  2026-08-29, and it turned out to be a feature rather than a fixture. See F below.
 
 ## Later
 

@@ -23,11 +23,15 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      # Packages here. The app's own check skips itself: it imports the generated
-      # game database, extracted from a local install and never committed — see
-      # docs/adr/0003. Locally, where the data exists, it runs.
+      # The app is type-checked here too, which it was not until the demo
+      # database existed: it imports a generated database, and the extracted one
+      # is never committed (docs/adr/0003). CI now falls back to the built-in
+      # demo like any other machine without the game (docs/adr/0029).
       - run: npm run typecheck
       - run: npm run lint
-      # Integration tests skip here: the game database is extracted from a local
-      # Satisfactory install and is never committed. See docs/adr/0003.
+      # Integration tests still skip: they pin real numbers against the real
+      # extracted database, and the demo is deliberately not it.
       - run: npm test
+      # And it builds. A static export that only ever built on the maintainer's
+      # own machine is one nobody else can be sure still works.
+      - run: npm run build

@@ -84,13 +84,13 @@ is copied from Coffee Stain's files.
 
 ## What's in the box
 
-| Package                                              | What it does                                                                                                 |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [`@factory-board/planner`](packages/planner)         | Expands production targets into machine counts, power and ore rates. Pure, no dependencies.                  |
-| [`@factory-board/game-data`](packages/game-data)     | Reads `Docs.json` from your install into a typed, validated database. Ships the `factory-board-extract` CLI. |
-| [`@factory-board/save-reader`](packages/save-reader) | Reduces a `.sav` to the production lines, buildings and progress it contains. Runs in the browser.           |
-| [`@factory-board/layout`](packages/layout)           | Clusters buildings into zones and lays out the production graph. Pure geometry, no dependencies.             |
-| [`apps/web`](apps/web)                               | The board itself — Next.js, React, Chakra UI.                                                                |
+| Package                                              | What it does                                                                                                                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@factory-board/planner`](packages/planner)         | Expands production targets into machine counts, power and ore rates. Pure, no dependencies.                                                                                          |
+| [`@factory-board/game-data`](packages/game-data)     | Reads `Docs.json` from your install into a typed, validated database. Ships the `factory-board-extract` CLI, and a hand-written demo database and base for running without the game. |
+| [`@factory-board/save-reader`](packages/save-reader) | Reduces a `.sav` to the production lines, buildings and progress it contains. Runs in the browser.                                                                                   |
+| [`@factory-board/layout`](packages/layout)           | Clusters buildings into zones and lays out the production graph. Pure geometry, no dependencies.                                                                                     |
+| [`apps/web`](apps/web)                               | The board itself — Next.js, React, Chakra UI.                                                                                                                                        |
 
 The three packages are independent of the app on purpose: each is useful on its own, and
 each is separately publishable.

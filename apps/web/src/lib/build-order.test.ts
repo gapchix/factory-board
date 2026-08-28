@@ -68,7 +68,7 @@ const db = {
 } as unknown as GameDatabase;
 
 const solved = (recipes: { recipe: string; machine: string; machinesToBuild: number }[]) =>
-  ({ lines: recipes } as unknown as SolveResult);
+  ({ lines: recipes }) as unknown as SolveResult;
 
 const world = (built: Record<string, { machine: string; count: number }>): WorldSnapshot =>
   ({

@@ -18,6 +18,10 @@ That gap — between the plan and the world — is what this project fills.
 
 ## What it does
 
+0. **Run.** With no Satisfactory install and no save, the board opens on a demo base of its
+   own — a factory that does not exist, carrying every fault the board can diagnose, so the
+   whole thing can be used and judged before anyone installs anything
+   ([ADR 29](adr/0029-the-board-ships-a-base-of-its-own.md)). It says so on every page.
 1. **Plan.** You declare production targets ("5 Smart Plating/min"). The planner expands
    them into every machine, at every step, with power draw and raw ore rates.
 2. **Load.** You drop in a `.sav`. It is parsed in the browser — nothing is uploaded.
@@ -43,12 +47,14 @@ configured, so that question is answered on first paint.
 
 ## Opening a save
 
-Three ways in, in order of precedence:
+Four ways in, in order of precedence — and the last is the reason the board always has
+something to show:
 
 1. Drop a `.sav` on the page, or use the file picker.
 2. `SATISFACTORY_SAVE` — one exact file.
 3. `SATISFACTORY_SAVES_DIR` — a folder, newest `.sav` wins. With neither set, the
    usual SaveGames location is auto-detected.
+4. Nothing found at all — the built-in demo base, clearly marked as one.
 
 (2) and (3) are resolved in Node before the app is built, never in the browser — see
 [ADR 0005](adr/0005-build-time-save-loading.md). During `npm run dev` the save folder is
