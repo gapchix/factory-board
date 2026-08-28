@@ -149,7 +149,9 @@ export async function syncSave({ quiet = false } = {}) {
     if (!quiet) console.log(message);
   };
 
-  const path = locateSave();
+  // Asked for outright, so the real save is not even looked for.
+  const forced = process.env.FACTORY_BOARD_DEMO === '1';
+  const path = forced ? null : locateSave();
   if (!path) {
     /*
      * A demo base rather than an empty page. Every view needs a save to say
@@ -166,7 +168,11 @@ export async function syncSave({ quiet = false } = {}) {
       snapshot: demoSnapshot(),
       earlier: [],
     });
-    log('default save: none found, using the built-in demo base');
+    log(
+      forced
+        ? 'default save: the built-in demo base, because FACTORY_BOARD_DEMO=1'
+        : 'default save: none found, using the built-in demo base',
+    );
     return null;
   }
 

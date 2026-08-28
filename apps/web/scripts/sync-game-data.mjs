@@ -14,9 +14,18 @@ const here = dirname(fileURLToPath(import.meta.url));
 const source = resolve(here, '../../../packages/game-data/generated/game-database.json');
 const target = resolve(here, '../src/generated/game-database.json');
 
+/**
+ * Ask for the demo even where the real data exists.
+ *
+ * Without this the demo can only be seen by *not having the game*, which makes
+ * it unreachable for exactly the people who maintain it — a demo nobody on the
+ * project can look at is one that quietly rots.
+ */
+const forced = process.env.FACTORY_BOARD_DEMO === '1';
+
 mkdirSync(dirname(target), { recursive: true });
 
-if (existsSync(source)) {
+if (existsSync(source) && !forced) {
   copyFileSync(source, target);
   console.log('game database synced');
 } else {
@@ -30,7 +39,9 @@ if (existsSync(source)) {
   const { demoDatabase } = await import('@factory-board/game-data');
   writeFileSync(target, JSON.stringify(demoDatabase));
   console.log(
-    'game database: none found, using the built-in demo\n' +
-      '  Run `npm run extract` with Satisfactory installed to use your own.',
+    forced
+      ? 'game database: the built-in demo, because FACTORY_BOARD_DEMO=1'
+      : 'game database: none found, using the built-in demo\n' +
+          '  Run `npm run extract` with Satisfactory installed to use your own.',
   );
 }

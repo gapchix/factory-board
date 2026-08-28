@@ -21,7 +21,8 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --build --force && npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "demo": "npm run demo --workspace apps/web"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",

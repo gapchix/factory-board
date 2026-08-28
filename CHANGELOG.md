@@ -348,8 +348,21 @@ All notable changes to this project are documented here. The format follows
   between a machine that will run when you build it and one that will not
   ([ADR 28](docs/adr/0028-the-planner-plans-against-the-world.md)).
 
+- **A Demo button in the header**, so the demo is reachable without uninstalling the game.
+  It swaps the base in memory rather than on disk — your own save is one click back, under
+  a button that says so — and it works on a built export, where there is no script to run.
+  `npm run demo` is still there for the other case: it exercises the whole no-install
+  fallback, database included, which the button does not.
+
 ### Fixed
 
+- **CI is green again, and had not been for some time.** `describe.skipIf` skips the
+  tests it guards and still runs the factory that declares them, so the integration suite’s
+  `readFileSync` threw ENOENT at collection on any machine without the game — every CI
+  run, quietly, for as long as the file has existed. The read happens outside the block now.
+- The app’s typecheck syncs the _save_ as well as the database. It imports both statically,
+  so a missing snapshot fails `tsc` exactly as a missing database does; this only
+  surfaced once the check stopped skipping itself in CI.
 - Plan ghosts on the map name themselves. They were dashed rectangles with no caption and
   no legend key, which is not a map but a puzzle: the first person to see one asked what
   the weird empty boxes were. They now carry the same block captions every other machine

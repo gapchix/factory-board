@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
+import { defaultSave, demoSave } from '@/lib/default-snapshot';
 import { playTime } from '@/lib/format';
 import { useBoard } from '@/state/board';
 import { useSaveLoader } from '@/hooks/use-save-loader';
@@ -86,7 +87,33 @@ export function Header() {
    * about a fictional factory are indistinguishable from numbers about a real
    * one once they are on the screen, and the whole board is numbers.
    */
-  const isDemo = source?.name === 'demo';
+  const isDemo = source?.kind === 'demo' || source?.name === 'demo';
+
+  /*
+   * Swapping the demo in and out is a dispatch, not a reload: it replaces the
+   * snapshot in memory and nothing on disk, so your own save is one click away
+   * again. That is also why it works on a built export, where there is no
+   * script to run.
+   */
+  const showDemo = () => {
+    const demo = demoSave();
+    if (demo) dispatch({ type: 'loaded', snapshot: demo, source: { kind: 'demo', name: 'demo' } });
+  };
+
+  /*
+   * The way back. Clearing from the demo would leave an empty page and a
+   * request to drop a file, when the save the board opened on is still sitting
+   * in the bundle — so where there is one, this button is a return ticket
+   * rather than a bin.
+   */
+  const restore = () => {
+    if (!defaultSave) return dispatch({ type: 'clearSave' });
+    dispatch({
+      type: 'loaded',
+      snapshot: defaultSave.snapshot,
+      source: { kind: 'default', name: defaultSave.source },
+    });
+  };
 
   return (
     <Box
@@ -181,6 +208,23 @@ export function Header() {
           {snapshot ? 'Load another' : 'Load save'}
         </Button>
 
+        {isDemo ? null : (
+          <Button
+            size="sm"
+            variant="outline"
+            borderRadius="0"
+            borderColor="border.default"
+            color="fg.muted"
+            fontFamily="mono"
+            fontSize="11px"
+            letterSpacing="0.1em"
+            textTransform="uppercase"
+            onClick={showDemo}
+          >
+            Demo
+          </Button>
+        )}
+
         {snapshot ? (
           <Button
             size="sm"
@@ -192,9 +236,9 @@ export function Header() {
             fontSize="11px"
             letterSpacing="0.1em"
             textTransform="uppercase"
-            onClick={() => dispatch({ type: 'clearSave' })}
+            onClick={isDemo ? restore : () => dispatch({ type: 'clearSave' })}
           >
-            Clear
+            {isDemo && defaultSave ? 'Your save' : 'Clear'}
           </Button>
         ) : null}
 
@@ -221,7 +265,8 @@ export function Header() {
             <Box as="span" fontFamily="mono">
               .sav
             </Box>{' '}
-            on the page, or run{' '}
+            on the page{defaultSave ? ', use the button above to go back to your own save,' : ''} or
+            run{' '}
             <Box as="span" fontFamily="mono">
               npm run extract
             </Box>{' '}

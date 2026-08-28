@@ -20,13 +20,21 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const app = resolve(here, '..');
 const database = resolve(app, 'src/generated/game-database.json');
+const snapshot = resolve(app, 'src/generated/default-snapshot.json');
 
-// Sync first, so the database is there whether it is the extracted one or the
-// demo. This is the whole reason the check no longer has to skip itself.
-if (!existsSync(database)) {
-  const sync = spawnSync(process.execPath, [resolve(here, 'sync-game-data.mjs')], {
-    stdio: 'inherit',
-  });
+/*
+ * Sync both first, so they are there whether they are the extracted database
+ * and a real save or the demo. This is the whole reason the check no longer has
+ * to skip itself — and both matter: the app imports each of them statically, so
+ * a missing snapshot fails `tsc` exactly as a missing database does. That is
+ * how this first went red in CI, where neither has ever existed.
+ */
+for (const [file, script] of [
+  [database, 'sync-game-data.mjs'],
+  [snapshot, 'sync-save.mjs'],
+]) {
+  if (existsSync(file)) continue;
+  const sync = spawnSync(process.execPath, [resolve(here, script)], { stdio: 'inherit' });
   if (sync.status !== 0) process.exit(sync.status ?? 1);
 }
 

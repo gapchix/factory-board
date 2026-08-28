@@ -25,7 +25,7 @@ export type LoadStatus =
 
 /** Where the loaded snapshot came from, so the UI can say so. */
 export interface SnapshotSource {
-  readonly kind: 'default' | 'file';
+  readonly kind: 'default' | 'file' | 'demo';
   readonly name: string;
 }
 

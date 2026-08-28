@@ -9,7 +9,8 @@
     "prebuild": "node scripts/sync-game-data.mjs && node scripts/sync-save.mjs",
     "build": "next build",
     "typecheck": "node scripts/typecheck.mjs",
-    "start": "next start"
+    "start": "next start",
+    "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.36.1",

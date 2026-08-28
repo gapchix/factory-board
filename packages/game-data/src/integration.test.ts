@@ -17,7 +17,17 @@ const generated = resolve(
   'generated',
   'game-database.json',
 );
+/*
+ * Read out here, not inside the block below.
+ *
+ * `describe.skipIf` skips the *tests* and still runs the factory that declares
+ * them, so a `readFileSync` in there throws ENOENT at collection time on any
+ * machine without the game — which turned every CI run red, quietly, for as
+ * long as this file has existed. The skip was doing exactly what it promised
+ * and the read was never covered by it.
+ */
 const available = existsSync(generated);
+const loaded = available ? parseGameDatabase(JSON.parse(readFileSync(generated, 'utf8'))) : null;
 
 const SMART_PLATING = 'Desc_SpaceElevatorPart_1_C';
 const VERSATILE_FRAMEWORK = 'Desc_SpaceElevatorPart_2_C';
@@ -27,7 +37,8 @@ const COAL = 'Desc_Coal_C';
 const COPPER_ORE = 'Desc_OreCopper_C';
 
 describe.skipIf(!available)('extracted database', () => {
-  const db: GameDatabase = parseGameDatabase(JSON.parse(readFileSync(generated, 'utf8')));
+  // Only ever reached when the database is there, which is what the skip says.
+  const db = loaded as GameDatabase;
 
   it('contains the whole recipe book', () => {
     expect(Object.keys(db.recipes).length).toBeGreaterThan(250);

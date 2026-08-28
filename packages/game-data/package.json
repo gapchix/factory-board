@@ -35,7 +35,11 @@
       "types": "./dist/schema.d.ts",
       "default": "./dist/schema.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./demo": {
+      "types": "./dist/demo-save.d.ts",
+      "default": "./dist/demo-save.js"
+    }
   },
   "bin": {
     "factory-board-extract": "./dist/cli.js"

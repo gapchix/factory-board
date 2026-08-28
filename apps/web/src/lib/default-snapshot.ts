@@ -6,6 +6,7 @@ import type {
   PowerCircuit,
   WorldSnapshot,
 } from '@factory-board/save-reader';
+import { demoSnapshot } from '@factory-board/game-data/demo';
 import { z } from 'zod';
 import raw from '@/generated/default-snapshot.json';
 
@@ -177,3 +178,20 @@ function read(): DefaultSave | null {
 }
 
 export const defaultSave: DefaultSave | null = read();
+
+/**
+ * The demo base, on demand.
+ *
+ * Bundled rather than fetched, and put through the same schema as a save read
+ * off disk — it arrives from a package, and a package can be a version behind.
+ * "Parse at the boundary" does not have an exception for data we wrote
+ * ourselves; that is precisely the data most likely to drift unnoticed.
+ *
+ * It reads correctly against the *real* database as well as the demo one,
+ * because the demo uses the game's own recipe and item ids. So the button works
+ * whatever is installed.
+ */
+export function demoSave(): WorldSnapshot | null {
+  const parsed = snapshotSchema.safeParse(demoSnapshot());
+  return parsed.success ? parsed.data : null;
+}

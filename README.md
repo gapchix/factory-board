@@ -25,6 +25,9 @@ one and a dead power grid, so every view has something to show. It says so in a 
 across the top, permanently, because numbers about a fictional factory look exactly like
 numbers about a real one.
 
+There is a **Demo** button in the header too, so you can look at it with the game installed —
+it swaps the base in the page, and your own save is one click back.
+
 To see your own factory instead:
 
 ```bash
@@ -105,15 +108,16 @@ each is separately publishable.
 
 ## Commands
 
-| Command             |                                                |
-| ------------------- | ---------------------------------------------- |
-| `npm run dev`       | Start the web app                              |
-| `npm run extract`   | Regenerate the game database from your install |
-| `npm test`          | Unit tests (Vitest)                            |
-| `npm run test:e2e`  | Browser tests (Playwright)                     |
-| `npm run typecheck` | `tsc --build` across every package             |
-| `npm run lint`      | ESLint                                         |
-| `npm run format`    | Prettier                                       |
+| Command             |                                                      |
+| ------------------- | ---------------------------------------------------- |
+| `npm run dev`       | Start the web app                                    |
+| `npm run extract`   | Regenerate the game database from your install       |
+| `npm run demo`      | Run against the built-in demo, whatever is installed |
+| `npm test`          | Unit tests (Vitest)                                  |
+| `npm run test:e2e`  | Browser tests (Playwright)                           |
+| `npm run typecheck` | `tsc --build` across every package                   |
+| `npm run lint`      | ESLint                                               |
+| `npm run format`    | Prettier                                             |
 
 ## Licence
 
