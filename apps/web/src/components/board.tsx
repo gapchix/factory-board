@@ -5,6 +5,7 @@ import type { GameDatabase, PlannedLine, SolveResult } from '@factory-board/plan
 import { recipesProducing } from '@factory-board/planner';
 import type { ActualLine } from '@factory-board/save-reader';
 import { useMemo } from 'react';
+import { explain, type LineDiagnosis } from '@/lib/diagnose';
 import { itemName, machineName, machineRank, rate } from '@/lib/format';
 import { useBoard } from '@/state/board';
 import { Label, Meter, Mono, Select } from './primitives';
@@ -36,11 +37,14 @@ function LineCard({
   row,
   db,
   zones,
+  verdict,
 }: {
   row: Row;
   db: GameDatabase;
   /** Where the plan says these machines go, if it says. */
   zones: readonly string[] | undefined;
+  /** Why this line is slow in the world, if it is. */
+  verdict: LineDiagnosis | undefined;
 }) {
   const { dispatch, recipeChoices } = useBoard();
   const recipe = db.recipes[row.recipe];
@@ -52,6 +56,19 @@ function LineCard({
 
   const product = recipe?.outputs[0]?.item;
   const alternatives = useMemo(() => (product ? recipesProducing(db, product) : []), [db, product]);
+
+  /*
+   * The plan's instruction, checked against the world.
+   *
+   * "Build three more" is wrong advice for a line whose output is already full:
+   * the machines are not the constraint and three more of them make the pile
+   * bigger. The solver cannot know that — it works from rates — so the card
+   * says it instead of quietly contradicting the bottleneck list.
+   */
+  const contradiction =
+    planned > actual && (verdict?.verdict === 'blocked' || verdict?.verdict === 'unpowered')
+      ? (explain(verdict) ?? null)
+      : null;
 
   const uptime = row.actual?.uptime ?? null;
   const uptimeTone =
@@ -146,6 +163,25 @@ function LineCard({
         </Box>
       </Flex>
 
+      {contradiction ? (
+        <Flex
+          gap={2}
+          align="baseline"
+          borderLeftWidth="2px"
+          borderColor="fg.muted"
+          pl={2}
+          wrap="wrap"
+        >
+          <Label flex="none" color="fg">
+            {verdict?.verdict === 'blocked' ? 'Not the constraint' : 'No power'}
+          </Label>
+          <Text fontSize="12px" lineHeight="1.45" color="fg.muted">
+            {contradiction}{' '}
+            {verdict?.verdict === 'blocked' ? 'More machines here would make the pile bigger.' : ''}
+          </Text>
+        </Flex>
+      ) : null}
+
       {uptime !== null ? (
         <Flex align="center" gap={2.5}>
           <Label>uptime</Label>
@@ -198,12 +234,22 @@ export function BoardGrid({
   result,
   actual,
   zonesFor,
+  verdicts,
 }: {
   db: GameDatabase;
   result: SolveResult;
   actual: Readonly<Record<string, ActualLine>>;
   /** Recipe → the zones its machines are meant to be built in. */
   zonesFor?: ReadonlyMap<string, readonly string[]> | undefined;
+  /**
+   * Recipe → why that line is slow in the world, from `lib/diagnose`.
+   *
+   * Without it the board and the Overview describe the same factory and
+   * disagree: this card said "+3 more Iron Rod" while the bottleneck list said
+   * the rod line was backed up with five thousand of them in a container. Both
+   * numbers were right and the instruction was wrong.
+   */
+  verdicts?: ReadonlyMap<string, LineDiagnosis> | undefined;
 }) {
   const groups = useMemo(() => {
     const rows = new Map<string, Row>();
@@ -267,7 +313,13 @@ export function BoardGrid({
           </Flex>
           <Grid gap={3} templateColumns="repeat(auto-fill, minmax(268px, 1fr))">
             {group.rows.map((row) => (
-              <LineCard key={row.recipe} row={row} db={db} zones={zonesFor?.get(row.recipe)} />
+              <LineCard
+                key={row.recipe}
+                row={row}
+                db={db}
+                zones={zonesFor?.get(row.recipe)}
+                verdict={verdicts?.get(row.recipe)}
+              />
             ))}
           </Grid>
         </Box>

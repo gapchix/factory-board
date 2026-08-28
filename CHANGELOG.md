@@ -300,6 +300,16 @@ All notable changes to this project are documented here. The format follows
   two as before. Choosing a session already worked; choosing the moment did not, so "what
   changed in the last hour" had no way to be asked.
 
+- **The Planner plans against the real factory.** A line card whose plan says "+3 more"
+  now checks that against what the world is doing, and says so when the two disagree:
+  _"Not the constraint — output full, 399 Iron Rod waiting, 5,178 more in storage. More
+  machines here would make the pile bigger."_ The solver works from rates and cannot know
+  that; the board can, and used to contradict its own bottleneck list instead.
+- **What the warehouse already covers.** Inputs & surplus leads with the stock the plan can
+  eat, as _time_ rather than a rate — a plan is a rate and a stock is a quantity, and
+  dividing one by the other is the honest comparison. On the reference save that is 2h 15m
+  of Cable, 53 min of Iron Rod and 42 min of Wire already made.
+
 ### Fixed
 
 - **A plan now survives a page load.** `BoardProvider` restored from `localStorage` in one

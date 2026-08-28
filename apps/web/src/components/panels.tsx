@@ -89,6 +89,14 @@ export function PhaseProposal({ db }: { db: GameDatabase }) {
   );
 }
 
+/** "50 min", "1h 20m" — how long a stock covers what the plan eats. */
+function coverage(minutes: number): string {
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
 /* ------------------------------------------------------------------ dropzone */
 
 export function SaveDropzone() {
@@ -411,9 +419,36 @@ export function Summary({
 
 /* -------------------------------------------------------------------- balance */
 
-export function Balance({ db, result }: { db: GameDatabase; result: SolveResult }) {
+export function Balance({
+  db,
+  result,
+  stored,
+}: {
+  db: GameDatabase;
+  result: SolveResult;
+  /** What is standing in containers, so the plan can credit it. */
+  stored?: Readonly<Record<string, number>> | undefined;
+}) {
   const raw = Object.entries(result.rawInputs).sort((a, b) => b[1] - a[1]);
   const surplus = Object.entries(result.surplus).sort((a, b) => b[1] - a[1]);
+
+  /*
+   * What the warehouse already covers.
+   *
+   * A plan is a rate and a stock is a quantity, so the two cannot simply be
+   * subtracted — but dividing one by the other gives the honest answer, which
+   * is *time*: five thousand iron rods against a plan that eats a hundred a
+   * minute is fifty minutes the plan does not have to make. That is the
+   * difference between "build all this" and "build all this, but you have an
+   * hour of it already".
+   */
+  const covered = Object.entries(stored ?? {})
+    .map(([item, held]) => {
+      const perMinute = result.consumed[item] ?? 0;
+      return { item, held, perMinute, minutes: perMinute > 0 ? held / perMinute : 0 };
+    })
+    .filter((row) => row.minutes >= 1)
+    .sort((a, b) => b.minutes - a.minutes);
 
   if (raw.length === 0 && surplus.length === 0) {
     return (
@@ -425,6 +460,31 @@ export function Balance({ db, result }: { db: GameDatabase; result: SolveResult 
 
   return (
     <>
+      {covered.length > 0 ? (
+        <TableFrame>
+          <thead>
+            <tr>
+              <Th>Already in a container</Th>
+              <Th style={{ textAlign: 'end' }}>Held</Th>
+              <Th style={{ textAlign: 'end' }}>The plan eats</Th>
+              <Th style={{ textAlign: 'end' }}>Covers</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {covered.map((row) => (
+              <tr key={row.item}>
+                <Td>{itemName(db, row.item)}</Td>
+                <NumTd>{Math.round(row.held).toLocaleString()}</NumTd>
+                <NumTd>
+                  {rate(row.perMinute)} {unit(db, row.item)}
+                </NumTd>
+                <NumTd>{coverage(row.minutes)}</NumTd>
+              </tr>
+            ))}
+          </tbody>
+        </TableFrame>
+      ) : null}
+
       {raw.length > 0 ? (
         <TableFrame>
           <thead>
