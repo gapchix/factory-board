@@ -5,11 +5,89 @@ import type { GameDatabase, SolveResult } from '@factory-board/planner';
 import type { WorldSnapshot } from '@factory-board/save-reader';
 import { useMemo, useState, type DragEvent } from 'react';
 import { itemName, rate, unit } from '@/lib/format';
+import { duration, planForPhase } from '@/lib/phase-plan';
 import { PHASES, PRESETS } from '@/lib/phases';
 import { buildZoneBoard, zoneAt } from '@/lib/zones';
 import { useBoard } from '@/state/board';
 import { useSaveLoader } from '@/hooks/use-save-loader';
 import { Field, Label, Mono, NumTd, Panel, Select, Td, TableFrame, Th } from './primitives';
+
+/* -------------------------------------------------------------- phase plan */
+
+/**
+ * What the elevator is waiting for, and the plan that would feed it.
+ *
+ * The Planner used to open on an empty box and ask what you wanted the factory
+ * to make, which is a blank page, and the presets could not answer it either —
+ * they are fixed lists that know nothing about the save. This does: the phase
+ * you are on, what is still to make after everything delivered and everything
+ * already sitting in a box, and what you produce of it now.
+ */
+export function PhaseProposal({ db }: { db: GameDatabase }) {
+  const { snapshot, dispatch, targets } = useBoard();
+  const plan = useMemo(() => (snapshot ? planForPhase(db, snapshot) : null), [db, snapshot]);
+  if (!plan || plan.done) return null;
+
+  const short = plan.parts.filter((part) => part.toMake > 0);
+  const planned = new Set(targets.map((target) => target.item));
+  const already = plan.targets.every((target) => planned.has(target.item));
+
+  return (
+    <Panel mt={3.5} px={4} py={3.5}>
+      <Flex justify="space-between" align="baseline" gap={3} wrap="wrap">
+        <Label color="fg">The elevator is waiting for</Label>
+        <Label>{plan.label}</Label>
+      </Flex>
+
+      <Box mt={2.5}>
+        {short.map((part) => (
+          <Flex
+            key={part.item}
+            gap={3}
+            align="baseline"
+            wrap="wrap"
+            py={1}
+            borderTopWidth="1px"
+            borderColor="border.subtle"
+          >
+            <Text fontSize="13.5px" w="170px" flex="none" truncate>
+              {part.name}
+            </Text>
+            <Mono fontSize="12px" w="118px" flex="none" textAlign="end">
+              {Math.round(part.toMake).toLocaleString()} to make
+            </Mono>
+            <Text fontSize="12.5px" color="fg.muted">
+              {part.delivered.toLocaleString()} of {part.required.toLocaleString()} delivered
+              {part.stored > 0 ? `, ${part.stored.toLocaleString()} built and in a box` : ''} ·
+              making {rate(part.ratePerMinute)}/min
+            </Text>
+          </Flex>
+        ))}
+      </Box>
+
+      <Flex mt={3} gap={3} align="center" wrap="wrap">
+        <Button
+          size="sm"
+          borderRadius="0"
+          bg={already ? 'steel.100' : 'accent.solid'}
+          color={already ? 'steel.500' : 'accent.contrast'}
+          fontFamily="mono"
+          fontSize="11.5px"
+          letterSpacing="0.1em"
+          textTransform="uppercase"
+          _hover={{ filter: 'brightness(1.08)' }}
+          onClick={() => dispatch({ type: 'setTargets', targets: [...plan.targets] })}
+        >
+          {already ? 'Plan it again' : 'Plan this'}
+        </Button>
+        <Text fontSize="12.5px" color="fg.muted">
+          {plan.targets.map((target) => `${target.ratePerMinute}/min`).join(' · ')} — every part
+          lands together, in about {duration(plan.minutes)}.
+        </Text>
+      </Flex>
+    </Panel>
+  );
+}
 
 /* ------------------------------------------------------------------ dropzone */
 

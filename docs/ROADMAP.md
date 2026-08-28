@@ -378,6 +378,37 @@ misses miners, pumps and everything else without a recipe.
 Next for it: nothing pressing. `unexplained` now means powered, fed, not backed up and
 still slow — a much smaller box, and everything left in it is genuinely unaccounted for.
 
+### E. The plan writes itself · shipped
+
+The board's thesis is plan against world. Half of it was built and the other half was never
+used: after five days the Overview still read _"No plan yet"_ and all twelve lines were
+marked `unplanned`.
+
+The Planner was not broken — it opened on an empty box and asked what you wanted the factory
+to make, which is a blank page. The presets beside it could not answer that either, because
+a fixed list knows nothing about the save: `Phase 2` set 5 : 5 : 1 whether you had
+delivered none of the phase or all but the last twenty.
+
+So the Planner now leads with what the elevator is waiting for, read from the save
+([ADR 26](adr/0026-the-plan-writes-itself.md)):
+
+    THE ELEVATOR IS WAITING FOR                                    PHASE 2
+    Smart Plating        466 to make  0 of 500 delivered, 34 in a box · making 0/min
+    Versatile Framework  500 to make  0 of 500 delivered · making 0/min
+    Automated Wiring     100 to make  0 of 100 delivered · making 0/min
+
+    [ PLAN THIS ]  5/min · 5/min · 1/min — landing together in about 1h 40m.
+
+Storage counts against what you must make, every part is scaled to land at the same moment
+because a phase is delivered when its _last_ part arrives, and rates are whole units a
+minute. One click gives 44 machines, 344 MW and **21 still to build** — the number the whole
+board exists to produce, arrived at without anyone typing a target.
+
+The two static phase presets are gone rather than left to disagree with it.
+
+Next for it: **ghost outlines on the map** where `planByZone` says machines are missing,
+which is the last step from _what to build_ to _where_.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.

@@ -263,8 +263,21 @@ All notable changes to this project are documented here. The format follows
   **unpowered** — checked before the buffers, because a machine whose grid has died has a
   full input and an empty output and would otherwise read as starving.
 
+- **The plan writes itself.** The Planner opened on an empty box and asked what you wanted
+  the factory to make, and after five days nobody had answered it. It now leads with what
+  the Space Elevator is waiting for, read from the save: what is still to make once
+  deliveries and what is already boxed are taken off, and what the factory produces of each
+  part today. One button turns it into targets
+  ([ADR 26](docs/adr/0026-the-plan-writes-itself.md)). On the reference save that is 466
+  Smart Plating, 500 Versatile Framework and 100 Automated Wiring — 5 : 5 : 1 per minute,
+  landing together in about 1h 40m, and 21 machines still to build.
+
 ### Fixed
 
+- The Phase 1 and Phase 2 presets are gone. They were fixed lists and could not know what
+  had been delivered, so they proposed the same 5 : 5 : 1 whether you had built none of the
+  phase or all but the last twenty; the proposal above the editor is read from the save
+  instead, and a save-blind duplicate beside it would only have disagreed.
 - Power draw is read from the save rather than totalled from the database. Totalling
   nominal draw per production line misses everything without a recipe — miners, pumps, the
   radar tower — and on the reference save reported 125 MW against a real 188 MW, with no

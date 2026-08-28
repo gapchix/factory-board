@@ -5,7 +5,7 @@ import { solve } from '@factory-board/planner';
 import { useMemo } from 'react';
 import { BoardGrid } from '@/components/board';
 import { FlowDiagram } from '@/components/flow-diagram';
-import { Balance, Summary, TargetEditor } from '@/components/panels';
+import { Balance, PhaseProposal, Summary, TargetEditor } from '@/components/panels';
 import { SectionHeading } from '@/components/primitives';
 import { gameDatabase as db } from '@/lib/game-database';
 import { planByZone } from '@/lib/zone-plan';
@@ -47,6 +47,7 @@ export default function PlanPage() {
     <>
       <Box as="section" mb={9}>
         <SectionHeading title="Production targets" note="what you want the factory to make" />
+        <PhaseProposal db={db} />
         <TargetEditor db={db} />
       </Box>
 

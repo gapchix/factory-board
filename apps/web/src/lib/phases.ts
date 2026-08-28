@@ -29,27 +29,20 @@ export const PHASES: Readonly<Record<string, PhaseDefinition>> = {
   },
 };
 
-/** Ready-made plans for the deliveries most people are working towards. */
+/**
+ * A worked example, for a Planner with nothing in it.
+ *
+ * There used to be a "Phase 1" and a "Phase 2" here, and they were wrong the
+ * moment you delivered anything: a fixed list cannot know what is left. The
+ * save does, so the proposal above the editor is built from it instead
+ * ([ADR 26](../../../../docs/adr/0026-the-plan-writes-itself.md)) and these two
+ * are gone rather than left to disagree with it.
+ */
 export const PRESETS: ReadonlyArray<{
   readonly id: string;
   readonly label: string;
   readonly targets: ReadonlyArray<{ item: ItemId; ratePerMinute: number }>;
 }> = [
-  {
-    id: 'phase-1',
-    label: 'Phase 1',
-    targets: [{ item: 'Desc_SpaceElevatorPart_1_C', ratePerMinute: 5 }],
-  },
-  {
-    id: 'phase-2',
-    label: 'Phase 2',
-    // 5 : 5 : 1 lands all three quotas at the same moment, ~100 minutes in.
-    targets: [
-      { item: 'Desc_SpaceElevatorPart_1_C', ratePerMinute: 5 },
-      { item: 'Desc_SpaceElevatorPart_2_C', ratePerMinute: 5 },
-      { item: 'Desc_SpaceElevatorPart_3_C', ratePerMinute: 1 },
-    ],
-  },
   {
     id: 'rip',
     label: 'Reinforced Plate 10/min',
