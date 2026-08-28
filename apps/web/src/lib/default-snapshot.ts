@@ -111,6 +111,41 @@ const _snapshotKeys: AssertNoMissingKeys<WorldSnapshot, z.infer<typeof snapshotS
 
 void [_lineKeys, _placementKeys, _pathKeys, _linkKeys, _circuitKeys, _snapshotKeys];
 
+/**
+ * An earlier save from the same session, carrying only what a history digest
+ * reads.
+ *
+ * The game's three rotating autosave slots are already a time series, and
+ * History used to start empty and fill only while the page was open — a feature
+ * about how a session is going, with one point in it. `scripts/sync-save.mjs`
+ * now reads the rest of the session too.
+ *
+ * `placements` arrives as a list of bare roles because that is all
+ * `digestOf` reads off them: it counts extractors and generators and takes the
+ * length. Shipping four hundred real placements a save would put back the weight
+ * [ADR 16](../../../../docs/adr/0016-history-keeps-a-digest.md) took out.
+ */
+const earlierSchema = z.object({
+  source: z.string(),
+  snapshot: z.object({
+    sessionName: z.string(),
+    playDurationSeconds: z.number().nonnegative(),
+    savedAt: z.number().nullable(),
+    lines: z.record(z.string(), lineSchema),
+    milestones: z.array(z.string()),
+    phase: z
+      .object({
+        current: z.string().nullable(),
+        target: z.string().nullable(),
+        delivered: z.record(z.string(), z.number()),
+      })
+      .nullable(),
+    placements: z.array(
+      z.object({ role: z.enum(['production', 'extraction', 'power']).optional() }),
+    ),
+  }),
+});
+
 const envelopeSchema = z.discriminatedUnion('present', [
   z.object({ present: z.literal(false) }),
   z.object({
@@ -118,20 +153,27 @@ const envelopeSchema = z.discriminatedUnion('present', [
     source: z.string(),
     loadedAt: z.string(),
     snapshot: snapshotSchema,
+    // Absent on an envelope written by an older sync script.
+    earlier: z.array(earlierSchema).optional(),
   }),
 ]);
+
+/** What a digest needs from a save, and nothing else. */
+export type HistorySeed = z.infer<typeof earlierSchema>;
 
 export interface DefaultSave {
   readonly snapshot: WorldSnapshot;
   readonly source: string;
   readonly loadedAt: string;
+  /** Earlier saves from the same session, oldest first. */
+  readonly earlier: readonly HistorySeed[];
 }
 
 function read(): DefaultSave | null {
   const parsed = envelopeSchema.safeParse(raw as unknown);
   if (!parsed.success || !parsed.data.present) return null;
-  const { snapshot, source, loadedAt } = parsed.data;
-  return { snapshot, source, loadedAt };
+  const { snapshot, source, loadedAt, earlier } = parsed.data;
+  return { snapshot, source, loadedAt, earlier: earlier ?? [] };
 }
 
 export const defaultSave: DefaultSave | null = read();

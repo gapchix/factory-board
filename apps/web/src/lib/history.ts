@@ -1,5 +1,5 @@
 import type { GameDatabase } from '@factory-board/planner';
-import type { WorldSnapshot } from '@factory-board/save-reader';
+import type { ActualLine, BuildingRole } from '@factory-board/save-reader';
 import { itemName } from './format';
 import { PHASES } from './phases';
 
@@ -39,7 +39,29 @@ export interface HistoryPoint {
   readonly lines: Readonly<Record<string, LineState>>;
 }
 
-export function digestOf(db: GameDatabase, snapshot: WorldSnapshot, source: string): HistoryPoint {
+/**
+ * What a digest is made from.
+ *
+ * Narrower than a `WorldSnapshot` on purpose: this is the whole contract, and
+ * writing it down is what lets an earlier save be seeded from disk without
+ * shipping its placements and routes — `scripts/sync-save.mjs` sends the
+ * fields listed here and nothing else.
+ */
+export interface DigestSource {
+  readonly sessionName: string;
+  readonly playDurationSeconds: number;
+  readonly savedAt: number | null;
+  readonly lines: Readonly<Record<string, ActualLine>>;
+  readonly milestones: readonly string[];
+  readonly phase: {
+    readonly target: string | null;
+    readonly delivered: Readonly<Record<string, number>>;
+  } | null;
+  /** Only the role is read: extractors and generators are counted, and the length taken. */
+  readonly placements: readonly { readonly role?: BuildingRole | undefined }[];
+}
+
+export function digestOf(db: GameDatabase, snapshot: DigestSource, source: string): HistoryPoint {
   let machines = 0;
   let powerMW = 0;
   let weighted = 0;

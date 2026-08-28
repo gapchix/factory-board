@@ -32,8 +32,15 @@ for (const envFile of ['.env.local', '.env']) {
   }
 }
 
-/** Newest `.sav` anywhere under a directory, one level of subfolders deep. */
-function newestSave(dir) {
+/**
+ * Every `.sav` under a directory, newest first, one level of subfolders deep.
+ *
+ * The game keeps three rotating autosave slots plus whatever you saved by hand,
+ * so this is already a time series — it is just one nobody was reading. History
+ * used to start empty and fill only while the page was open, which meant a
+ * feature about how a session is going had one point in it on first open.
+ */
+function allSaves(dir) {
   if (!existsSync(dir)) return null;
   const candidates = [];
   const visit = (path, depth) => {
@@ -55,7 +62,45 @@ function newestSave(dir) {
   };
   visit(dir, 1);
   candidates.sort((a, b) => b.mtime - a.mtime);
-  return candidates[0]?.full ?? null;
+  return candidates;
+}
+
+/** Newest `.sav` under a directory, or null. */
+function newestSave(dir) {
+  return allSaves(dir)[0]?.full ?? null;
+}
+
+/**
+ * How many earlier saves are read to seed the history.
+ *
+ * Each one is a full parse, and this runs before `next dev` every time. Three
+ * autosave slots plus a manual save is what a session actually holds, so past
+ * about this many the extra seconds buy nothing.
+ */
+const SEED_LIMIT = 6;
+
+/**
+ * A save reduced to what a history digest reads, and nothing else.
+ *
+ * The digest itself is computed in the browser by `lib/history`, so the rule
+ * about what a point contains stays in one place ([ADR 16]). This only has to
+ * carry the fields that rule looks at — which is why `placements` arrives as a
+ * list of bare roles: the digest counts them and reads nothing else off them,
+ * and shipping 400 real placements per save would put back the weight ADR 16
+ * took out.
+ */
+function forHistory(snapshot) {
+  return {
+    sessionName: snapshot.sessionName,
+    playDurationSeconds: snapshot.playDurationSeconds,
+    savedAt: snapshot.savedAt,
+    lines: snapshot.lines,
+    milestones: snapshot.milestones,
+    phase: snapshot.phase,
+    placements: snapshot.placements.map((placement) =>
+      placement.role === undefined ? {} : { role: placement.role },
+    ),
+  };
 }
 
 function defaultSavesDir() {
@@ -117,10 +162,40 @@ export async function syncSave({ quiet = false } = {}) {
     const { parseSaveFile } = await import('@factory-board/save-reader');
     const name = path.split(/[\\/]/).pop() ?? 'save';
     const snapshot = parseSaveFile(name.replace(/\.sav$/i, ''), toArrayBuffer(readFileSync(path)));
-    write({ present: true, source: name, loadedAt: new Date().toISOString(), snapshot });
+    /*
+     * The rest of this session's saves, oldest first, so the history has a
+     * series in it before the page has been open for an hour. Only this
+     * session's: two worlds in one folder are two histories.
+     */
+    const earlier = [];
+    const dir = process.env.SATISFACTORY_SAVES_DIR ?? defaultSavesDir();
+    for (const candidate of allSaves(dir).slice(0, SEED_LIMIT + 1)) {
+      if (candidate.full === path) continue;
+      try {
+        const other = candidate.full.split(/[\\/]/).pop() ?? 'save';
+        const parsed = parseSaveFile(
+          other.replace(/.sav$/i, ''),
+          toArrayBuffer(readFileSync(candidate.full)),
+        );
+        if (parsed.sessionName !== snapshot.sessionName) continue;
+        earlier.push({ source: other, snapshot: forHistory(parsed) });
+      } catch {
+        // A half-written autosave is normal while the game is running.
+      }
+    }
+    earlier.reverse();
+
+    write({
+      present: true,
+      source: name,
+      loadedAt: new Date().toISOString(),
+      snapshot,
+      earlier,
+    });
     log(
       `default save: ${name} — ${snapshot.sessionName}, ` +
-        `${Object.keys(snapshot.lines).length} lines, ${snapshot.objectCount} objects`,
+        `${Object.keys(snapshot.lines).length} lines, ${snapshot.objectCount} objects` +
+        (earlier.length > 0 ? `, ${earlier.length} earlier saves for history` : ''),
     );
     return snapshot;
   } catch (error) {

@@ -272,8 +272,18 @@ All notable changes to this project are documented here. The format follows
   Smart Plating, 500 Versatile Framework and 100 Automated Wiring — 5 : 5 : 1 per minute,
   landing together in about 1h 40m, and 21 machines still to build.
 
+- **History is seeded from the autosaves already on disk.** The game keeps three rotating
+  slots plus whatever you saved by hand, which is a time series nobody was reading; the
+  sync script now reads the rest of the session and the board records them on load. What is
+  shipped is a trimmed snapshot rather than a digest, so the rule about what a point
+  contains stays in one place — 12 KB for four saves, against roughly 230 KB sent whole.
+
 ### Fixed
 
+- History no longer opens with one point in it. It recorded only what passed through the
+  page, so on a fresh browser every chart said "one save so far — the line starts at two"
+  until the tab had been left open beside the game for an hour. The reference save now
+  opens on four points across thirteen minutes of play.
 - The Phase 1 and Phase 2 presets are gone. They were fixed lists and could not know what
   had been delivered, so they proposed the same 5 : 5 : 1 whether you had built none of the
   phase or all but the last twenty; the proposal above the editor is read from the save

@@ -63,3 +63,31 @@ versions of the format, so a series keyed on it would be keyed on a guess.
   the points at those play seconds. Latest wins, which is the only rule that
   does not require the board to have an opinion about which timeline is real.
 - Nothing is sent anywhere, and a session can be thrown away from the page.
+
+## Addendum, 2026-08-29 — seeded from the saves already on disk
+
+The first consequence above turned out to be worse in practice than it reads. "History
+begins the day the board is first opened" meant, on a fresh browser, that a feature about
+how a session is going opened with **one point in it** and every chart saying _"one save so
+far — the line starts at two"_. It only filled while the page was left open next to the
+game, which is a demanding thing to ask before the feature shows you anything.
+
+Meanwhile the disk already held the answer. The game keeps three rotating autosave slots
+plus whatever was saved by hand, and on the reference machine that was four saves of the
+same session spanning thirteen minutes of play — a series nobody was reading.
+
+`scripts/sync-save.mjs` now reads the rest of the session as well as the newest save, and
+the board records them on load. Same session only: two worlds in one folder are two
+histories. Six earlier saves at most, because each is a full parse and this runs before
+every `next dev`.
+
+**What is shipped is a trimmed snapshot, not a digest.** Computing the digest in Node would
+have meant a second copy of the rule about what a point contains, and the rule is the whole
+of this ADR. So the script sends only the fields `digestOf` reads — and `placements` arrives
+as a list of bare roles, because the digest counts extractors and generators and takes the
+length, and nothing else. That contract is now written down as `DigestSource`. Four saves
+cost 12 KB, against roughly 230 KB had they been sent whole.
+
+Recording is keyed by `[session, playSeconds]`, so seeding the same saves on every load
+leaves one point each. The reference save's History opens at **four points across 8h 14m to
+8h 27m** instead of one.

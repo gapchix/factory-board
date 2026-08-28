@@ -211,6 +211,20 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     void recordPoint(digestOf(gameDatabase, state.snapshot, state.source.name));
   }, [state.snapshot, state.source]);
 
+  /*
+   * And the saves that were already on disk when the page opened. Three
+   * rotating autosave slots are a time series nobody was reading: without this
+   * History starts at a single point and a session's shape only appears after
+   * an hour with the tab left open. Recording is keyed by the session's own
+   * clock, so seeding the same saves twice leaves one point each.
+   */
+  useEffect(() => {
+    if (!defaultSave) return;
+    for (const seed of defaultSave.earlier) {
+      void recordPoint(digestOf(gameDatabase, seed.snapshot, seed.source));
+    }
+  }, []);
+
   const addTarget = useCallback((item: string, ratePerMinute: number) => {
     dispatch({ type: 'addTarget', item, ratePerMinute });
   }, []);

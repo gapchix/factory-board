@@ -323,6 +323,12 @@ The save reader also learned `savedAt` — the header's `saveDateTime`, sanity-c
 rather than trusted, because it has been a string, a number and Unreal's own tick count
 across versions of the format.
 
+**Seeded from disk since 2026-08-29.** History used to begin the day the board was first
+opened, which on a fresh browser meant one point and every chart saying "one save so far".
+The three rotating autosave slots were a series nobody was reading; the sync script now
+reads the rest of the session too, as trimmed snapshots the browser digests with the same
+rule as any other save. The reference save opens on four points rather than one.
+
 A charting library was the open question here, and
 [ADR 6 was revisited on the evidence](adr/0006-no-charting-library.md): still no, at about
 140 lines for the chart.
