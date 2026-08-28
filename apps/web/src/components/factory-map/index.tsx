@@ -8,6 +8,7 @@ import { Application } from 'pixi.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { traceChain, type Chain, type ChainStep } from '@/lib/chain';
 import { diagnose, explain } from '@/lib/diagnose';
+import type { GhostSite } from '@/lib/ghosts';
 import { buildingName, itemName } from '@/lib/format';
 import type { ZoneView } from '@/lib/zones';
 import { uptimeTone, type StatusTone } from '../charts';
@@ -24,6 +25,7 @@ import {
   type Scene,
   type SceneBuilding,
   type SceneData,
+  type SceneGhost,
 } from './scene';
 
 /**
@@ -107,6 +109,8 @@ export interface FactoryMapProps {
   zones: readonly ZoneView[];
   selectedZoneId: string | null;
   onSelectZone: (id: string | null) => void;
+  /** Machines the plan calls for that are not standing yet, already placed. */
+  ghosts?: readonly GhostSite[] | undefined;
 }
 
 export default function FactoryMap({
@@ -115,6 +119,7 @@ export default function FactoryMap({
   zones,
   selectedZoneId,
   onSelectZone,
+  ghosts = [],
 }: FactoryMapProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const probesRef = useRef<Partial<Record<TokenName, HTMLDivElement | null>>>({});
@@ -148,6 +153,14 @@ export default function FactoryMap({
   const [sized, setSized] = useState(false);
   /** Whether the pointer is over a signpost, so the surface can say it is a control. */
   const [overChip, setOverChip] = useState(false);
+  /**
+   * Whether the plan is drawn over the base.
+   *
+   * On by default when there is a plan, off when there is not, so the map is
+   * the base until you have asked it to be anything else — and the control only
+   * appears once there is something for it to show.
+   */
+  const [showPlan, setShowPlan] = useState(true);
   const [hovered, setHovered] = useState<{
     content: MapCardContent;
     at: MapCardPlacement;
@@ -238,6 +251,18 @@ export default function FactoryMap({
     return {
       buildings,
       blocks: blocksOf(buildings),
+      ghosts: showPlan
+        ? ghosts.map((ghost) => ({
+            x: ghost.x,
+            y: ghost.y,
+            w: ghost.w,
+            l: ghost.l,
+            facing: ghost.facing,
+            name: ghost.name,
+            detail: buildingName(db, ghost.machine),
+            zoneName: ghost.zoneName,
+          }))
+        : [],
       zones: zones.map((zone) => ({
         id: zone.id,
         label: zone.name,
@@ -593,6 +618,16 @@ export default function FactoryMap({
     return found;
   };
 
+  const ghostAt = (x: number, y: number): SceneGhost | null => {
+    if (!showPlan) return null;
+    for (const ghost of data.ghosts) {
+      const reach = Math.max(ghost.w, ghost.l);
+      if (Math.abs(ghost.x - x) > reach || Math.abs(ghost.y - y) > reach) continue;
+      if (containsPoint(ghost, x, y)) return ghost;
+    }
+    return null;
+  };
+
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (drag) {
@@ -619,6 +654,28 @@ export default function FactoryMap({
     if (chip !== null) {
       sceneRef.current?.highlight(null, selectedZoneId);
       setHovered(null);
+      return;
+    }
+
+    /*
+     * A ghost is drawn over the ground and answers first, because a machine
+     * that is not there yet is the thing the reader is pointing at when they
+     * point at a dashed box.
+     */
+    const ghost = ghostAt(at.x, at.y);
+    if (ghost) {
+      sceneRef.current?.highlight(null, selectedZoneId);
+      setHovered({
+        content: {
+          name: ghost.name,
+          detail: ghost.detail,
+          uptime: null,
+          zone: ghost.zoneName,
+          tone: null,
+          why: 'Planned, not built.',
+        },
+        at: placeCard(at.screenX, at.screenY, at.width, at.height),
+      });
       return;
     }
 
@@ -732,6 +789,14 @@ export default function FactoryMap({
         <MapButton label="Zoom in" onClick={() => zoomBy(ZOOM_STEP)}>
           +
         </MapButton>
+        {ghosts.length > 0 ? (
+          <MapButton
+            onClick={() => setShowPlan((on) => !on)}
+            label={showPlan ? 'Hide the plan' : 'Show the plan'}
+          >
+            {showPlan ? `Plan · ${ghosts.length}` : 'Plan'}
+          </MapButton>
+        ) : null}
         <MapButton onClick={reset}>Reset</MapButton>
       </Flex>
 

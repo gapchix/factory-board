@@ -92,8 +92,30 @@ export interface SceneRoute {
   readonly building: number | undefined;
 }
 
+/**
+ * A machine the plan calls for that is not standing yet.
+ *
+ * Drawn at the size and angle it would really be, on ground that is really
+ * free, so the plan can be read as an instruction rather than a count. Outline
+ * only, and never coloured by uptime: a thing that does not exist has no health
+ * to report, and giving it one would put it in the same visual language as the
+ * machines that do.
+ */
+export interface SceneGhost {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly l: number;
+  readonly facing: number;
+  readonly name: string;
+  readonly detail: string;
+  readonly zoneName: string;
+}
+
 export interface SceneData {
   readonly buildings: readonly SceneBuilding[];
+  /** What the plan is missing, placed. Empty when there is no plan. */
+  readonly ghosts: readonly SceneGhost[];
   readonly zones: readonly SceneZone[];
   readonly routes: readonly SceneRoute[];
   /** Machines grouped by what they make, so a name is drawn once per block. */
@@ -176,6 +198,7 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
   const shadows = new Graphics();
   const shapes = new Graphics();
   const rings = new Graphics();
+  const planned = new Graphics();
   const labels = new Container();
   // Inside `labels` and added first, so a leader is drawn under the type it
   // points at and dims with it when a chain is traced.
@@ -195,6 +218,7 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
     shadows,
     shapes,
     edges,
+    planned,
     labels,
     fog,
     chainLayer,
@@ -530,6 +554,44 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
    * around a machine. Fills never change, so only the strokes are rebuilt, and
    * only when the scale actually moves — panning leaves them alone.
    */
+  /*
+   * The plan, as dashes.
+   *
+   * Redrawn on a scale change like the outlines are, and for the same reason: a
+   * dash measured in metres turns into a solid line when you zoom out and into
+   * a row of bricks when you zoom in, so the pattern is worked out in pixels
+   * and converted back. Outline only — a machine that does not exist has no
+   * uptime, and filling it would put it in the same language as the ones that
+   * do.
+   */
+  let ghostScale = 0;
+  const drawGhosts = (scale: number) => {
+    if (Math.abs(scale - ghostScale) < 1e-4) return;
+    ghostScale = scale;
+    planned.clear();
+    if (data.ghosts.length === 0) return;
+    const dash = 5 / scale;
+    for (const ghost of data.ghosts) {
+      const corners = cornersOf(ghost);
+      for (let i = 0; i < corners.length; i += 2) {
+        const x1 = corners[i]!;
+        const y1 = corners[i + 1]!;
+        const x2 = corners[(i + 2) % corners.length]!;
+        const y2 = corners[(i + 3) % corners.length]!;
+        const length = Math.hypot(x2 - x1, y2 - y1);
+        const steps = Math.max(1, Math.round(length / dash));
+        for (let step = 0; step < steps; step += 2) {
+          const from = step / steps;
+          const to = Math.min(1, (step + 1) / steps);
+          planned
+            .moveTo(x1 + (x2 - x1) * from, y1 + (y2 - y1) * from)
+            .lineTo(x1 + (x2 - x1) * to, y1 + (y2 - y1) * to);
+        }
+      }
+    }
+    planned.stroke({ color: palette.accent, width: 1.6 / scale, alpha: 0.85 });
+  };
+
   const drawEdges = (scale: number) => {
     if (Math.abs(scale - edgeScale) < 1e-4) return;
     edgeScale = scale;
@@ -558,6 +620,7 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
   const update = (camera: Camera, width: number, height: number) => {
     lastCamera = camera;
     drawEdges(camera.scale);
+    drawGhosts(camera.scale);
     world.scale.set(camera.scale);
     world.position.set(width / 2 - camera.x * camera.scale, height / 2 - camera.y * camera.scale);
 

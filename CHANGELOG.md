@@ -286,8 +286,23 @@ All notable changes to this project are documented here. The format follows
   lines are in exactly that position: Cable waiting on Wire with 2,029 in a box, Rotor on
   Screws with 1,000, Smart Plating on Rotor with 63.
 
+- **The plan, standing on the ground.** Machines the plan calls for that are not built yet
+  are drawn on the map as dashed outlines, at their real footprint and facing the way their
+  neighbours face, on ground that is actually free
+  ([ADR 27](docs/adr/0027-the-plan-stands-on-the-ground.md)). They go in the cell that
+  already makes the thing, or the one the target was pinned to; a recipe nothing in the base
+  makes yet is reported rather than dropped on the nearest patch of grass. Never filled and
+  never coloured by uptime — a machine that does not exist has no health to report. The
+  toolbar gains `Plan · N` when there is a plan to show.
+
 ### Fixed
 
+- **A plan now survives a page load.** `BoardProvider` restored from `localStorage` in one
+  effect and persisted in two others, all on the same mount — and the restore is a dispatch,
+  so it did not take effect until the next render while the writers ran immediately with the
+  initial empty state, straight over what had just been read. Set targets, reload, and they
+  were gone. Every observation this project made about the Planner going unused was taken
+  through that bug.
 - History no longer opens with one point in it. It recorded only what passed through the
   page, so on a fresh browser every chart said "one save so far — the line starts at two"
   until the tab had been left open beside the game for an hour. The reference save now

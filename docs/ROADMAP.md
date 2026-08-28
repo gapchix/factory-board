@@ -412,8 +412,15 @@ board exists to produce, arrived at without anyone typing a target.
 
 The two static phase presets are gone rather than left to disagree with it.
 
-Next for it: **ghost outlines on the map** where `planByZone` says machines are missing,
-which is the last step from _what to build_ to _where_.
+**And they stand on the ground** ([ADR 27](adr/0027-the-plan-stands-on-the-ground.md)).
+What the plan is missing is drawn on the map as dashed outlines at real footprint, facing
+the way the neighbours face, in the cell that already makes the thing. On the reference save
+one click puts nine dashed machines on the base; eleven more have nowhere honest to go,
+because nothing there makes steel yet, and the board says so rather than scattering them.
+
+Verifying that needed a plan that survived opening the map, and one did not — see the
+Fixed note in the changelog. **A plan did not survive a page load at all**, so every
+observation this project made about the Planner going unused was taken through that bug.
 
 ### C. Publish — the packages stand alone
 

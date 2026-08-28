@@ -288,7 +288,9 @@ describe('diagnoseLine · what is already in a box', () => {
   });
 
   it('says it even when nothing is arriving at all', () => {
-    const line = diagnoseLine(db, 'r-rotor', 0, [machine({ 'iron-rod': 200 }, {})], { screw: 1000 });
+    const line = diagnoseLine(db, 'r-rotor', 0, [machine({ 'iron-rod': 200 }, {})], {
+      screw: 1000,
+    });
 
     expect(explain(line)).toContain('1,000 sitting in a container');
   });

@@ -71,6 +71,13 @@ integration tests skip and the web app refuses to build with instructions.
   the origin. Put it on a plain `<g>` wrapper. Colour still comes from the factory.
 - **Fixtures use real game rates.** A Constructor makes 15 Iron Rod/min in the tests
   because it does in the game, so assertions check the maths against reality.
+- **Restore before you persist.** `BoardProvider` reads `localStorage` in an effect and
+  writes it back in others, and effects on the same mount run in order while a dispatch does
+  not land until the next render — so an unguarded writer saves the _initial_ state over what
+  was just read. A plan did not survive a page load for as long as that went unnoticed. The
+  guard has to be state, not a ref: a ref set at the end of the restore effect is already
+  true when the writers run in that same commit.
+  [ADR 27](docs/adr/0027-the-plan-stands-on-the-ground.md)
 - **Domain rules get a test.** Changing one means changing the test that pins it, and
   saying why.
 

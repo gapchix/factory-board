@@ -9,6 +9,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useState,
   type ReactNode,
 } from 'react';
 import { defaultSave } from '@/lib/default-snapshot';
@@ -162,6 +163,23 @@ const BoardContext = createContext<BoardContextValue | null>(null);
 
 export function BoardProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  /**
+   * Whether what was in storage has been read back yet.
+   *
+   * The restore effect and the two that write back all run on mount, and the
+   * writers would otherwise persist the *initial* empty state on top of
+   * whatever storage was holding — the restore is a dispatch, so it does not
+   * take effect until the next render, and the write happens first. That threw
+   * a plan away on **every page load**: set targets, reload, and they were
+   * gone, which read as "the planner is not used" rather than "the planner
+   * cannot remember anything".
+   *
+   * State rather than a ref, deliberately. A ref set inside the restore effect
+   * is already true by the time the writers run in the *same* commit, which is
+   * the bug wearing a guard. State makes them wait for the render that actually
+   * holds the restored plan.
+   */
+  const [restored, setRestored] = useState(false);
 
   // Restore after mount, never during render: localStorage does not exist while
   // the static export is being prerendered.
@@ -186,19 +204,22 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         source: { kind: 'default', name: defaultSave.source },
       });
     }
+    setRestored(true);
   }, []);
 
   useEffect(() => {
+    if (!restored) return;
     savePlan({
       targets: state.targets,
       recipeChoices: state.recipeChoices,
       zoneAssignments: state.zoneAssignments,
     });
-  }, [state.targets, state.recipeChoices, state.zoneAssignments]);
+  }, [restored, state.targets, state.recipeChoices, state.zoneAssignments]);
 
   useEffect(() => {
+    if (!restored) return;
     saveZoneNames(state.zoneNames);
-  }, [state.zoneNames]);
+  }, [restored, state.zoneNames]);
 
   /*
    * Every save that passes through the board is written down, whichever view

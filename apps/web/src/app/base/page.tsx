@@ -6,8 +6,10 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'reac
 import { BarRow, ChartFrame, MeterRow, StatRow, StatTile, uptimeTone } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
 import { Field, Label, Mono, SectionHeading } from '@/components/primitives';
-import { rate } from '@/lib/format';
+import { rate, itemName } from '@/lib/format';
+import { placeGhosts, type GhostSite } from '@/lib/ghosts';
 import { gameDatabase as db } from '@/lib/game-database';
+import { solve } from '@factory-board/planner';
 import { planByZone, type ZonePlanEntry } from '@/lib/zone-plan';
 import { buildZoneBoard, slugify, withZoneName, zoneBySlug, type ZoneView } from '@/lib/zones';
 import { useBoard } from '@/state/board';
@@ -290,6 +292,35 @@ export default function BasePage() {
     [snapshot, zoneNames],
   );
 
+  /*
+   * The plan, standing on the ground it would stand on.
+   *
+   * What the solver calls for, less what is already built, placed by
+   * `lib/ghosts` on free ground in the cell that already makes the thing —
+   * which turns "build six more constructors" from a count into somewhere to
+   * walk. Nothing at all until there are targets, so the map stays the base.
+   */
+  const ghosts = useMemo((): readonly GhostSite[] => {
+    if (!snapshot || targets.length === 0 || !board) return [];
+    const solved = solve(db, targets, { recipeChoices });
+    const assigned = planByZone(db, targets, recipeChoices, zoneAssignments, board.zones);
+    const missing = solved.lines
+      .map((line) => ({
+        recipe: line.recipe,
+        machine: line.machine,
+        name: itemName(db, line.primaryOutput),
+        count: Math.max(0, line.machinesToBuild - (snapshot.lines[line.recipe]?.count ?? 0)),
+        zoneId: assigned.byRecipe.get(line.recipe)?.[0],
+      }))
+      .filter((line) => line.count > 0);
+    return placeGhosts(
+      db,
+      snapshot.placements,
+      board.zones.map((zone) => ({ id: zone.id, name: zone.name, bounds: zone.bounds })),
+      missing,
+    ).sites;
+  }, [snapshot, targets, recipeChoices, zoneAssignments, board]);
+
   const plan = useMemo(
     () =>
       board ? planByZone(db, targets, recipeChoices, zoneAssignments, board.zones) : undefined,
@@ -388,6 +419,7 @@ export default function BasePage() {
           zones={zones}
           selectedZoneId={selectedZoneId}
           onSelectZone={selectZone}
+          ghosts={ghosts}
         />
       </Box>
 
