@@ -232,6 +232,17 @@ All notable changes to this project are documented here. The format follows
   ([ADR 22](docs/adr/0022-signposts-are-worked-out-at-the-camera.md)). On the reference
   save the opening view draws two and the iron factory six, and four to an edge is the
   most it will draw before the rest become a count.
+- **Captions are placed rather than hung.** Every name on the map used to sit at a fixed
+  offset from the thing it named, with no second answer when that spot was occupied: a
+  block caption was dropped and a zone caption was drawn through whatever stood there. A
+  name now tries three rings of positions around its block and takes the first that is
+  clear, with a hairline back to the block for anything placed past the first ring
+  ([ADR 23](docs/adr/0023-a-caption-is-placed-not-hung.md)). Every drawn building is
+  reserved, not just the productive ones — the map draws storage, the HUB and the Space
+  Elevator as solid shapes too — and zone names go through the same search, hugging their
+  box's top-left corner and walking round it when a building is standing there. On the
+  reference save's opening view that took 12 block captions to 15 and 7 crowded zone
+  captions to 7 clear ones: 22 names, none overlapping anything.
 
 ### Fixed
 

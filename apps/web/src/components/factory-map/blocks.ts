@@ -29,12 +29,19 @@ export interface BlockMember extends Placed {
 export interface LabelBlock {
   readonly label: string;
   readonly count: number;
-  /** Centre of the block's footprint, in world metres. */
-  readonly x: number;
-  /** The block's southern edge, which is what the label hangs below. */
-  readonly y: number;
-  /** How wide the block stands, in metres — what decides when a name fits. */
-  readonly width: number;
+  /**
+   * The ground the block stands on, in world metres.
+   *
+   * The whole rectangle rather than a point below it, because a caption is
+   * placed *around* the machines it names and the first thing it must not
+   * cover is them. Everything the old fixed drop needed — the centre, the
+   * southern edge, the width that decides whether a name is worth drawing —
+   * falls out of this.
+   */
+  readonly minX: number;
+  readonly minY: number;
+  readonly maxX: number;
+  readonly maxY: number;
 }
 
 /**
@@ -71,30 +78,31 @@ export function blocksOf(machines: readonly BlockMember[]): LabelBlock[] {
       REACH_M,
     )) {
       let minX = Infinity;
+      let minY = Infinity;
       let maxX = -Infinity;
       let maxY = -Infinity;
       for (const machine of group) {
-        // The corners, not the centre: a label under a row of generators has to
-        // clear the generators, and they are rotated.
+        // The corners, not the centre: a caption placed beside a row of
+        // generators has to clear the generators, and they are rotated.
         const corners = cornersOf(machine);
         for (let i = 0; i < corners.length; i += 2) {
           minX = Math.min(minX, corners[i]!);
           maxX = Math.max(maxX, corners[i]!);
+          minY = Math.min(minY, corners[i + 1]!);
           maxY = Math.max(maxY, corners[i + 1]!);
         }
       }
-      blocks.push({
-        label,
-        count: group.length,
-        x: (minX + maxX) / 2,
-        y: maxY,
-        width: maxX - minX,
-      });
+      blocks.push({ label, count: group.length, minX, minY, maxX, maxY });
     }
   }
 
-  blocks.sort((a, b) => b.count - a.count || b.width - a.width);
+  blocks.sort((a, b) => b.count - a.count || widthOf(b) - widthOf(a));
   return blocks;
+}
+
+/** How wide the block stands, in metres — what decides when a name is worth drawing. */
+export function widthOf(block: LabelBlock): number {
+  return block.maxX - block.minX;
 }
 
 /** How a block names itself on the map. */

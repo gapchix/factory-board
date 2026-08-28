@@ -167,10 +167,8 @@ now names itself at 304%, while the five-generator coal plant is named from 40%,
 is 90 m of ground with nothing near it.
 
 Next for it, in rough order: drawing the belts a run at a time so a whole route can be
-traced, and the clearance boxes that sit off-centre. Captions still hang below their own
-block and can cross a machine standing there — they are cased, so they stay legible;
-candidate positions and leader lines, which is how the schematic map answered this, are
-the honest fix and are not built here — and now there is no second map to read them off.
+traced, and the clearance boxes that sit off-centre. Captions hanging below their own
+block was the third, and it was closed on 2026-08-28 — see B9.
 
 ### B6. Trace the chain · shipped
 
@@ -234,6 +232,36 @@ far-flung ([ADR 11](adr/0011-reach-is-bought-with-buildings.md)). At 900% that s
 couple of metres, so flying to the coal outpost pinned the camera on the edge of the
 factory and drew empty ground — the outposts were unreachable at any useful zoom, by any
 means, and nothing said so. The frame is bought with buildings; the leash is not.
+
+### B9. Captions are placed, not hung · shipped
+
+B5 left this open and named the fix: candidate positions and leader lines, which is how
+the deleted schematic map answered it. That is what was ported
+([ADR 23](adr/0023-a-caption-is-placed-not-hung.md)).
+
+A name tries three rings of positions around the thing it names — touching, a step out, a
+stride out — and takes the first that is clear. Past the first ring it is joined back by a
+hairline that starts on the block's **edge**, not its centre, because a leader drawn
+through the machines it points at is worse than no leader.
+
+Doing it properly pulled in two more things. **Every drawn building is reserved**, not
+just the blocks: the map draws storage, the HUB and the Space Elevator as solid shapes,
+and a name across one of those is as unreadable as a name across a smelter. And **zone
+names go through the same search**, hugging their box's top-left corner rather than
+centring on a side, walking round the box when a building is standing on that corner —
+which on the reference save is exactly what struck `IRON INGOT` through.
+
+The two kinds trade differently when they lose. A block caption is dropped, because
+hovering still names the machine and zooming in makes the room. A zone name is drawn
+crowded anyway, because an unnamed cell says nothing at all.
+
+On the opening view that took **12 block captions to 15, and 7 crowded zone captions to 7
+clear ones — 22 names, none overlapping anything**. Zoom into the iron factory and the
+ones that lost out come back.
+
+Still not built for the map: **pinch-zoom** — the wheel is the only way in, so a tablet
+cannot use it. And the clearance boxes still ignore `RelativeTransform`, so a few
+buildings sit a metre or two off where they stand.
 
 ### B2. Zones — the rest · shipped
 

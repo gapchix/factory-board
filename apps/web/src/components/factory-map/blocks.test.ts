@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blocksOf, captionOf, type BlockMember } from './blocks';
+import { blocksOf, captionOf, widthOf, type BlockMember, type LabelBlock } from './blocks';
 
 /**
  * Footprints are the game's own: a Smelter is 6 × 9 m, a Constructor 8 × 10 m
@@ -14,6 +14,8 @@ const smelter = (x: number, y: number, product: string, facing = 0): BlockMember
   facing,
   product,
 });
+
+const centreOf = (block: LabelBlock) => (block.minX + block.maxX) / 2;
 
 describe('blocksOf', () => {
   it('names a row of machines making the same thing once', () => {
@@ -37,7 +39,7 @@ describe('blocksOf', () => {
 
     expect(blocks).toHaveLength(2);
     expect(blocks.map((block) => block.count)).toEqual([2, 2]);
-    expect(blocks.map((block) => Math.round(block.x))).toEqual([6, 906]);
+    expect(blocks.map((block) => Math.round(centreOf(block)))).toEqual([6, 906]);
   });
 
   it('does not merge neighbours making different things', () => {
@@ -56,17 +58,19 @@ describe('blocksOf', () => {
     expect(blocks[0]?.label).toBe('Screws');
   });
 
-  it('hangs the label clear of a rotated footprint', () => {
+  it('reports the ground a rotated footprint actually covers', () => {
     // Turned 90°, a 6 × 9 m smelter is 9 m across and 6 m deep, so its southern
-    // edge is 3 m below centre rather than 4.5 m. A label placed from the
-    // centre would sit on top of the machine it names.
+    // edge is 3 m below centre rather than 4.5 m. A caption placed from the
+    // centre — or from the unrotated size — would sit on the machine it names.
     const [upright] = blocksOf([smelter(0, 0, 'Iron Ingot')]);
     const [turned] = blocksOf([smelter(0, 0, 'Iron Ingot', 90)]);
 
-    expect(upright?.y).toBeCloseTo(4.5);
-    expect(upright?.width).toBeCloseTo(6);
-    expect(turned?.y).toBeCloseTo(3);
-    expect(turned?.width).toBeCloseTo(9);
+    expect(upright?.maxY).toBeCloseTo(4.5);
+    expect(upright?.minY).toBeCloseTo(-4.5);
+    expect(widthOf(upright!)).toBeCloseTo(6);
+    expect(turned?.maxY).toBeCloseTo(3);
+    expect(turned?.minY).toBeCloseTo(-3);
+    expect(widthOf(turned!)).toBeCloseTo(9);
   });
 
   it('puts the block standing for the most machines first', () => {
@@ -85,9 +89,16 @@ describe('blocksOf', () => {
 
 describe('captionOf', () => {
   it('counts a block and leaves a lone machine uncounted', () => {
-    expect(captionOf({ label: 'Iron Ingot', count: 4, x: 0, y: 0, width: 40 })).toBe(
-      'Iron Ingot ×4',
-    );
-    expect(captionOf({ label: 'Rotor', count: 1, x: 0, y: 0, width: 8 })).toBe('Rotor');
+    const at = (label: string, count: number): LabelBlock => ({
+      label,
+      count,
+      minX: 0,
+      minY: 0,
+      maxX: 40,
+      maxY: 10,
+    });
+
+    expect(captionOf(at('Iron Ingot', 4))).toBe('Iron Ingot ×4');
+    expect(captionOf(at('Rotor', 1))).toBe('Rotor');
   });
 });

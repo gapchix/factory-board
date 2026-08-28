@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text, type Application, type Texture } from 'pixi.js';
-import { captionOf, type LabelBlock } from './blocks';
+import { captionOf, widthOf, type LabelBlock } from './blocks';
+import { placeCaptions, CAPTION_DEFAULTS, type CaptionRect, type CaptionRequest } from './captions';
 import { cornersOf, niceStep, type Camera } from './geometry';
 import {
   distanceLabel,
@@ -114,9 +115,7 @@ const ZONE_LABEL_SCALE = 0.25;
  */
 const BLOCK_LABEL_MIN_PX = 22;
 /** Clear air kept around a caption when deciding whether the next one fits. */
-const LABEL_PAD_PX = 3;
-/** How far below its block a caption hangs, in pixels. */
-const LABEL_DROP_PX = 4;
+const LABEL_PAD_PX = CAPTION_DEFAULTS.pad;
 
 function toneOf(palette: Palette, uptime: number | null): { solid: number; soft: number } {
   if (uptime === null) return { solid: palette.muted, soft: palette.grid };
@@ -176,6 +175,10 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
   const shapes = new Graphics();
   const rings = new Graphics();
   const labels = new Container();
+  // Inside `labels` and added first, so a leader is drawn under the type it
+  // points at and dims with it when a chain is traced.
+  const leaders = new Graphics();
+  labels.addChild(leaders);
   const fog = new Graphics();
   const chainLayer = new Graphics();
   const grid = new Graphics();
@@ -322,7 +325,13 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
    */
   const casing = { color: palette.surface, width: 3, join: 'round' as const };
 
-  const zoneLabels: { text: Text; x: number; y: number; width: number; height: number }[] = [];
+  const zoneLabels: {
+    text: Text;
+    /** The box the zone is drawn as, which is what its name is placed against. */
+    box: { minX: number; minY: number; maxX: number; maxY: number };
+    width: number;
+    height: number;
+  }[] = [];
   for (const zone of data.zones) {
     const text = new Text({
       text: zone.label.toUpperCase(),
@@ -334,12 +343,16 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
         stroke: casing,
       },
     });
-    text.anchor.set(0, 1);
+    text.anchor.set(0.5, 0.5);
     labels.addChild(text);
     zoneLabels.push({
       text,
-      x: zone.minX - 3,
-      y: zone.minY - 5,
+      box: {
+        minX: zone.minX - 4,
+        minY: zone.minY - 4,
+        maxX: zone.minX + 4 + Math.max(4, zone.maxX - zone.minX),
+        maxY: zone.minY + 4 + Math.max(4, zone.maxY - zone.minY),
+      },
       width: text.width,
       height: text.height,
     });
@@ -356,6 +369,28 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
    * counter-scaled at draw time, so this stays its width on screen at every
    * zoom, and it is what decides whether a caption fits.
    */
+  /*
+   * The ground every building covers, worked out once because buildings do not
+   * move. Captions are placed against these: the map draws storage containers,
+   * the HUB and the Space Elevator as solid shapes too, and a name lying across
+   * one of those is as unreadable as a name lying across a smelter. Only the
+   * productive ones form blocks, so blocks alone were not enough.
+   */
+  const buildingBoxes = data.buildings.map((building) => {
+    const corners = cornersOf(building);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < corners.length; i += 2) {
+      minX = Math.min(minX, corners[i]!);
+      maxX = Math.max(maxX, corners[i]!);
+      minY = Math.min(minY, corners[i + 1]!);
+      maxY = Math.max(maxY, corners[i + 1]!);
+    }
+    return { minX, minY, maxX, maxY };
+  });
+
   const blockLabels: { text: Text; block: LabelBlock; width: number; height: number }[] = [];
   for (const block of data.blocks) {
     const text = new Text({
@@ -367,7 +402,7 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
         stroke: casing,
       },
     });
-    text.anchor.set(0.5, 0);
+    text.anchor.set(0.5, 0.5);
     text.visible = false;
     labels.addChild(text);
     blockLabels.push({ text, block, width: text.width, height: text.height });
@@ -569,60 +604,148 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
      * machine blocks inside it would be a worse trade than the other way
      * round.
      */
-    const taken: { left: number; right: number; top: number; bottom: number }[] = [];
+    const toScreenX = (worldX: number) => (worldX - camera.x) * camera.scale + width / 2;
+    const toScreenY = (worldY: number) => (worldY - camera.y) * camera.scale + height / 2;
+    const toWorldX = (screenX: number) => camera.x + (screenX - width / 2) * inverse;
+    const toWorldY = (screenY: number) => camera.y + (screenY - height / 2) * inverse;
 
+    const taken: CaptionRect[] = [];
+    const inView = (rect: CaptionRect) =>
+      rect.right > 0 && rect.left < width && rect.bottom > 0 && rect.top < height;
+    const claim = (spot: { x: number; y: number }, w: number, h: number) => {
+      const rect = {
+        left: spot.x - w / 2 - LABEL_PAD_PX,
+        right: spot.x + w / 2 + LABEL_PAD_PX,
+        top: spot.y - h / 2 - LABEL_PAD_PX,
+        bottom: spot.y + h / 2 + LABEL_PAD_PX,
+      };
+      // Off screen it holds no space against a name that is in view.
+      if (inView(rect)) taken.push(rect);
+    };
+
+    leaders.clear();
+    let anyLeader = false;
+    const drawLeader = (leader: readonly [number, number, number, number] | null) => {
+      if (!leader) return;
+      const [x1, y1, x2, y2] = leader;
+      leaders.moveTo(toWorldX(x1), toWorldY(y1)).lineTo(toWorldX(x2), toWorldY(y2));
+      anyLeader = true;
+    };
+
+    for (const box of buildingBoxes) {
+      const rect = {
+        left: toScreenX(box.minX),
+        right: toScreenX(box.maxX),
+        top: toScreenY(box.minY),
+        bottom: toScreenY(box.maxY),
+      };
+      if (inView(rect)) taken.push(rect);
+    }
+
+    /*
+     * Zone names go down first: a zone names a whole cell, and losing it to one
+     * of the machine blocks inside it would be the worse trade. They hug the
+     * top-left corner of their box, which is where a cell has always been
+     * named, and walk round it when that corner is standing on a building —
+     * which on the reference save is exactly what struck IRON INGOT through.
+     */
+    const zonesShown = camera.scale >= ZONE_LABEL_SCALE;
+    const zoneWanted: { label: (typeof zoneLabels)[number]; request: CaptionRequest }[] = [];
     for (const label of zoneLabels) {
       label.text.scale.set(inverse);
-      label.text.position.set(label.x, label.y);
-      label.text.visible = camera.scale >= ZONE_LABEL_SCALE;
-      if (!label.text.visible) continue;
-      const left = (label.x - camera.x) * camera.scale + width / 2;
-      const bottom = (label.y - camera.y) * camera.scale + height / 2;
-      taken.push({
-        left: left - LABEL_PAD_PX,
-        right: left + label.width + LABEL_PAD_PX,
-        top: bottom - label.height - LABEL_PAD_PX,
-        bottom: bottom + LABEL_PAD_PX,
+      label.text.visible = zonesShown;
+      if (!zonesShown) continue;
+      zoneWanted.push({
+        label,
+        request: {
+          block: {
+            left: toScreenX(label.box.minX),
+            right: toScreenX(label.box.maxX),
+            top: toScreenY(label.box.minY),
+            bottom: toScreenY(label.box.maxY),
+          },
+          width: label.width,
+          height: label.height,
+          corner: true,
+        },
       });
+    }
+
+    const zonePlaced = placeCaptions(
+      zoneWanted.map((want) => want.request),
+      taken,
+      { width, height },
+    );
+    for (const [index, placement] of zonePlaced.entries()) {
+      const { label, request } = zoneWanted[index]!;
+      /*
+       * A cell is named even when every position round it is spoken for. The
+       * name is cased, so a crowded one is still readable and still says which
+       * cell this is; an unnamed cell says nothing at all. Blocks make the
+       * opposite trade, because hovering a machine still names it.
+       */
+      const spot = placement ?? {
+        x: request.block.left + request.width / 2,
+        y: request.block.top - CAPTION_DEFAULTS.rings[0]! - request.height / 2,
+        leader: null,
+      };
+      label.text.position.set(toWorldX(spot.x), toWorldY(spot.y));
+      // Claimed here whether it was placed or fell back: `placeCaptions` keeps
+      // its own list, and the block captions are a separate pass reading this
+      // one. Forgetting it put "Copper Ingot" through "COPPER INGOT".
+      claim(spot, request.width, request.height);
+      drawLeader(spot.leader);
     }
     /*
      * Captions arrive with the zoom, and nothing but room decides when. A block
-     * is named once it is wide enough on screen to be worth naming and nothing
-     * already named has taken the space; blocks come biggest first, so when two
-     * want the same strip of screen the one standing for more machines keeps
-     * it. No fixed zoom threshold, which is what lets a coal plant be named
-     * from far out while a lone constructor waits for the base to spread out
-     * around it.
+     * is named once it is wide enough on screen to be worth naming and there is
+     * anywhere clear around it to put the name; blocks come biggest first, so
+     * when two want the same strip of screen the one standing for more machines
+     * keeps it. No fixed zoom threshold, which is what lets a coal plant be
+     * named from far out while a lone constructor waits for the base to spread
+     * out around it.
+     *
+     * Where the name goes is `placeCaptions`' problem — it tries a ring of
+     * positions and only gives up when every one of them is spoken for, which
+     * is the difference between a caption that moves three pixels and one that
+     * disappears.
      */
+    const wanted: { entry: (typeof blockLabels)[number]; request: CaptionRequest }[] = [];
     for (const entry of blockLabels) {
-      const { block, text } = entry;
-      text.scale.set(inverse);
-      let visible = block.width * camera.scale >= BLOCK_LABEL_MIN_PX;
-      if (visible) {
-        const centreX = (block.x - camera.x) * camera.scale + width / 2;
-        const top = (block.y - camera.y) * camera.scale + height / 2 + LABEL_DROP_PX;
-        const half = entry.width / 2 + LABEL_PAD_PX;
-        const rect = {
-          left: centreX - half,
-          right: centreX + half,
-          top: top - LABEL_PAD_PX,
-          bottom: top + entry.height + LABEL_PAD_PX,
-        };
-        // A caption off screen must not hold the space against one in view.
-        visible = rect.right > 0 && rect.left < width && rect.bottom > 0 && rect.top < height;
-        if (visible) {
-          visible = !taken.some(
-            (other) =>
-              rect.left < other.right &&
-              rect.right > other.left &&
-              rect.top < other.bottom &&
-              rect.bottom > other.top,
-          );
-          if (visible) taken.push(rect);
-        }
-      }
-      text.visible = visible;
-      if (visible) text.position.set(block.x, block.y + LABEL_DROP_PX * inverse);
+      entry.text.scale.set(inverse);
+      entry.text.visible = false;
+      if (widthOf(entry.block) * camera.scale < BLOCK_LABEL_MIN_PX) continue;
+      wanted.push({
+        entry,
+        request: {
+          block: {
+            left: toScreenX(entry.block.minX),
+            right: toScreenX(entry.block.maxX),
+            top: toScreenY(entry.block.minY),
+            bottom: toScreenY(entry.block.maxY),
+          },
+          width: entry.width,
+          height: entry.height,
+        },
+      });
+    }
+
+    const placements = placeCaptions(
+      wanted.map((want) => want.request),
+      taken,
+      { width, height },
+    );
+    for (const [index, placement] of placements.entries()) {
+      if (!placement) continue;
+      const { entry } = wanted[index]!;
+      entry.text.visible = true;
+      entry.text.position.set(toWorldX(placement.x), toWorldY(placement.y));
+      drawLeader(placement.leader);
+    }
+    // A hairline, counter-scaled like the type it belongs to, and quieter than
+    // it: the line is there to be followed, not read.
+    if (anyLeader) {
+      leaders.stroke({ color: palette.muted, width: inverse, alpha: 0.5 });
     }
 
     // Below a couple of pixels a footprint is a smudge; the shadow under it is

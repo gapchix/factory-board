@@ -94,7 +94,8 @@ apps/web/src/
 │   ├── primitives.tsx      Label, Panel, table parts, form controls
 │   ├── charts.tsx          StatTile, BarRow, MeterRow, ChartFrame
 │   ├── factory-map/        the base on a WebGL canvas: scene, geometry, camera,
-│   │                       blocks, and signposts to what is off screen
+│   │                       blocks, where their captions go, and signposts
+│   │                       to what is off screen
 │   ├── map-card.tsx        the hover card the map shows
 │   ├── flow-diagram.tsx    the plan as a layered DAG
 │   ├── board.tsx           the production-line cards
@@ -230,3 +231,4 @@ Recorded in full under [adr/](adr).
 | [Outposts go in the margin](adr/0020-outposts-go-in-the-margin.md)                           | _Superseded._ Rotation was measured at 13.6% of area and declined; the rail lifted scale 2.53 → 5.22   |
 | [One map, not two](adr/0021-one-map-not-two.md)                                              | Every feature after ADR 17 landed on the factory map only; the schematic had stopped being a view      |
 | [Signposts at the camera](adr/0022-signposts-are-worked-out-at-the-camera.md)                | A pointer that goes stale is worse than none; and the frame is bought with buildings, the leash is not |
+| [A caption is placed, not hung](adr/0023-a-caption-is-placed-not-hung.md)                    | A fixed offset has no second answer; rings of candidates took 19 crowded names to 22 clear ones        |
