@@ -1,5 +1,5 @@
 import type { GameDatabase, ItemId, RecipeId } from '@factory-board/planner';
-import type { BuildingPlacement, WorldSnapshot } from '@factory-board/save-reader';
+import type { BuildingPlacement, PowerCircuit, WorldSnapshot } from '@factory-board/save-reader';
 import { itemName } from './format';
 
 /**
@@ -27,11 +27,15 @@ import { itemName } from './format';
  * up — which is how a Rotor assembler sitting on 200 iron rods is correctly
  * reported as short of screws.
  *
- * What it will not do is guess. A machine with plenty of input, nothing piled
- * up and a low uptime gets `unexplained` rather than a story: the buffers do
- * not say why, and the likeliest remaining cause — a power circuit that cannot
- * meet its demand — is not read yet. Saying "starving" there would be the same
- * mistake this file exists to fix.
+ * Power is checked before either, because it is the one cause that explains a
+ * whole grid at once and is read exactly rather than inferred: the save states
+ * what every building asks for and what every generator can supply, per grid.
+ * A circuit that cannot meet its own demand stops everything on it, and a
+ * stopped machine's buffers describe a supply problem it does not have.
+ *
+ * What it will not do is guess. A machine with power, plenty of input and
+ * nothing piled up that is still slow gets `unexplained` rather than a story.
+ * Saying "starving" there would be the same mistake this file exists to fix.
  */
 
 export type Verdict =
@@ -41,7 +45,9 @@ export type Verdict =
   | 'starving'
   /** Product has piled up with nowhere to go. `backlog` names it. */
   | 'blocked'
-  /** Slow, and the buffers do not account for it. */
+  /** Its grid cannot meet its own demand, or it is on no grid at all. */
+  | 'unpowered'
+  /** Slow, and neither power nor the buffers account for it. */
   | 'unexplained'
   /** The game has not measured this line yet. */
   | 'unmeasured';
@@ -68,6 +74,15 @@ export interface Backlog {
   readonly stored: number;
 }
 
+export interface PowerFault {
+  /** Over capacity, or not wired to a grid at all. */
+  readonly kind: 'overloaded' | 'unwired';
+  /** The grid's own id, or null when the machines are on none. */
+  readonly circuit: number | null;
+  readonly demandMW: number;
+  readonly capacityMW: number;
+}
+
 export interface LineDiagnosis {
   readonly recipe: RecipeId;
   readonly verdict: Verdict;
@@ -75,6 +90,7 @@ export interface LineDiagnosis {
   readonly machines: number;
   readonly shortage: Shortage | null;
   readonly backlog: Backlog | null;
+  readonly power: PowerFault | null;
 }
 
 /**
@@ -131,11 +147,28 @@ export function diagnoseLine(
   uptime: number | null,
   placements: readonly BuildingPlacement[],
   stored: Readonly<Record<ItemId, number>> = {},
+  circuits: readonly PowerCircuit[] = [],
 ): LineDiagnosis {
   const machines = placements.length;
-  const base = { recipe, uptime, machines, shortage: null, backlog: null } as const;
+  const base = {
+    recipe,
+    uptime,
+    machines,
+    shortage: null,
+    backlog: null,
+    power: null,
+  } as const;
   if (uptime === null) return { ...base, verdict: 'unmeasured' };
   if (uptime >= RUNNING) return { ...base, verdict: 'running' };
+
+  /*
+   * Power first. A grid that cannot meet its own demand stops everything on
+   * it, and a stopped machine's buffers look exactly like starvation — full
+   * inputs, empty output. This is read rather than inferred, so checking it
+   * first costs nothing in confidence.
+   */
+  const fault = powerFault(placements, circuits);
+  if (fault) return { ...base, verdict: 'unpowered', power: fault };
 
   const known = db.recipes[recipe];
   if (!known) return { ...base, verdict: 'unexplained' };
@@ -189,6 +222,37 @@ export function diagnoseLine(
   return { ...base, verdict: 'unexplained' };
 }
 
+/**
+ * Is this line's power the problem?
+ *
+ * A machine on no grid at all is the plainer fault of the two and is checked
+ * first — it is not slow, it is off. Otherwise the grid is at fault only when
+ * it cannot supply what is asked of it, which the save states outright.
+ */
+function powerFault(
+  placements: readonly BuildingPlacement[],
+  circuits: readonly PowerCircuit[],
+): PowerFault | null {
+  if (placements.length === 0) return null;
+  if (placements.every((placement) => placement.circuit === undefined)) {
+    // Only when there are grids to be off: a save read before any power was
+    // built must not report every machine as unwired.
+    if (circuits.length === 0) return null;
+    return { kind: 'unwired', circuit: null, demandMW: 0, capacityMW: 0 };
+  }
+  for (const placement of placements) {
+    const grid = circuits.find((circuit) => circuit.id === placement.circuit);
+    if (!grid || grid.capacityMW >= grid.demandMW) continue;
+    return {
+      kind: 'overloaded',
+      circuit: grid.id,
+      demandMW: grid.demandMW,
+      capacityMW: grid.capacityMW,
+    };
+  }
+  return null;
+}
+
 /** Every measured line, worst first — the order a reader wants them in. */
 export function diagnose(db: GameDatabase, snapshot: WorldSnapshot): LineDiagnosis[] {
   const byRecipe = new Map<RecipeId, BuildingPlacement[]>();
@@ -201,7 +265,16 @@ export function diagnose(db: GameDatabase, snapshot: WorldSnapshot): LineDiagnos
 
   const out: LineDiagnosis[] = [];
   for (const [recipe, line] of Object.entries(snapshot.lines)) {
-    out.push(diagnoseLine(db, recipe, line.uptime, byRecipe.get(recipe) ?? [], snapshot.stored));
+    out.push(
+      diagnoseLine(
+        db,
+        recipe,
+        line.uptime,
+        byRecipe.get(recipe) ?? [],
+        snapshot.stored,
+        snapshot.circuits,
+      ),
+    );
   }
   out.sort((a, b) => (a.uptime ?? 2) - (b.uptime ?? 2));
   return out;
@@ -209,8 +282,13 @@ export function diagnose(db: GameDatabase, snapshot: WorldSnapshot): LineDiagnos
 
 /** One line of prose saying what is wrong, or null when nothing is. */
 export function explain(diagnosis: LineDiagnosis): string | null {
-  const { shortage, backlog } = diagnosis;
+  const { shortage, backlog, power } = diagnosis;
   switch (diagnosis.verdict) {
+    case 'unpowered':
+      if (!power) return null;
+      return power.kind === 'unwired'
+        ? 'Not wired to a power grid.'
+        : `Grid ${power.circuit} is over capacity — ${Math.round(power.demandMW)} MW asked for, ${Math.round(power.capacityMW)} MW built.`;
     case 'blocked':
       return backlog
         ? `Output full — ${Math.round(backlog.held)} ${backlog.name} waiting${
@@ -226,7 +304,7 @@ export function explain(diagnosis: LineDiagnosis): string | null {
             } per run.`
         : null;
     case 'unexplained':
-      return 'Fed, not backed up, still slow — check power.';
+      return 'Powered, fed and not backed up, yet still slow.';
     default:
       return null;
   }

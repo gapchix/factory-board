@@ -69,6 +69,13 @@ export interface BuildingPlacement {
    */
   readonly output?: Readonly<Record<ItemId, number>> | undefined;
   /**
+   * The id of the power grid this building is wired to.
+   *
+   * Absent for anything unwired — which for storage and the HUB is simply how
+   * they are, and for a smelter means it is standing there doing nothing.
+   */
+  readonly circuit?: number | undefined;
+  /**
    * A generator's remaining fuel, in items.
    *
    * The game keeps this per burner, and it is how a coal plant that averages
@@ -135,6 +142,30 @@ export interface BuildingLink {
   readonly kind: 'belt' | 'pipe';
 }
 
+/**
+ * One power grid, as the game wired it.
+ *
+ * Satisfactory does not blend circuits: a generator only feeds what it is
+ * physically joined to, so a base with three grids can have one browning out
+ * while another idles at a sixth of its capacity. Nothing else in the snapshot
+ * could see that, which is why every machine on a dead grid used to read as a
+ * machine with a supply problem.
+ *
+ * Both numbers are the save's own. Totalling nominal draw from the database
+ * instead misses everything without a recipe — miners, pumps, the radar tower —
+ * and on the reference save that understated the real figure by a third.
+ */
+export interface PowerCircuit {
+  /** The game's own id for the grid, which is what it calls it in-world. */
+  readonly id: number;
+  /** Indices into `placements` of everything wired to it. */
+  readonly members: readonly number[];
+  /** What the buildings on it are asking for, in MW. */
+  readonly demandMW: number;
+  /** What the generators on it can supply, in MW. */
+  readonly capacityMW: number;
+}
+
 export interface PhaseProgress {
   /** e.g. `GP_Project_Assembly_Phase_1`, or null on a fresh save. */
   readonly current: string | null;
@@ -179,6 +210,8 @@ export interface WorldSnapshot {
   /** What feeds what, from the connections the save records. */
   readonly links: readonly BuildingLink[];
   readonly milestones: readonly MilestoneId[];
+  /** Every power grid in the world, with what it draws and what it can supply. */
+  readonly circuits: readonly PowerCircuit[];
   readonly phase: PhaseProgress | null;
   /** Total placed objects the parser returned, for sanity-checking a load. */
   readonly objectCount: number;

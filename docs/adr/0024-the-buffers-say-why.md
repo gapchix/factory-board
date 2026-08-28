@@ -122,8 +122,7 @@ item, which is in `Docs.json` but not in the extracted database. Runs need nothi
 compare across recipes, and are the unit the answer is spoken in anyway — "25 left, 25 per
 run" says it without a percentage.
 
-**Reading power circuits now.** The save has three `FGPowerCircuit` objects with
-membership, and `mTargetConsumption` and `mDynamicProductionCapacity` per component, so a
-circuit's demand and capacity can both be totalled. No machine carries an `mHasPower`
-flag, so this has to be derived, which is a pass of its own. `unexplained` is the seam it
-will fill.
+**Reading power circuits now.** Deferred to a pass of its own, and done the same day:
+[ADR 25](0025-a-grid-is-checked-before-a-buffer.md) reads the grids and checks them _before_
+the buffers, because a machine whose grid has died has a full input and an empty output and
+would have read as starving here.

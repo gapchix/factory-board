@@ -162,22 +162,100 @@ describe('diagnoseLine', () => {
     expect(line.verdict).toBe('unmeasured');
   });
 
-  it('admits when the buffers do not explain it', () => {
+  it('admits when nothing it can read explains it', () => {
     /*
-     * Fed, not backed up, still slow. The likeliest cause is a power circuit
-     * that cannot meet its demand, which is not read yet — so this says so
-     * instead of picking the nearest-looking story. Guessing here is the exact
-     * habit this file replaced.
+     * Powered, fed, not backed up, still slow. Everything this file can check
+     * has been checked, so it says that rather than picking the nearest-looking
+     * story. Guessing here is the exact habit it replaced.
      */
     const line = diagnoseLine(db, 'r-iron-rod', 0.4, [machine({ 'iron-ingot': 100 }, {})]);
 
     expect(line.verdict).toBe('unexplained');
-    expect(explain(line)).toContain('check power');
+    expect(explain(line)).toBe('Powered, fed and not backed up, yet still slow.');
   });
 
   it('does not invent a reason for a recipe it does not know', () => {
     const line = diagnoseLine(db, 'r-mystery', 0.5, [machine({}, {})]);
 
     expect(line.verdict).toBe('unexplained');
+  });
+});
+
+describe('diagnoseLine · power', () => {
+  const grid = (id: number, demandMW: number, capacityMW: number) => ({
+    id,
+    members: [],
+    demandMW,
+    capacityMW,
+  });
+  const onGrid = (
+    circuit: number | undefined,
+    input: Record<string, number>,
+    output: Record<string, number> = {},
+  ): BuildingPlacement => ({
+    ...machine(input, output),
+    ...(circuit === undefined ? {} : { circuit }),
+  });
+
+  it('blames the grid before the buffers', () => {
+    /*
+     * A machine whose grid has died looks exactly like a starving one — it
+     * stops drawing, so its input fills and its output stays empty. Reading
+     * the buffers first would report a supply problem it does not have.
+     */
+    const line = diagnoseLine(db, 'r-iron-rod', 0.2, [onGrid(1, { 'iron-ingot': 0 })], {}, [
+      grid(1, 40, 30),
+    ]);
+
+    expect(line.verdict).toBe('unpowered');
+    expect(line.power).toMatchObject({ kind: 'overloaded', circuit: 1 });
+    expect(explain(line)).toBe('Grid 1 is over capacity — 40 MW asked for, 30 MW built.');
+  });
+
+  it('leaves a grid alone when it can meet its demand', () => {
+    const line = diagnoseLine(db, 'r-iron-rod', 0.5, [onGrid(0, { 'iron-ingot': 0 })], {}, [
+      grid(0, 166, 490),
+    ]);
+
+    expect(line.verdict).toBe('starving');
+  });
+
+  it('judges each grid on its own, because the game does', () => {
+    // A base with two grids can have one browning out while the other idles;
+    // a machine is only in trouble if *its* grid is.
+    const line = diagnoseLine(
+      db,
+      'r-iron-rod',
+      0.5,
+      [onGrid(0, { 'iron-ingot': 100 }, { 'iron-rod': 200 })],
+      {},
+      [grid(0, 10, 490), grid(1, 40, 30)],
+    );
+
+    expect(line.verdict).toBe('blocked');
+  });
+
+  it('says when a machine is wired to nothing', () => {
+    const line = diagnoseLine(db, 'r-iron-rod', 0, [onGrid(undefined, { 'iron-ingot': 100 })], {}, [
+      grid(0, 10, 490),
+    ]);
+
+    expect(line.verdict).toBe('unpowered');
+    expect(explain(line)).toBe('Not wired to a power grid.');
+  });
+
+  it('does not call everything unwired on a save with no power at all', () => {
+    // A fresh save has no grids to be off. Reporting every machine as unwired
+    // there would be the guessing this file exists to avoid.
+    const line = diagnoseLine(
+      db,
+      'r-iron-rod',
+      0.5,
+      [onGrid(undefined, { 'iron-ingot': 0 })],
+      {},
+      [],
+    );
+
+    expect(line.verdict).toBe('starving');
   });
 });

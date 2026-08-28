@@ -129,6 +129,21 @@ export default function OverviewPage() {
      * amber; this says which generator and how empty, which is the difference
      * between "fuel problem somewhere" and a place to walk to.
      */
+    /*
+     * What the base really draws, and what it can supply, from the save rather
+     * than from the database. Totalling nominal draw per production line misses
+     * everything without a recipe — miners, pumps, the radar tower — and on the
+     * reference save that understated the real figure by a third: 125 MW
+     * against 188.
+     */
+    const grids = snapshot.circuits.map((circuit) => ({
+      ...circuit,
+      load: circuit.capacityMW > 0 ? circuit.demandMW / circuit.capacityMW : Infinity,
+    }));
+    const demandMW = grids.reduce((total, grid) => total + grid.demandMW, 0);
+    const capacityMW = grids.reduce((total, grid) => total + grid.capacityMW, 0);
+    const overloaded = grids.filter((grid) => grid.demandMW > grid.capacityMW).length;
+
     const dryGenerators = snapshot.placements
       .map((placement, index) => ({ placement, index }))
       .filter(({ placement }) => placement.role === 'power' && (placement.fuel ?? 0) === 0);
@@ -145,6 +160,10 @@ export default function OverviewPage() {
       progress,
       infrastructure,
       phaseDef,
+      grids,
+      demandMW,
+      capacityMW,
+      overloaded,
       undelivered,
       dryGenerators,
       lineCount: lines.length,
@@ -183,7 +202,17 @@ export default function OverviewPage() {
           value={view.machines}
           sub={`${view.lineCount} production lines`}
         />
-        <StatTile label="Power draw" value={`${Math.round(view.powerMW)} MW`} sub="at 100% clock" />
+        <StatTile
+          label="Power drawn"
+          value={`${Math.round(view.grids.length > 0 ? view.demandMW : view.powerMW)} MW`}
+          sub={
+            view.grids.length === 0
+              ? 'at 100% clock'
+              : view.overloaded > 0
+                ? `${view.overloaded} grid${view.overloaded === 1 ? '' : 's'} over capacity`
+                : `of ${Math.round(view.capacityMW)} MW built`
+          }
+        />
         <StatTile
           label="Average uptime"
           value={view.avgUptime === null ? '—' : `${Math.round(view.avgUptime * 100)}%`}
@@ -280,6 +309,21 @@ export default function OverviewPage() {
           ))}
         </ChartFrame>
 
+        {view.grids.length > 0 ? (
+          <ChartFrame title="Power grids" note={`${view.grids.length} · drawn against built`}>
+            {view.grids.map((grid) => (
+              <MeterRow
+                key={grid.id}
+                name={`Grid ${grid.id} · ${grid.members.length} buildings`}
+                value={Math.round(grid.demandMW)}
+                target={Math.round(grid.capacityMW)}
+                unit=" MW"
+                nameWidth="190px"
+              />
+            ))}
+          </ChartFrame>
+        ) : null}
+
         <ChartFrame title="Machines built" note="by type">
           {view.countByMachine.map(([machine, count]) => (
             <BarRow
@@ -288,6 +332,20 @@ export default function OverviewPage() {
               value={count}
               max={maxCount}
               tone="steel"
+              display={`${count}`}
+              nameWidth="150px"
+            />
+          ))}
+        </ChartFrame>
+
+        <ChartFrame title="Infrastructure" note="belts, poles, storage">
+          {view.infrastructure.map(([id, count]) => (
+            <BarRow
+              key={id}
+              name={id.replace(/([a-z])([A-Z])/g, '$1 $2')}
+              value={count}
+              max={maxInfra}
+              tone="muted"
               display={`${count}`}
               nameWidth="150px"
             />
@@ -311,20 +369,6 @@ export default function OverviewPage() {
               name={machineName(db, row.machine)}
               value={row.built}
               target={row.planned}
-              nameWidth="150px"
-            />
-          ))}
-        </ChartFrame>
-
-        <ChartFrame title="Infrastructure" note="belts, poles, storage">
-          {view.infrastructure.map(([id, count]) => (
-            <BarRow
-              key={id}
-              name={id.replace(/([a-z])([A-Z])/g, '$1 $2')}
-              value={count}
-              max={maxInfra}
-              tone="muted"
-              display={`${count}`}
               nameWidth="150px"
             />
           ))}

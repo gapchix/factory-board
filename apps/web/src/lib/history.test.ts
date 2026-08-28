@@ -77,6 +77,7 @@ const world = (over: Partial<WorldSnapshot> = {}): WorldSnapshot => ({
   milestones: [],
   phase: null,
   stored: {},
+  circuits: [],
   objectCount: 0,
   ...over,
 });

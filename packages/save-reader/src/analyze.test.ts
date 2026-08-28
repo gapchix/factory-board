@@ -664,3 +664,110 @@ describe('analyzeSave · what feeds what', () => {
     expect(snapshot.links).toEqual([]);
   });
 });
+
+/* --------------------------------------------------------------- power grids */
+
+const powered = (
+  name: string,
+  buildClass: string,
+  extra: Record<string, unknown> = {},
+): RawSaveObject => ({
+  instanceName: instance(name),
+  typePath: `/Game/FactoryGame/Buildable/Factory/${buildClass}/Build_${buildClass}.Build_${buildClass}_C`,
+  transform: { translation: { x: 0, y: 0, z: 0 } },
+  properties: {
+    mPowerInfo: objectProp(instance(`${name}.PowerInfo`)),
+    ...extra,
+  },
+});
+
+/** The component that carries the numbers, stored beside its building. */
+const powerInfo = (
+  name: string,
+  { demand, capacity }: { demand?: number; capacity?: number },
+): RawSaveObject => ({
+  instanceName: instance(`${name}.PowerInfo`),
+  typePath: '/Script/FactoryGame.FGPowerInfoComponent',
+  properties: {
+    ...(demand === undefined ? {} : { mTargetConsumption: floatProp(demand) }),
+    ...(capacity === undefined ? {} : { mDynamicProductionCapacity: floatProp(capacity) }),
+  },
+});
+
+/** A grid, which names the *connection components* wired to it, not the buildings. */
+const circuit = (id: number, owners: string[]): RawSaveObject => ({
+  instanceName: instance(`CircuitSubsystem.FGPowerCircuit_${id}`),
+  typePath: '/Script/FactoryGame.FGPowerCircuit',
+  properties: {
+    mCircuitID: { value: id },
+    mComponents: {
+      values: owners.map((owner) => ({ pathName: instance(`${owner}.PowerConnection`) })),
+    },
+  },
+});
+
+describe('analyzeSave · power grids', () => {
+  it('totals what a grid draws and what it can supply', () => {
+    const snapshot = analyzeSave(
+      save([
+        powered('Build_SmelterMk1_C_1', 'SmelterMk1'),
+        powerInfo('Build_SmelterMk1_C_1', { demand: 4 }),
+        powered('Build_GeneratorCoal_C_1', 'GeneratorCoal'),
+        powerInfo('Build_GeneratorCoal_C_1', { capacity: 75 }),
+        circuit(0, ['Build_SmelterMk1_C_1', 'Build_GeneratorCoal_C_1']),
+      ]),
+    );
+
+    expect(snapshot.circuits).toHaveLength(1);
+    expect(snapshot.circuits[0]).toMatchObject({ id: 0, demandMW: 4, capacityMW: 75 });
+    expect(snapshot.circuits[0]?.members).toHaveLength(2);
+  });
+
+  it('keeps grids apart, because the game does', () => {
+    // A generator only feeds what it is physically joined to, so a base with
+    // two grids can have one browning out while the other idles.
+    const snapshot = analyzeSave(
+      save([
+        powered('Build_SmelterMk1_C_1', 'SmelterMk1'),
+        powerInfo('Build_SmelterMk1_C_1', { demand: 4 }),
+        powered('Build_SmelterMk1_C_2', 'SmelterMk1'),
+        powerInfo('Build_SmelterMk1_C_2', { demand: 4 }),
+        powered('Build_GeneratorCoal_C_1', 'GeneratorCoal'),
+        powerInfo('Build_GeneratorCoal_C_1', { capacity: 75 }),
+        circuit(0, ['Build_SmelterMk1_C_1', 'Build_GeneratorCoal_C_1']),
+        circuit(1, ['Build_SmelterMk1_C_2']),
+      ]),
+    );
+
+    const [big, small] = snapshot.circuits;
+    expect(big).toMatchObject({ id: 0, capacityMW: 75 });
+    expect(small).toMatchObject({ id: 1, demandMW: 4, capacityMW: 0 });
+  });
+
+  it('tells each building which grid it is on', () => {
+    const snapshot = analyzeSave(
+      save([
+        powered('Build_SmelterMk1_C_1', 'SmelterMk1'),
+        powerInfo('Build_SmelterMk1_C_1', { demand: 4 }),
+        circuit(7, ['Build_SmelterMk1_C_1']),
+      ]),
+    );
+
+    expect(snapshot.placements[0]?.circuit).toBe(7);
+  });
+
+  it('counts a building once however many wires reach it', () => {
+    // A power pole carries several connections. Counting its draw per wire
+    // would invent a load that is not there.
+    const snapshot = analyzeSave(
+      save([
+        powered('Build_SmelterMk1_C_1', 'SmelterMk1'),
+        powerInfo('Build_SmelterMk1_C_1', { demand: 4 }),
+        circuit(0, ['Build_SmelterMk1_C_1', 'Build_SmelterMk1_C_1']),
+      ]),
+    );
+
+    expect(snapshot.circuits[0]?.demandMW).toBe(4);
+    expect(snapshot.circuits[0]?.members).toHaveLength(1);
+  });
+});

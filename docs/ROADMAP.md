@@ -357,10 +357,26 @@ Two more answers fell out of the same data — **34 Smart Plating built and sitt
 container** against a Space Elevator that wants 500 and has received 0, and **one coal
 generator out of fuel** while its four neighbours hold 155 to 263.
 
-Next for it: the power circuits. The save has three of them with membership,
-`mTargetConsumption` per component and `mDynamicProductionCapacity` per generator, so a
-circuit's demand and capacity can both be totalled. No machine carries an `mHasPower`
-flag, so it has to be derived — and `unexplained` is the seam it fills.
+**The grids, and why they are checked first**
+([ADR 25](adr/0025-a-grid-is-checked-before-a-buffer.md)). A machine whose grid has died
+looks exactly like a starving one: it stops drawing, so its input fills, and it makes
+nothing, so its output stays empty. Reading the buffers first would have been confidently
+wrong again, in a new way.
+
+Satisfactory does not blend power — a generator feeds only what it is wired to — so the
+snapshot now carries each `FGPowerCircuit` with what it draws and what it can supply, and
+every placement knows its grid. The base's real figures turned out not to be the board's:
+
+    grid 0   81 buildings   166 / 490 MW
+    grid 1    9 buildings    16 /  30 MW
+    grid 4    2 buildings     5 /  30 MW
+    whole base             188 / 550 MW
+
+**188 MW against the 125 MW reported**, because totalling nominal draw per production line
+misses miners, pumps and everything else without a recipe.
+
+Next for it: nothing pressing. `unexplained` now means powered, fed, not backed up and
+still slow — a much smaller box, and everything left in it is genuinely unaccounted for.
 
 ### C. Publish — the packages stand alone
 

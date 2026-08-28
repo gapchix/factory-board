@@ -255,9 +255,20 @@ All notable changes to this project are documented here. The format follows
   it.
 - **Generators standing empty** are counted beside the power draw, so a coal plant
   averaging 79% resolves to the one burner that has run out.
+- **Power grids.** `WorldSnapshot` carries every `FGPowerCircuit` with what it draws and
+  what it can supply, and each placement knows which grid it is on. Satisfactory does not
+  blend power, so a base can have one grid browning out while another idles
+  ([ADR 25](docs/adr/0025-a-grid-is-checked-before-a-buffer.md)). Overview shows drawn
+  against built, per grid, and a line whose grid cannot meet its own demand is reported as
+  **unpowered** — checked before the buffers, because a machine whose grid has died has a
+  full input and an empty output and would otherwise read as starving.
 
 ### Fixed
 
+- Power draw is read from the save rather than totalled from the database. Totalling
+  nominal draw per production line misses everything without a recipe — miners, pumps, the
+  radar tower — and on the reference save reported 125 MW against a real 188 MW, with no
+  sense of the 550 MW built.
 - Bottleneck lines are no longer all labelled "starving". Uptime has at least two causes
   that want opposite fixes, and the label was picked from the number alone: on the
   reference save the two largest lines — Iron Rod at 67% and Iron Ingot at 83% — had full

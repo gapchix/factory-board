@@ -8,5 +8,6 @@ export type {
   BuildingPlacement,
   BuildingRole,
   PhaseProgress,
+  PowerCircuit,
   WorldSnapshot,
 } from './types.js';

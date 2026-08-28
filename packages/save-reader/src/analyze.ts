@@ -5,6 +5,7 @@ import type {
   BuildingPlacement,
   BuildingRole,
   PhaseProgress,
+  PowerCircuit,
   WorldSnapshot,
 } from './types.js';
 import type { ItemId } from '@factory-board/planner';
@@ -401,6 +402,12 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   const stored: Record<ItemId, number> = {};
   /** Machines and generators whose buffers are joined on once every object is seen. */
   const needsBuffers: { index: number; owner: string; fuel: number | undefined }[] = [];
+  /** Each grid and the connection components wired to it, before they are resolved. */
+  const rawCircuits: { id: number; components: string[] }[] = [];
+  /** Building instance → the power info component it owns. */
+  const powerInfoOf = new Map<string, string>();
+  /** Power info component → what it asks for and what it can supply, in MW. */
+  const powerInfo = new Map<string, { demand: number; capacity: number }>();
 
   for (const level of Object.values(save.levels ?? {})) {
     for (const object of level.objects ?? []) {
@@ -527,6 +534,26 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
         line.clockSamples.push(num(propValue(properties, 'mCurrentPotential')) ?? 1);
       }
 
+      if (/FGPowerCircuit$/.test(typePath)) {
+        const id = num(propValue(properties, 'mCircuitID'));
+        if (id !== undefined) {
+          const components = propValues(properties, 'mComponents')
+            .map((entry) => objectPathFull(entry))
+            .filter((path) => path !== '');
+          rawCircuits.push({ id, components });
+        }
+      }
+
+      if (/FGPowerInfoComponent/.test(typePath) && instanceName) {
+        powerInfo.set(instanceName, {
+          demand: num(propValue(properties, 'mTargetConsumption')) ?? 0,
+          capacity: num(propValue(properties, 'mDynamicProductionCapacity')) ?? 0,
+        });
+      }
+
+      const info = objectPathFull(propValue(properties, 'mPowerInfo'));
+      if (info && instanceName) powerInfoOf.set(instanceName, info);
+
       if (/SchematicManager/.test(typePath)) {
         for (const entry of propValues(properties, 'mPurchasedSchematics')) {
           const id = objectPath(entry);
@@ -625,6 +652,37 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     };
   }
 
+  /*
+   * The grids. A circuit lists connection *components*, so each one is walked
+   * back to the building that owns it — the same step every inventory takes —
+   * and then to that building's power info, which is where the numbers live.
+   *
+   * Deduplicated per grid: a building with two connections is one building on
+   * it, and counting its draw twice would invent a load that is not there.
+   */
+  const circuits: PowerCircuit[] = [];
+  for (const raw of rawCircuits) {
+    const owners = new Set(raw.components.map(ownerOf));
+    const members: number[] = [];
+    let demandMW = 0;
+    let capacityMW = 0;
+    for (const owner of owners) {
+      const index = placementOf.get(owner);
+      if (index !== undefined) {
+        members.push(index);
+        placements[index] = { ...placements[index]!, circuit: raw.id };
+      }
+      const reading = powerInfo.get(powerInfoOf.get(owner) ?? '');
+      if (reading) {
+        demandMW += reading.demand;
+        capacityMW += reading.capacity;
+      }
+    }
+    members.sort((a, b) => a - b);
+    circuits.push({ id: raw.id, members, demandMW, capacityMW });
+  }
+  circuits.sort((a, b) => b.members.length - a.members.length);
+
   const mean = (values: readonly number[]): number | null =>
     values.length === 0 ? null : values.reduce((sum, v) => sum + v, 0) / values.length;
 
@@ -652,6 +710,7 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     paths: routed,
     links,
     milestones: [...new Set(milestones)].sort(),
+    circuits,
     phase,
     objectCount,
   };

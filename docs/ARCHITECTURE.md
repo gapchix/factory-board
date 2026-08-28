@@ -234,3 +234,4 @@ Recorded in full under [adr/](adr).
 | [Signposts at the camera](adr/0022-signposts-are-worked-out-at-the-camera.md)                | A pointer that goes stale is worse than none; and the frame is bought with buildings, the leash is not |
 | [A caption is placed, not hung](adr/0023-a-caption-is-placed-not-hung.md)                    | A fixed offset has no second answer; rings of candidates took 19 crowded names to 22 clear ones        |
 | [The buffers say why](adr/0024-the-buffers-say-why.md)                                       | Uptime has two causes wanting opposite fixes; "starving" was wrong about the two largest lines         |
+| [A grid is checked first](adr/0025-a-grid-is-checked-before-a-buffer.md)                     | A dead grid looks exactly like starvation; real draw was 188 MW, not the 125 MW totalled from the DB   |

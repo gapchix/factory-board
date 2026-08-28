@@ -3,6 +3,7 @@ import type {
   BuildingLink,
   BuildingPath,
   BuildingPlacement,
+  PowerCircuit,
   WorldSnapshot,
 } from '@factory-board/save-reader';
 import { z } from 'zod';
@@ -37,6 +38,14 @@ const placementSchema = z.object({
   input: z.record(z.string(), z.number()).optional(),
   output: z.record(z.string(), z.number()).optional(),
   fuel: z.number().optional(),
+  circuit: z.number().optional(),
+});
+
+const circuitSchema = z.object({
+  id: z.number(),
+  members: z.array(z.number().int().nonnegative()),
+  demandMW: z.number().nonnegative(),
+  capacityMW: z.number().nonnegative(),
 });
 
 const pathSchema = z.object({
@@ -63,6 +72,7 @@ const snapshotSchema = z.object({
   paths: z.array(pathSchema),
   links: z.array(linkSchema),
   milestones: z.array(z.string()),
+  circuits: z.array(circuitSchema),
   phase: z
     .object({
       current: z.string().nullable(),
@@ -96,9 +106,10 @@ const _placementKeys: AssertNoMissingKeys<
 > = true;
 const _pathKeys: AssertNoMissingKeys<BuildingPath, z.infer<typeof pathSchema>> = true;
 const _linkKeys: AssertNoMissingKeys<BuildingLink, z.infer<typeof linkSchema>> = true;
+const _circuitKeys: AssertNoMissingKeys<PowerCircuit, z.infer<typeof circuitSchema>> = true;
 const _snapshotKeys: AssertNoMissingKeys<WorldSnapshot, z.infer<typeof snapshotSchema>> = true;
 
-void [_lineKeys, _placementKeys, _pathKeys, _linkKeys, _snapshotKeys];
+void [_lineKeys, _placementKeys, _pathKeys, _linkKeys, _circuitKeys, _snapshotKeys];
 
 const envelopeSchema = z.discriminatedUnion('present', [
   z.object({ present: z.literal(false) }),
