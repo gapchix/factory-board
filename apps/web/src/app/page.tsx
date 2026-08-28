@@ -144,6 +144,38 @@ export default function OverviewPage() {
     const capacityMW = grids.reduce((total, grid) => total + grid.capacityMW, 0);
     const overloaded = grids.filter((grid) => grid.demandMW > grid.capacityMW).length;
 
+    /*
+     * What is standing in containers, biggest first.
+     *
+     * A stock level is neither production nor consumption, and it is the only
+     * figure that says which of the two is out of step: five thousand iron rods
+     * in a box is what "backed up" looks like from the other side, and a line
+     * starving on something the base holds a thousand of is a belt problem
+     * wearing a supply problem's clothes.
+     */
+    const waitingFor = new Map(
+      [...verdicts.values()]
+        .filter((line) => line.verdict === 'starving' && line.shortage)
+        .map((line) => [line.shortage!.item, named(line.recipe)]),
+    );
+    const backedUp = new Map(
+      [...verdicts.values()]
+        .filter((line) => line.verdict === 'blocked' && line.backlog)
+        .map((line) => [line.backlog!.item, named(line.recipe)]),
+    );
+    const stored = Object.entries(snapshot.stored)
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([item, count]) => ({
+        item,
+        count,
+        wantedBy: waitingFor.get(item),
+        pilingFrom: backedUp.get(item),
+      }));
+    const storedTotal = Object.values(snapshot.stored).reduce((sum, count) => sum + count, 0);
+    const misrouted = stored.filter((row) => row.wantedBy).length;
+
     const dryGenerators = snapshot.placements
       .map((placement, index) => ({ placement, index }))
       .filter(({ placement }) => placement.role === 'power' && (placement.fuel ?? 0) === 0);
@@ -161,6 +193,9 @@ export default function OverviewPage() {
       infrastructure,
       phaseDef,
       grids,
+      stored,
+      storedTotal,
+      misrouted,
       demandMW,
       capacityMW,
       overloaded,
@@ -373,6 +408,37 @@ export default function OverviewPage() {
             />
           ))}
         </ChartFrame>
+
+        {view.stored.length > 0 ? (
+          <ChartFrame
+            title="In storage"
+            note={
+              view.misrouted > 0
+                ? `${view.storedTotal.toLocaleString()} items · ${view.misrouted} wanted by a starving line`
+                : `${view.storedTotal.toLocaleString()} items across every container`
+            }
+          >
+            {view.stored.map((row) => (
+              <Box key={row.item}>
+                <BarRow
+                  name={itemName(db, row.item)}
+                  value={row.count}
+                  max={view.stored[0]?.count ?? 1}
+                  tone={row.wantedBy ? 'warn' : 'accent'}
+                  display={row.count.toLocaleString()}
+                  nameWidth="150px"
+                />
+                {row.wantedBy || row.pilingFrom ? (
+                  <Text fontSize="12px" lineHeight="1.4" color="fg.muted" ml="162px" mb={1}>
+                    {row.wantedBy
+                      ? `${row.wantedBy} is starving for these.`
+                      : `${row.pilingFrom} cannot shift any more.`}
+                  </Text>
+                ) : null}
+              </Box>
+            ))}
+          </ChartFrame>
+        ) : null}
       </Grid>
 
       {snapshot.phase?.target ? (

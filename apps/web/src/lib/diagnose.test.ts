@@ -259,3 +259,37 @@ describe('diagnoseLine · power', () => {
     expect(line.verdict).toBe('starving');
   });
 });
+
+describe('diagnoseLine · what is already in a box', () => {
+  it('says when the missing thing is already on site', () => {
+    /*
+     * The reference save's Rotor assembler sat on 25 screws and the base held
+     * a thousand more in a container. "Short of screws" invites building more
+     * screw constructors, which is the wrong end entirely — the belt goes
+     * somewhere else.
+     */
+    const line = diagnoseLine(db, 'r-rotor', 0.6, [machine({ 'iron-rod': 200, screw: 25 }, {})], {
+      screw: 1000,
+    });
+
+    expect(line.shortage).toMatchObject({ item: 'screw', stored: 1000 });
+    expect(explain(line)).toBe(
+      'Short of Screw — 25 left, 25 per run. 1,000 sitting in a container — this is routing, not production.',
+    );
+  });
+
+  it('ignores a handful that would not cover a single run', () => {
+    // Three screws in a box explains nothing about a recipe that wants 25.
+    const line = diagnoseLine(db, 'r-rotor', 0.6, [machine({ 'iron-rod': 200, screw: 25 }, {})], {
+      screw: 3,
+    });
+
+    expect(explain(line)).toBe('Short of Screw — 25 left, 25 per run.');
+  });
+
+  it('says it even when nothing is arriving at all', () => {
+    const line = diagnoseLine(db, 'r-rotor', 0, [machine({ 'iron-rod': 200 }, {})], { screw: 1000 });
+
+    expect(explain(line)).toContain('1,000 sitting in a container');
+  });
+});

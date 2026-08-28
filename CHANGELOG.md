@@ -278,6 +278,14 @@ All notable changes to this project are documented here. The format follows
   shipped is a trimmed snapshot rather than a digest, so the rule about what a point
   contains stays in one place — 12 KB for four saves, against roughly 230 KB sent whole.
 
+- **What is in the warehouse, and who is waiting for it.** Overview lists what stands in
+  containers, biggest first, and names the line that wants each pile. A line starving on an
+  item the base already holds a run of is told so outright — _"1,000 sitting in a container
+  — this is routing, not production"_ — because "build more" is the wrong instruction when
+  the belt simply goes somewhere else. On the reference save three of the five starving
+  lines are in exactly that position: Cable waiting on Wire with 2,029 in a box, Rotor on
+  Screws with 1,000, Smart Plating on Rotor with 63.
+
 ### Fixed
 
 - History no longer opens with one point in it. It recorded only what passed through the

@@ -61,6 +61,14 @@ export interface Shortage {
   readonly perBatch: number;
   /** `held / perBatch` — how many more runs the buffer can cover. */
   readonly batches: number;
+  /**
+   * How many of the same item are sitting in containers.
+   *
+   * The difference between "make more of this" and "the belt goes somewhere
+   * else". On the reference save three of the five starving lines were waiting
+   * for something the base already held thousands of.
+   */
+  readonly stored: number;
 }
 
 export interface Backlog {
@@ -208,6 +216,7 @@ export function diagnoseLine(
       held,
       perBatch: port.amount,
       batches,
+      stored: stored[port.item] ?? 0,
     };
   }
   if (tightest && tightest.batches <= STARVED_BATCHES) {
@@ -295,14 +304,22 @@ export function explain(diagnosis: LineDiagnosis): string | null {
             backlog.stored > 0 ? `, ${backlog.stored.toLocaleString()} more in storage` : ''
           }. Nothing downstream is taking them.`
         : null;
-    case 'starving':
-      return shortage
-        ? shortage.held === 0
+    case 'starving': {
+      if (!shortage) return null;
+      const short =
+        shortage.held === 0
           ? `No ${shortage.name} arriving.`
-          : `Short of ${shortage.name} — ${Math.round(shortage.held)} left, ${
-              shortage.perBatch
-            } per run.`
-        : null;
+          : `Short of ${shortage.name} — ${Math.round(shortage.held)} left, ${shortage.perBatch} per run.`;
+      /*
+       * And whether the base already has some. A line waiting for an item it
+       * holds a thousand of is not short of it — the belt goes somewhere else,
+       * and "build more" is the wrong instruction. One run's worth is the floor,
+       * so a stray handful in a box does not raise it.
+       */
+      return shortage.stored >= shortage.perBatch
+        ? `${short} ${shortage.stored.toLocaleString()} sitting in a container — this is routing, not production.`
+        : short;
+    }
     case 'unexplained':
       return 'Powered, fed and not backed up, yet still slow.';
     default:
