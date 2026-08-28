@@ -34,6 +34,9 @@ const placementSchema = z.object({
   role: z.enum(['production', 'extraction', 'power']).optional(),
   resource: z.string().optional(),
   uptime: z.number().min(0).max(1).optional(),
+  input: z.record(z.string(), z.number()).optional(),
+  output: z.record(z.string(), z.number()).optional(),
+  fuel: z.number().optional(),
 });
 
 const pathSchema = z.object({
@@ -55,6 +58,7 @@ const snapshotSchema = z.object({
   savedAt: z.number().nullable(),
   lines: z.record(z.string(), lineSchema),
   buildings: z.record(z.string(), z.number().int().nonnegative()),
+  stored: z.record(z.string(), z.number()),
   placements: z.array(placementSchema),
   paths: z.array(pathSchema),
   links: z.array(linkSchema),

@@ -106,6 +106,7 @@ apps/web/src/
 │   ├── zone-storage.ts     names the player gave places, pinned to coordinates
 │   ├── history.ts          a save reduced to what a series needs, and the diff
 │   ├── chain.ts            what feeds what, and the weakest link in a supply
+│   ├── diagnose.ts         why a line is slow: starving on what, or backed up
 │   ├── history-store.ts    every save kept, in IndexedDB
 │   └── …                   game database, default snapshot, plan storage, formatting
 └── generated/              build artefacts; gitignored
@@ -232,3 +233,4 @@ Recorded in full under [adr/](adr).
 | [One map, not two](adr/0021-one-map-not-two.md)                                              | Every feature after ADR 17 landed on the factory map only; the schematic had stopped being a view      |
 | [Signposts at the camera](adr/0022-signposts-are-worked-out-at-the-camera.md)                | A pointer that goes stale is worse than none; and the frame is bought with buildings, the leash is not |
 | [A caption is placed, not hung](adr/0023-a-caption-is-placed-not-hung.md)                    | A fixed offset has no second answer; rings of candidates took 19 crowded names to 22 clear ones        |
+| [The buffers say why](adr/0024-the-buffers-say-why.md)                                       | Uptime has two causes wanting opposite fixes; "starving" was wrong about the two largest lines         |

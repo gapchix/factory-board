@@ -15,10 +15,24 @@ import {
 } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
 import { Label, SectionHeading } from '@/components/primitives';
+import { diagnose, explain } from '@/lib/diagnose';
 import { itemName, machineName, machineRank, playTime, rate } from '@/lib/format';
 import { PHASES } from '@/lib/phases';
 import { gameDatabase as db } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
+
+/**
+ * What each verdict is called on screen.
+ *
+ * "Starving" used to be printed against every line between 60% and 95%, which
+ * was a guess: on the reference save the two largest lines were the opposite,
+ * and building what the label implied would have made them worse.
+ */
+const VERDICT: Record<string, string> = {
+  blocked: 'Backed up',
+  starving: 'Starving',
+  unexplained: 'No reason found',
+};
 
 export default function OverviewPage() {
   const { snapshot, targets, recipeChoices } = useBoard();
@@ -54,12 +68,27 @@ export default function OverviewPage() {
       return product ? itemName(db, product) : (recipe?.name ?? recipeId);
     };
 
+    /*
+     * Uptime says how much; the machine's own buffers say why. A line at 67%
+     * with a full output buffer is backed up, not starving, and the two want
+     * opposite fixes — see `lib/diagnose`.
+     */
+    const verdicts = new Map(diagnose(db, snapshot).map((line) => [line.recipe, line]));
     const bottlenecks = lines
       .filter((line) => line.uptime !== null)
       .sort((a, b) => (a.uptime ?? 1) - (b.uptime ?? 1))
-      .map((line) => ({ ...line, name: named(line.recipe) }));
+      .map((line) => {
+        const verdict = verdicts.get(line.recipe);
+        return {
+          ...line,
+          name: named(line.recipe),
+          verdict: verdict?.verdict ?? 'unmeasured',
+          why: verdict ? explain(verdict) : null,
+        };
+      });
 
     const starved = bottlenecks.filter((line) => (line.uptime ?? 1) < 0.95).length;
+    const blocked = bottlenecks.filter((line) => line.verdict === 'blocked').length;
 
     // Only count machines the plan and the world both know about.
     const plannedByMachine = new Map<string, number>();
@@ -85,17 +114,39 @@ export default function OverviewPage() {
 
     const phaseDef = snapshot.phase?.target ? PHASES[snapshot.phase.target] : undefined;
 
+    /*
+     * Parts the elevator wants that are sitting in a container instead. The
+     * board had every number for this and never put them side by side: on the
+     * reference save 34 Smart Plating were built and 0 delivered, which reads
+     * as "nothing made yet" until you see the stock.
+     */
+    const undelivered = Object.entries(phaseDef?.requires ?? {})
+      .map(([item]) => ({ item, held: snapshot.stored[item] ?? 0 }))
+      .filter((row) => row.held > 0);
+
+    /*
+     * A burner with nothing left to burn. The map already shows the coal plant
+     * amber; this says which generator and how empty, which is the difference
+     * between "fuel problem somewhere" and a place to walk to.
+     */
+    const dryGenerators = snapshot.placements
+      .map((placement, index) => ({ placement, index }))
+      .filter(({ placement }) => placement.role === 'power' && (placement.fuel ?? 0) === 0);
+
     return {
       machines,
       powerMW,
       avgUptime: uptimeWeight > 0 ? uptimeWeighted / uptimeWeight : null,
       bottlenecks,
       starved,
+      blocked,
       powerByMachine: [...powerByMachine.entries()].sort((a, b) => b[1] - a[1]),
       countByMachine: [...countByMachine.entries()].sort((a, b) => b[1] - a[1]),
       progress,
       infrastructure,
       phaseDef,
+      undelivered,
+      dryGenerators,
       lineCount: lines.length,
     };
   }, [snapshot, plan]);
@@ -158,7 +209,11 @@ export default function OverviewPage() {
       <Box mt={9}>
         <SectionHeading
           title="Bottlenecks"
-          note="worst first · the game's own 5-minute measurement"
+          note={
+            view.blocked > 0
+              ? `worst first · ${view.blocked} backed up, not starving`
+              : "worst first · why, read from each machine's own buffers"
+          }
         />
         <ChartFrame
           title="Uptime by production line"
@@ -170,26 +225,49 @@ export default function OverviewPage() {
           }
         >
           {view.bottlenecks.map((line) => (
-            <BarRow
-              key={line.recipe}
-              name={line.name}
-              value={line.uptime ?? 0}
-              max={1}
-              tone={uptimeTone(line.uptime ?? 0)}
-              display={`${Math.round((line.uptime ?? 0) * 100)}% · ${line.count}×`}
-              title={`${line.name}: ${Math.round((line.uptime ?? 0) * 100)}% uptime across ${line.count} ${machineName(db, line.machine)}`}
-            />
+            <Box key={line.recipe}>
+              <BarRow
+                name={line.name}
+                value={line.uptime ?? 0}
+                max={1}
+                tone={uptimeTone(line.uptime ?? 0)}
+                display={`${Math.round((line.uptime ?? 0) * 100)}% · ${line.count}×`}
+                title={`${line.name}: ${Math.round((line.uptime ?? 0) * 100)}% uptime across ${line.count} ${machineName(db, line.machine)}`}
+              />
+              {line.why ? (
+                /*
+                 * The verdict is type, never colour: the warning step is 4.04:1
+                 * on the light surface and text needs 4.5:1. The bar above
+                 * carries the state; this says what it means.
+                 */
+                <Flex gap={2} mt={1} mb={1.5} ml="192px" align="baseline" wrap="wrap">
+                  <Label flex="none" color="fg">
+                    {VERDICT[line.verdict] ?? line.verdict}
+                  </Label>
+                  <Text fontSize="12.5px" lineHeight="1.45" color="fg.muted">
+                    {line.why}
+                  </Text>
+                </Flex>
+              ) : null}
+            </Box>
           ))}
         </ChartFrame>
         <Flex gap={4} mt={2.5} wrap="wrap">
           <LegendKey tone="ok">95% and above</LegendKey>
-          <LegendKey tone="warn">60–95%, starving</LegendKey>
+          <LegendKey tone="warn">60–95%</LegendKey>
           <LegendKey tone="crit">below 60%</LegendKey>
         </Flex>
       </Box>
 
       <Grid mt={9} gap={4} alignItems="start" templateColumns={{ base: '1fr', lg: '1fr 1fr' }}>
-        <ChartFrame title="Power draw" note="MW by machine type">
+        <ChartFrame
+          title="Power draw"
+          note={
+            view.dryGenerators.length > 0
+              ? `MW by machine type · ${view.dryGenerators.length} generator${view.dryGenerators.length === 1 ? '' : 's'} out of fuel`
+              : 'MW by machine type'
+          }
+        >
           {view.powerByMachine.map(([machine, mw]) => (
             <BarRow
               key={machine}
@@ -272,6 +350,19 @@ export default function OverviewPage() {
               />
             ))}
           </ChartFrame>
+          {view.undelivered.length > 0 ? (
+            <Flex gap={2} mt={2.5} align="baseline" wrap="wrap">
+              <Label flex="none" color="fg">
+                In storage
+              </Label>
+              <Text fontSize="12.5px" lineHeight="1.45" color="fg.muted">
+                {view.undelivered
+                  .map((row) => `${row.held.toLocaleString()} ${itemName(db, row.item)}`)
+                  .join(', ')}{' '}
+                built and sitting in a container. The elevator only counts what is delivered to it.
+              </Text>
+            </Flex>
+          ) : null}
         </Box>
       ) : null}
 

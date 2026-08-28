@@ -243,8 +243,26 @@ All notable changes to this project are documented here. The format follows
   box's top-left corner and walking round it when a building is standing there. On the
   reference save's opening view that took 12 block captions to 15 and 7 crowded zone
   captions to 7 clear ones: 22 names, none overlapping anything.
+- **Why a line is slow, not just how slow.** `WorldSnapshot` now carries what is waiting
+  in each machine's input buffer, what has piled up in its output buffer, a generator's
+  remaining fuel, and the total sitting in every container. Bottlenecks read the two
+  buffers and name the cause — the ingredient that ran out, measured in runs so a recipe
+  wanting 25 screws and one wanting 2 wire can be compared at all, or the product that has
+  nowhere to go ([ADR 24](docs/adr/0024-the-buffers-say-why.md)). The same sentence appears
+  on the map's hover card.
+- **Space Elevator parts built but never delivered** are named under the delivery meters —
+  34 Smart Plating in a container against 0 delivered reads as "nothing made yet" without
+  it.
+- **Generators standing empty** are counted beside the power draw, so a coal plant
+  averaging 79% resolves to the one burner that has run out.
 
 ### Fixed
+
+- Bottleneck lines are no longer all labelled "starving". Uptime has at least two causes
+  that want opposite fixes, and the label was picked from the number alone: on the
+  reference save the two largest lines — Iron Rod at 67% and Iron Ingot at 83% — had full
+  input buffers _and_ full output buffers, so they were backed up, and the advice the
+  label implied would have made them worse.
 
 - Solver no longer manufactures raw ore through late-game Converter recipes. It answered a
   Tier 2 request with 22 Converters and 733 SAM/min before this.

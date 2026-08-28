@@ -71,6 +71,8 @@ export interface SceneBuilding {
   readonly detail: string;
   /** What it makes, for the block it belongs to. Empty if it makes nothing. */
   readonly product: string;
+  /** Why its line is slow, if it is. Empty when there is nothing to say. */
+  readonly why: string;
 }
 
 export interface SceneZone {

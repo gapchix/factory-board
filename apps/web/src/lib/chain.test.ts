@@ -81,6 +81,7 @@ const world = (placements: BuildingPlacement[], links: BuildingLink[]): WorldSna
   links,
   milestones: [],
   phase: null,
+  stored: {},
   objectCount: placements.length,
 });
 

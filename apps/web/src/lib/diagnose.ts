@@ -1,0 +1,233 @@
+import type { GameDatabase, ItemId, RecipeId } from '@factory-board/planner';
+import type { BuildingPlacement, WorldSnapshot } from '@factory-board/save-reader';
+import { itemName } from './format';
+
+/**
+ * Why a line is slow — starving or backed up.
+ *
+ * The board could say a line ran at 67%. It labelled everything between 60%
+ * and 95% "starving", which is a guess dressed as a reading, and on the
+ * reference save it was **wrong about the largest line in the base**: the four
+ * iron rod constructors averaged 67% with full input buffers *and* full output
+ * buffers, which is the opposite problem. Acting on "starving" there — building
+ * more smelters — makes it worse.
+ *
+ * The save knows. Every machine carries an input buffer and an output buffer,
+ * and the two together separate the cases that uptime alone runs into one:
+ *
+ * - **starving** — an ingredient has run down. The machine consumed everything
+ *   that arrived and is waiting.
+ * - **blocked** — product has piled up. Whatever is downstream stopped taking
+ *   it, and the machine has nowhere to put the next one.
+ *
+ * Measured in *batches* rather than items, because a recipe wanting 25 screws
+ * and one wanting 2 wire are not comparable in items and are exactly
+ * comparable in batches. That also names the culprit: of everything a recipe
+ * needs, the ingredient with the fewest batches buffered is the one holding it
+ * up — which is how a Rotor assembler sitting on 200 iron rods is correctly
+ * reported as short of screws.
+ *
+ * What it will not do is guess. A machine with plenty of input, nothing piled
+ * up and a low uptime gets `unexplained` rather than a story: the buffers do
+ * not say why, and the likeliest remaining cause — a power circuit that cannot
+ * meet its demand — is not read yet. Saying "starving" there would be the same
+ * mistake this file exists to fix.
+ */
+
+export type Verdict =
+  /** Running as well as the game measures anything. */
+  | 'running'
+  /** An ingredient has run down. `shortage` names it. */
+  | 'starving'
+  /** Product has piled up with nowhere to go. `backlog` names it. */
+  | 'blocked'
+  /** Slow, and the buffers do not account for it. */
+  | 'unexplained'
+  /** The game has not measured this line yet. */
+  | 'unmeasured';
+
+export interface Shortage {
+  readonly item: ItemId;
+  readonly name: string;
+  /** Items waiting in the input buffers, across every machine on the line. */
+  readonly held: number;
+  /** What one run of the recipe consumes. */
+  readonly perBatch: number;
+  /** `held / perBatch` — how many more runs the buffer can cover. */
+  readonly batches: number;
+}
+
+export interface Backlog {
+  readonly item: ItemId;
+  readonly name: string;
+  /** Items waiting in the output buffers, across every machine on the line. */
+  readonly held: number;
+  /** `held / perBatch` — how many runs have been made and not collected. */
+  readonly batches: number;
+  /** How many of the same item are sitting in containers elsewhere. */
+  readonly stored: number;
+}
+
+export interface LineDiagnosis {
+  readonly recipe: RecipeId;
+  readonly verdict: Verdict;
+  readonly uptime: number | null;
+  readonly machines: number;
+  readonly shortage: Shortage | null;
+  readonly backlog: Backlog | null;
+}
+
+/**
+ * Uptime at or above this counts as running, so the buffers are not consulted.
+ *
+ * The game measures over a five-minute window and a machine that is keeping up
+ * still dips below 100% whenever a belt hiccups. This is the same step the
+ * board's status colour has always used.
+ */
+const RUNNING = 0.95;
+
+/**
+ * Runs' worth of product waiting before a line counts as backed up.
+ *
+ * One is not enough: a machine that has just finished a run is holding exactly
+ * one until the belt takes it, which is what a healthy machine looks like. Two
+ * means a whole run went by uncollected.
+ */
+const BACKED_UP_BATCHES = 2;
+
+/**
+ * Runs' worth of an ingredient left before a line counts as starving.
+ *
+ * The mirror of the rule above, and the reason it is a small number: a machine
+ * that is keeping up sits on a *deep* buffer, because the belt delivers faster
+ * than it consumes. On the reference save the healthy lines hold 20 to 100
+ * runs' worth and the starving ones hold one or less.
+ */
+const STARVED_BATCHES = 2;
+
+const sum = (
+  placements: readonly BuildingPlacement[],
+  pick: (placement: BuildingPlacement) => Readonly<Record<ItemId, number>> | undefined,
+): Record<ItemId, number> => {
+  const total: Record<ItemId, number> = {};
+  for (const placement of placements) {
+    for (const [item, count] of Object.entries(pick(placement) ?? {})) {
+      total[item] = (total[item] ?? 0) + count;
+    }
+  }
+  return total;
+};
+
+/**
+ * Diagnose one line from the machines running it.
+ *
+ * Buffers are summed across the line rather than judged per machine, because
+ * the question is about the line: four rod constructors where two are backed up
+ * and two are keeping pace is one line that cannot shift its rods.
+ */
+export function diagnoseLine(
+  db: GameDatabase,
+  recipe: RecipeId,
+  uptime: number | null,
+  placements: readonly BuildingPlacement[],
+  stored: Readonly<Record<ItemId, number>> = {},
+): LineDiagnosis {
+  const machines = placements.length;
+  const base = { recipe, uptime, machines, shortage: null, backlog: null } as const;
+  if (uptime === null) return { ...base, verdict: 'unmeasured' };
+  if (uptime >= RUNNING) return { ...base, verdict: 'running' };
+
+  const known = db.recipes[recipe];
+  if (!known) return { ...base, verdict: 'unexplained' };
+
+  /* Backed up first: a full output explains a slow machine on its own, and a
+   * machine that cannot put anything down stops drawing its inputs, so its
+   * input buffer fills too and would otherwise read as perfectly healthy. */
+  const output = sum(placements, (placement) => placement.output);
+  let worstBacklog: Backlog | null = null;
+  for (const port of known.outputs) {
+    const held = output[port.item] ?? 0;
+    const batches = port.amount > 0 ? held / port.amount : 0;
+    if (batches < BACKED_UP_BATCHES) continue;
+    if (worstBacklog && worstBacklog.batches >= batches) continue;
+    worstBacklog = {
+      item: port.item,
+      name: itemName(db, port.item),
+      held,
+      batches,
+      stored: stored[port.item] ?? 0,
+    };
+  }
+  if (worstBacklog) return { ...base, verdict: 'blocked', backlog: worstBacklog };
+
+  /* Then the tightest ingredient. Batches rather than items, so a recipe
+   * wanting 25 screws and one wanting 2 wire can be compared at all. */
+  const input = sum(placements, (placement) => placement.input);
+  let tightest: Shortage | null = null;
+  for (const port of known.inputs) {
+    if (port.amount <= 0) continue;
+    const held = input[port.item] ?? 0;
+    const batches = held / port.amount;
+    if (tightest && tightest.batches <= batches) continue;
+    tightest = {
+      item: port.item,
+      name: itemName(db, port.item),
+      held,
+      perBatch: port.amount,
+      batches,
+    };
+  }
+  if (tightest && tightest.batches <= STARVED_BATCHES) {
+    return { ...base, verdict: 'starving', shortage: tightest };
+  }
+
+  /*
+   * Slow, fed, and not backed up. The buffers have nothing more to say, so
+   * neither does this — the honest answer is the one the old label refused to
+   * give.
+   */
+  return { ...base, verdict: 'unexplained' };
+}
+
+/** Every measured line, worst first — the order a reader wants them in. */
+export function diagnose(db: GameDatabase, snapshot: WorldSnapshot): LineDiagnosis[] {
+  const byRecipe = new Map<RecipeId, BuildingPlacement[]>();
+  for (const placement of snapshot.placements) {
+    if (!placement.recipe) continue;
+    const bucket = byRecipe.get(placement.recipe);
+    if (bucket) bucket.push(placement);
+    else byRecipe.set(placement.recipe, [placement]);
+  }
+
+  const out: LineDiagnosis[] = [];
+  for (const [recipe, line] of Object.entries(snapshot.lines)) {
+    out.push(diagnoseLine(db, recipe, line.uptime, byRecipe.get(recipe) ?? [], snapshot.stored));
+  }
+  out.sort((a, b) => (a.uptime ?? 2) - (b.uptime ?? 2));
+  return out;
+}
+
+/** One line of prose saying what is wrong, or null when nothing is. */
+export function explain(diagnosis: LineDiagnosis): string | null {
+  const { shortage, backlog } = diagnosis;
+  switch (diagnosis.verdict) {
+    case 'blocked':
+      return backlog
+        ? `Output full — ${Math.round(backlog.held)} ${backlog.name} waiting${
+            backlog.stored > 0 ? `, ${backlog.stored.toLocaleString()} more in storage` : ''
+          }. Nothing downstream is taking them.`
+        : null;
+    case 'starving':
+      return shortage
+        ? shortage.held === 0
+          ? `No ${shortage.name} arriving.`
+          : `Short of ${shortage.name} — ${Math.round(shortage.held)} left, ${
+              shortage.perBatch
+            } per run.`
+        : null;
+    case 'unexplained':
+      return 'Fed, not backed up, still slow — check power.';
+    default:
+      return null;
+  }
+}

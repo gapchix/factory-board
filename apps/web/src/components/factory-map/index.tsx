@@ -7,6 +7,7 @@ import type { WorldSnapshot } from '@factory-board/save-reader';
 import { Application } from 'pixi.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { traceChain, type Chain, type ChainStep } from '@/lib/chain';
+import { diagnose, explain } from '@/lib/diagnose';
 import { buildingName, itemName } from '@/lib/format';
 import type { ZoneView } from '@/lib/zones';
 import { uptimeTone, type StatusTone } from '../charts';
@@ -159,6 +160,13 @@ export default function FactoryMap({
   /* ------------------------------------------------------------- the data */
 
   const data = useMemo((): SceneData => {
+    /*
+     * Why each slow line is slow, keyed by recipe. Per line rather than per
+     * machine because that is how the game measures productivity — it records
+     * the recipe's, not the box's.
+     */
+    const why = new Map(diagnose(db, snapshot).map((line) => [line.recipe, explain(line) ?? '']));
+
     const zoneAt = (x: number, y: number) =>
       zones.find(
         (zone) =>
@@ -208,6 +216,7 @@ export default function FactoryMap({
         name: product ? itemName(db, product) : machine,
         detail: placement.recipe ? machine : (resource ?? ''),
         product: produces,
+        why: (placement.recipe && why.get(placement.recipe)) || '',
       });
     });
     // The floor first, so everything else stands on it.
@@ -627,6 +636,7 @@ export default function FactoryMap({
         uptime: building.uptime,
         zone: zone?.name,
         tone: building.uptime === null ? null : uptimeTone(building.uptime),
+        why: building.why || undefined,
       },
       at: placeCard(at.screenX, at.screenY, at.width, at.height),
     });

@@ -7,6 +7,7 @@ import type {
   PhaseProgress,
   WorldSnapshot,
 } from './types.js';
+import type { ItemId } from '@factory-board/planner';
 
 /**
  * A deliberately loose view of what the save parser returns.
@@ -256,6 +257,32 @@ function inventoryItem(properties: Record<string, unknown> | undefined): string 
 }
 
 /**
+ * How much of what an inventory is holding.
+ *
+ * `inventoryItem` above answers "what is this buffer *for*" and throws the
+ * counts away, which was enough while the only questions were what ore a miner
+ * stands on and what a generator burns. It is not enough to tell a starving
+ * machine from a backed-up one: both run slowly, and the number in the buffer
+ * is the only thing that separates them.
+ *
+ * Empty slots are skipped rather than recorded as zero — a buffer holding
+ * nothing returns `{}`, which is itself the answer.
+ */
+function inventoryContents(
+  properties: Record<string, unknown> | undefined,
+): Record<ItemId, number> {
+  const held: Record<ItemId, number> = {};
+  for (const stack of propValues(properties, 'mInventoryStacks')) {
+    const inner = (stack as { properties?: Record<string, unknown> })?.properties;
+    const item = propValue(inner, 'Item') as { itemReference?: unknown } | undefined;
+    const id = objectPath(item?.itemReference);
+    const count = num(propValue(inner, 'NumItems'));
+    if (id && count !== undefined && count > 0) held[id] = (held[id] ?? 0) + count;
+  }
+  return held;
+}
+
+/**
  * The yaw of a placement's quaternion, in degrees clockwise from north.
  *
  * Only the rotation about the vertical axis survives, because only that one
@@ -369,6 +396,11 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   const placementOf = new Map<string, number>();
   const pathOwners: string[] = [];
   const connections: { self: string; other: string }[] = [];
+  const inputContents = new Map<string, Record<ItemId, number>>();
+  const outputContents = new Map<string, Record<ItemId, number>>();
+  const stored: Record<ItemId, number> = {};
+  /** Machines and generators whose buffers are joined on once every object is seen. */
+  const needsBuffers: { index: number; owner: string; fuel: number | undefined }[] = [];
 
   for (const level of Object.values(save.levels ?? {})) {
     for (const object of level.objects ?? []) {
@@ -385,9 +417,18 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       if (instanceName.endsWith('.OutputInventory')) {
         const item = inventoryItem(properties);
         if (item) outputInventories.set(ownerOf(instanceName), item);
+        outputContents.set(ownerOf(instanceName), inventoryContents(properties));
       } else if (instanceName.endsWith('.FuelInventory')) {
         const item = inventoryItem(properties);
         if (item) fuelInventories.set(ownerOf(instanceName), item);
+      } else if (instanceName.endsWith('.InputInventory')) {
+        inputContents.set(ownerOf(instanceName), inventoryContents(properties));
+      } else if (instanceName.endsWith('.StorageInventory')) {
+        // A stock level for the whole base rather than per container: which
+        // box the five thousand rods are in is not a question anyone asks.
+        for (const [item, count] of Object.entries(inventoryContents(properties))) {
+          stored[item] = (stored[item] ?? 0) + count;
+        }
       }
 
       if (typePath.includes('/Build_')) {
@@ -449,6 +490,14 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
           });
 
           placementOf.set(instanceName, placements.length - 1);
+
+          if (role === 'production' || role === 'power') {
+            needsBuffers.push({
+              index: placements.length - 1,
+              owner: instanceName,
+              fuel: num(propValue(properties, 'mCurrentFuelAmount')),
+            });
+          }
 
           if (role === 'extraction' || role === 'power') {
             needsResource.push({ index: placements.length - 1, owner: instanceName, role });
@@ -557,6 +606,25 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     if (resource && placement) placements[pending.index] = { ...placement, resource };
   }
 
+  /*
+   * And the buffers, for the same reason: an inventory is a separate object and
+   * may be read long after the machine that owns it. An empty buffer is kept
+   * rather than dropped — "this machine has nothing to work on" is the whole
+   * point of reading them.
+   */
+  for (const pending of needsBuffers) {
+    const placement = placements[pending.index];
+    if (!placement) continue;
+    const input = inputContents.get(pending.owner);
+    const output = outputContents.get(pending.owner);
+    placements[pending.index] = {
+      ...placement,
+      ...(input === undefined ? {} : { input }),
+      ...(output === undefined ? {} : { output }),
+      ...(pending.fuel === undefined ? {} : { fuel: pending.fuel }),
+    };
+  }
+
   const mean = (values: readonly number[]): number | null =>
     values.length === 0 ? null : values.reduce((sum, v) => sum + v, 0) / values.length;
 
@@ -579,6 +647,7 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     savedAt: epochMillis(header?.['saveDateTime']),
     lines: resolved,
     buildings,
+    stored,
     placements,
     paths: routed,
     links,

@@ -327,6 +327,41 @@ A charting library was the open question here, and
 [ADR 6 was revisited on the evidence](adr/0006-no-charting-library.md): still no, at about
 140 lines for the chart.
 
+### D. Why, not how much · shipped
+
+[SPEC.md](SPEC.md) opens by saying no other tool will "open your save and tell you that
+your Rotor assembler ran at 60% because screws are starving it". The board reported the
+60%. It said _because screws_ nowhere, and what it said instead was wrong: everything
+between 60% and 95% was labelled **starving**, which on the reference save was the
+opposite of the truth for the two largest lines in the base.
+
+The save knew. Every machine carries an input buffer and an output buffer, and the reader
+already walked them — to learn _what_ ore a miner stands on, throwing the counts away.
+
+Now it keeps them ([ADR 24](adr/0024-the-buffers-say-why.md)). A slow line is read in
+**runs rather than items**, because a recipe wanting 25 screws and one wanting 2 wire are
+not comparable in items and are exactly comparable in runs — which is also what names the
+culprit. Output is checked before input, because a machine that cannot put anything down
+stops drawing what it is fed and its input buffer fills up looking healthy.
+
+    0%  Smart Plating   STARVING   No Rotor arriving.
+
+60% Rotor STARVING Short of Screws — 25 left, 25 per run.
+67% Iron Rod BACKED UP Output full — 399 waiting, 5,178 more in storage.
+
+And it refuses to guess: fed, not backed up and still slow reads _"check power"_ rather
+than a story, because the likeliest remaining cause is a power circuit that cannot meet
+its demand and that is not read yet.
+
+Two more answers fell out of the same data — **34 Smart Plating built and sitting in a
+container** against a Space Elevator that wants 500 and has received 0, and **one coal
+generator out of fuel** while its four neighbours hold 155 to 263.
+
+Next for it: the power circuits. The save has three of them with membership,
+`mTargetConsumption` per component and `mDynamicProductionCapacity` per generator, so a
+circuit's demand and capacity can both be totalled. No machine carries an `mHasPower`
+flag, so it has to be derived — and `unexplained` is the seam it fills.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.

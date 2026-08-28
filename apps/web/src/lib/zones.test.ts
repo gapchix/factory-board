@@ -91,6 +91,7 @@ const world = (placements: BuildingPlacement[], uptime: number | null = null): W
   links: [],
   milestones: [],
   phase: null,
+  stored: {},
   objectCount: placements.length,
 });
 

@@ -51,6 +51,31 @@ export interface BuildingPlacement {
   /** Absent for anything that neither makes, extracts nor burns — storage, walls, belts. */
   readonly role?: BuildingRole | undefined;
   /**
+   * What is waiting in the machine's input buffer, by item.
+   *
+   * The difference between a machine that is starving and one that is backed
+   * up, which uptime alone cannot tell apart: both read as a low number and
+   * they want opposite fixes. An **empty record is the signal**, not the
+   * absence of one — a constructor with nothing to work on has an input
+   * inventory holding nothing. Absent means the building has no input buffer
+   * at all.
+   */
+  readonly input?: Readonly<Record<ItemId, number>> | undefined;
+  /**
+   * What has piled up in the machine's output buffer, by item.
+   *
+   * A machine whose output is drained the moment it is made holds nothing here.
+   * Anything much means whatever is downstream has stopped taking it.
+   */
+  readonly output?: Readonly<Record<ItemId, number>> | undefined;
+  /**
+   * A generator's remaining fuel, in items.
+   *
+   * The game keeps this per burner, and it is how a coal plant that averages
+   * 79% turns out to be four generators running and one standing empty.
+   */
+  readonly fuel?: number | undefined;
+  /**
    * What the building handles: the resource an extractor is pulling out of its
    * node, or the fuel a generator is burning. A production machine says it with
    * its recipe instead, so this is left off there.
@@ -139,6 +164,14 @@ export interface WorldSnapshot {
   readonly lines: Readonly<Record<RecipeId, ActualLine>>;
   /** Every placed building, counted by class, belts and foundations included. */
   readonly buildings: Readonly<Record<string, number>>;
+  /**
+   * Everything sitting in containers, by item.
+   *
+   * Not production, and not consumption — a stock level. It is what turns "this
+   * line is backed up" into "and here is where the last five thousand of them
+   * went", and what says a Space Elevator part is built but never delivered.
+   */
+  readonly stored: Readonly<Record<ItemId, number>>;
   /** The same buildings, with positions, for spatial analysis. */
   readonly placements: readonly BuildingPlacement[];
   /** Belt, pipe and power-line routes, for drawing the base. */

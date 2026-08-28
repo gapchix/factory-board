@@ -34,6 +34,15 @@ export interface MapCardContent {
   readonly uptime: number | null;
   readonly zone?: string | undefined;
   readonly tone: StatusTone | null;
+  /**
+   * Why this line is slow, from its machines' own buffers — starving on
+   * something, or backed up with nowhere to put what it made.
+   *
+   * Per line rather than per machine, because a production machine's uptime is
+   * itself measured per line: the save records the productivity of the recipe,
+   * not of the box.
+   */
+  readonly why?: string | undefined;
 }
 
 export interface MapCardPlacement {
@@ -99,6 +108,11 @@ export function MapCard({ content, at }: { content: MapCardContent; at: MapCardP
           </Text>
         </Flex>
       )}
+      {content.why ? (
+        <Text fontSize="11.5px" lineHeight="1.4" color="fg.muted" mt={2}>
+          {content.why}
+        </Text>
+      ) : null}
       {content.zone ? (
         <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle" mt={1.5} truncate>
           in {content.zone}
