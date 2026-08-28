@@ -1,10 +1,10 @@
 'use client';
 
 import { Box, Button, Flex, Grid, Text } from '@chakra-ui/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { MeterRow, StatRow, StatTile, TimeChart, uptimeTone } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
-import { Label, Mono, SectionHeading } from '@/components/primitives';
+import { Label, Mono, SectionHeading, Select } from '@/components/primitives';
 import { playTime, rate } from '@/lib/format';
 import { gameDatabase as db } from '@/lib/game-database';
 import { changesBetween, digestOf, phaseProgress, type HistoryPoint } from '@/lib/history';
@@ -51,6 +51,15 @@ export default function HistoryPage() {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [session, setSession] = useState<string | null>(null);
   const [confirmForget, setConfirmForget] = useState(false);
+  /**
+   * Which two saves the diff is between, by the session's own clock.
+   *
+   * Null means the last two, which is what this page has always shown and
+   * still shows on arrival. Choosing anything makes it stick, and it is kept as
+   * play seconds rather than an index so a new autosave arriving underneath does
+   * not silently slide the comparison onto different saves.
+   */
+  const [pair, setPair] = useState<{ from: number; to: number } | null>(null);
 
   const current = useMemo(
     () => (snapshot && source ? digestOf(db, snapshot, source.name) : null),
@@ -70,6 +79,12 @@ export default function HistoryPage() {
     void reload();
   }, [reload, snapshot]);
 
+  // A different session has different saves; a play-seconds pair from the old
+  // one would either miss or, worse, land on an unrelated moment.
+  useEffect(() => {
+    setPair(null);
+  }, [showing]);
+
   /*
    * The save on screen belongs in its own chart whether or not the write has
    * landed yet — it is the same data, and waiting on a database round trip to
@@ -84,10 +99,26 @@ export default function HistoryPage() {
   }, [stored, current, showing]);
 
   const latest = points[points.length - 1];
-  const previous = points[points.length - 2];
+
+  /*
+   * The two the diff is between. A chosen save that is no longer kept — history
+   * is capped, and a session can be forgotten — falls back rather than
+   * disappearing, and the pair is always ordered oldest first however it was
+   * picked.
+   */
+  const [before, after] = useMemo(() => {
+    const at = (seconds: number | undefined) =>
+      points.find((point) => point.playSeconds === seconds);
+    const chosen = [at(pair?.from), at(pair?.to)].filter(Boolean) as HistoryPoint[];
+    if (chosen.length === 2) {
+      return chosen.sort((a, b) => a.playSeconds - b.playSeconds);
+    }
+    return [points[points.length - 2], points[points.length - 1]];
+  }, [points, pair]);
+
   const changes = useMemo(
-    () => (previous && latest ? changesBetween(db, previous, latest) : null),
-    [previous, latest],
+    () => (before && after ? changesBetween(db, before, after) : null),
+    [before, after],
   );
   const phase = useMemo(() => phaseProgress(db, points), [points]);
 
@@ -209,13 +240,65 @@ export default function HistoryPage() {
       {changes ? (
         <Box mt={9}>
           <SectionHeading
-            title="Since the last save"
+            title={pair ? 'Between two saves' : 'Since the last save'}
             note={
               changes.playSeconds > 0
                 ? `${playTime(changes.playSeconds)} of play`
                 : 'the same moment'
             }
           />
+          {points.length > 2 ? (
+            <Flex gap={2} mb={2.5} align="center" wrap="wrap">
+              <Label flex="none">Compare</Label>
+              {(
+                [
+                  ['from', before?.playSeconds],
+                  ['to', after?.playSeconds],
+                ] as const
+              ).map(([end, value], index) => (
+                <Flex key={end} gap={2} align="center">
+                  {index === 1 ? <Label flex="none">with</Label> : null}
+                  <Select
+                    w="auto"
+                    value={value ?? ''}
+                    aria-label={end === 'from' ? 'Compare from' : 'Compare with'}
+                    onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                      const seconds = Number(event.target.value);
+                      const other =
+                        end === 'from'
+                          ? (after?.playSeconds ?? seconds)
+                          : (before?.playSeconds ?? seconds);
+                      setPair(
+                        end === 'from'
+                          ? { from: seconds, to: other }
+                          : { from: other, to: seconds },
+                      );
+                    }}
+                  >
+                    {points.map((point) => (
+                      <option key={point.playSeconds} value={point.playSeconds}>
+                        {playTime(point.playSeconds)} · {point.source}
+                      </option>
+                    ))}
+                  </Select>
+                </Flex>
+              ))}
+              {pair ? (
+                <Button
+                  size="xs"
+                  borderRadius="0"
+                  variant="outline"
+                  borderColor="border.default"
+                  color="fg.muted"
+                  fontFamily="mono"
+                  fontSize="11.5px"
+                  onClick={() => setPair(null)}
+                >
+                  Last two
+                </Button>
+              ) : null}
+            </Flex>
+          ) : null}
           <Box bg="bg.surface" borderWidth="1px" borderColor="border.default" px={5} py={4}>
             <Flex gap={6} wrap="wrap" mb={changes.lines.length > 0 ? 4 : 0}>
               {[

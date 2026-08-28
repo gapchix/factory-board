@@ -445,7 +445,12 @@ All three are designed to be useful outside this app.
   purity are world-generation data and are not in save files — see
   [SPEC.md](SPEC.md#what-saves-do-not-contain).
 - **Power modelling.** Generators, fuel burn and headroom, not just draw.
-- **Multi-save comparison.** Two sessions side by side.
+- ~~**Multi-save comparison.**~~ Shipped 2026-08-29, but not as written. History can now
+  compare **any two saves of one session** — a from/with picker over what it has recorded —
+  which is the question a player actually has: _what changed in the last hour_. Two
+  **sessions** side by side was the original wording and is a category error: diffing the
+  production lines of two different worlds reports every line as added and removed. Switching
+  between sessions, which is the useful half, already worked.
 
 ## Not planned
 

@@ -295,6 +295,11 @@ All notable changes to this project are documented here. The format follows
   never coloured by uptime — a machine that does not exist has no health to report. The
   toolbar gains `Plan · N` when there is a plan to show.
 
+- **Compare any two saves, not just the last two.** History gains a from/with picker over
+  the session's recorded saves, labelled by play time and file name, defaulting to the last
+  two as before. Choosing a session already worked; choosing the moment did not, so "what
+  changed in the last hour" had no way to be asked.
+
 ### Fixed
 
 - **A plan now survives a page load.** `BoardProvider` restored from `localStorage` in one
