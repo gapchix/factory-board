@@ -81,6 +81,12 @@ export function Header() {
   const { snapshot, source, status, dispatch } = useBoard();
   const loadSave = useSaveLoader();
   const inputRef = useRef<HTMLInputElement>(null);
+  /*
+   * A base that does not exist has to say so, everywhere, permanently. Numbers
+   * about a fictional factory are indistinguishable from numbers about a real
+   * one once they are on the screen, and the whole board is numbers.
+   */
+  const isDemo = source?.name === 'demo';
 
   return (
     <Box
@@ -116,11 +122,18 @@ export function Header() {
         <Box flex="1" />
 
         {snapshot ? (
-          <Flex borderWidth="1px" borderColor="border.default" wrap="wrap">
+          <Flex
+            borderWidth="1px"
+            borderColor={isDemo ? 'accent.solid' : 'border.default'}
+            wrap="wrap"
+          >
             {[
               ['Session', snapshot.sessionName],
               ['Played', playTime(snapshot.playDurationSeconds)],
-              [source?.kind === 'default' ? 'Auto-loaded' : 'File', source?.name ?? '—'],
+              [
+                isDemo ? 'Showing' : source?.kind === 'default' ? 'Auto-loaded' : 'File',
+                isDemo ? 'a demo base' : (source?.name ?? '—'),
+              ],
             ].map(([label, value], index) => (
               <Box
                 key={label}
@@ -187,6 +200,35 @@ export function Header() {
 
         <ThemeToggle />
       </Flex>
+
+      {isDemo ? (
+        <Flex
+          bg="accent.subtle"
+          borderTopWidth="1px"
+          borderColor="accent.solid"
+          px={{ base: 4, md: 6 }}
+          py={1.5}
+          gap={3}
+          align="baseline"
+          wrap="wrap"
+        >
+          <Label flex="none" color="fg">
+            Demo
+          </Label>
+          <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted">
+            Every number on this page is from a base that does not exist. No Satisfactory install
+            was found, so the board is running on its own hand-written data — drop a{' '}
+            <Box as="span" fontFamily="mono">
+              .sav
+            </Box>{' '}
+            on the page, or run{' '}
+            <Box as="span" fontFamily="mono">
+              npm run extract
+            </Box>{' '}
+            with the game installed, to see your own factory.
+          </Text>
+        </Flex>
+      ) : null}
     </Box>
   );
 }

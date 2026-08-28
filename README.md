@@ -16,8 +16,19 @@ and what to build next. Your save is parsed in the browser and never leaves your
 
 ```bash
 npm install
+npm run dev
+```
+
+That works with **no game and no save**: without a Satisfactory install the board runs on
+a small hand-written demo — a base that does not exist, with a starving line, a backed-up
+one and a dead power grid, so every view has something to show. It says so in a banner
+across the top, permanently, because numbers about a fictional factory look exactly like
+numbers about a real one.
+
+To see your own factory instead:
+
+```bash
 npm run extract      # reads game data from your own Satisfactory install
-npm test
 npm run dev
 ```
 
@@ -26,6 +37,9 @@ npm run dev
 ```bash
 SATISFACTORY_DIR="D:/Games/Satisfactory" npm run extract
 ```
+
+The app then opens your most recent save on its own. You can also drop a `.sav` on the
+page at any time, including over the demo.
 
 ## Open your save automatically
 
@@ -62,6 +76,11 @@ Every install already contains a machine-readable dump of it at
 
 This is also just better: the data is exact for _your_ game version, including whatever
 the last patch changed, rather than whatever a maintainer last got round to updating.
+
+The demo database is a different thing: eleven items and nine recipes, **typed out by hand**
+in `packages/game-data/src/demo.ts` rather than extracted from anywhere. The rates and
+footprints match the real game because a demo that lies is worse than no demo, but nothing
+is copied from Coffee Stain's files.
 
 ## What's in the box
 

@@ -327,8 +327,32 @@ All notable changes to this project are documented here. The format follows
   on the largest grid where nothing runs it yet. On the reference save: 188 MW now, +231 MW
   from 24 machines, 419 MW of 550 MW built, with all of it landing on grid 0 at 397 / 490.
 
+- **The board runs with no game and no save.** ADR 3 keeps the extracted database out of
+  the repository, which is right about the licence and had a cost: without Satisfactory
+  installed, `npm run dev` stopped at _"No game database found"_ and the app
+  could not be looked at at all. It now falls back to a demo — a hand-written slice of the
+  early game (`packages/game-data/src/demo.ts`, fifteen items and eleven recipes,
+  typed out rather than extracted) and a fictional base built to be interesting rather than
+  merely valid: a line starving on something 900 of which sit in a container, one backed up
+  with 2,400 stored, a second power grid with no generation on it, a line the game has not
+  measured yet, and a Space Elevator part built but never delivered. A banner says so
+  permanently, because numbers about a base that does not exist look exactly like numbers
+  about one that does.
+
 ### Fixed
 
+- Plan ghosts on the map name themselves. They were dashed rectangles with no caption and
+  no legend key, which is not a map but a puzzle: the first person to see one asked what
+  the weird empty boxes were. They now carry the same block captions every other machine
+  does, in the accent colour and suffixed "· to build", and are blocked separately from
+  real machines so a ghost never merges into a block of built ones and names neither.
+- The Planner's "still to build" is counted per line. It was the plan's total machines
+  minus every machine standing in the world, which credited the ones the plan never asked
+  for — a Solid Biofuel and a Concrete constructor made the reference save read 21 when it
+  was 24, and disagreed with the power panel directly below it.
+- `allSaves` no longer returns null when the saves folder does not exist, which
+  crashed the sync script for anyone who has never played — exactly the person the demo is
+  for.
 - **A plan now survives a page load.** `BoardProvider` restored from `localStorage` in one
   effect and persisted in two others, all on the same mount — and the restore is a dispatch,
   so it did not take effect until the next render while the writers ran immediately with the

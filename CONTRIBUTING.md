@@ -4,7 +4,7 @@
 
 ```bash
 npm install
-npm run extract   # needs Satisfactory installed; see below
+npm run extract   # optional — without it you get the demo base; see below
 npm test
 ```
 

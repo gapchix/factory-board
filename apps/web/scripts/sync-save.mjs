@@ -41,7 +41,7 @@ for (const envFile of ['.env.local', '.env']) {
  * feature about how a session is going had one point in it on first open.
  */
 function allSaves(dir) {
-  if (!existsSync(dir)) return null;
+  if (!existsSync(dir)) return [];
   const candidates = [];
   const visit = (path, depth) => {
     let entries;
@@ -151,8 +151,22 @@ export async function syncSave({ quiet = false } = {}) {
 
   const path = locateSave();
   if (!path) {
-    write({ present: false });
-    log('default save: none found — the app will ask for one');
+    /*
+     * A demo base rather than an empty page. Every view needs a save to say
+     * anything at all, so without one the app could only ask for a file that
+     * someone who does not own the game cannot produce — see `demo-save` in the
+     * game-data package for what it holds and why it is deliberately broken in
+     * two interesting ways.
+     */
+    const { demoSnapshot } = await import('@factory-board/game-data');
+    write({
+      present: true,
+      source: 'demo',
+      loadedAt: new Date().toISOString(),
+      snapshot: demoSnapshot(),
+      earlier: [],
+    });
+    log('default save: none found, using the built-in demo base');
     return null;
   }
 

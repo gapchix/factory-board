@@ -1,3 +1,6 @@
+export { demoDatabase } from './demo.js';
+export { demoSnapshot } from './demo-save.js';
+export type { DemoSnapshot } from './demo-save.js';
 export { decodeDocs, parseAmounts, parseProducedIn, parseUnlockedRecipes } from './docs.js';
 export type { DocsClass, DocsGroup, ParsedAmount } from './docs.js';
 export { extractDatabase } from './extract.js';
