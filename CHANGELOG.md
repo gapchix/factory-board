@@ -310,6 +310,15 @@ All notable changes to this project are documented here. The format follows
   dividing one by the other is the honest comparison. On the reference save that is 2h 15m
   of Cable, 53 min of Iron Rod and 42 min of Wire already made.
 
+- **The flow is drawn against the world.** Every step now says how much of itself is
+  standing — `4 / 6 Smelter · 2 to build` — and carries the real uptime as a bar, so the
+  picture answers "what is left to build, and what is already struggling" in one look. A step
+  nothing has been built for is **dashed**, the same language the map uses for a planned
+  machine that is not there. Rates are written on the edges rather than hidden behind a
+  hover, cased so a label crossing three belts stays readable. Clicking a step lights its
+  chain and fogs the rest — the same gesture, and the same answer, as clicking a machine on
+  the map.
+
 ### Fixed
 
 - **A plan now survives a page load.** `BoardProvider` restored from `localStorage` in one

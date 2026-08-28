@@ -79,7 +79,7 @@ export default function PlanPage() {
 
       <Box as="section" mb={9}>
         <SectionHeading title="The flow" note="ore on the left, your targets on the right" />
-        <FlowDiagram db={db} result={result} targets={targets} />
+        <FlowDiagram db={db} result={result} targets={targets} actual={snapshot?.lines} />
       </Box>
 
       <Box as="section" mb={9}>
