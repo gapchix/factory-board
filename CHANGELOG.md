@@ -319,6 +319,14 @@ All notable changes to this project are documented here. The format follows
   chain and fogs the rest — the same gesture, and the same answer, as clicking a machine on
   the map.
 
+- **Will the lights stay on.** The Planner says what the factory will draw once the plan is
+  built, against what the generators standing can supply — and **per grid**, because
+  Satisfactory does not blend circuits and a base can sit at 70% overall with one grid over
+  its own limit. Only the machines still to build are charged, since the rest are already
+  drawing and already counted. New machines go on the grid their recipe already runs on, and
+  on the largest grid where nothing runs it yet. On the reference save: 188 MW now, +231 MW
+  from 24 machines, 419 MW of 550 MW built, with all of it landing on grid 0 at 397 / 490.
+
 ### Fixed
 
 - **A plan now survives a page load.** `BoardProvider` restored from `localStorage` in one

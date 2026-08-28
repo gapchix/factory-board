@@ -6,11 +6,12 @@ import type { WorldSnapshot } from '@factory-board/save-reader';
 import { useMemo, useState, type DragEvent } from 'react';
 import { itemName, rate, unit } from '@/lib/format';
 import { duration, planForPhase } from '@/lib/phase-plan';
+import type { PlanPower } from '@/lib/power-plan';
 import { PHASES, PRESETS } from '@/lib/phases';
 import { buildZoneBoard, zoneAt } from '@/lib/zones';
 import { useBoard } from '@/state/board';
 import { useSaveLoader } from '@/hooks/use-save-loader';
-import { Field, Label, Mono, NumTd, Panel, Select, Td, TableFrame, Th } from './primitives';
+import { Field, Label, Meter, Mono, NumTd, Panel, Select, Td, TableFrame, Th } from './primitives';
 
 /* -------------------------------------------------------------- phase plan */
 
@@ -95,6 +96,91 @@ function coverage(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = Math.round(minutes % 60);
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
+/* ----------------------------------------------------------------- power */
+
+/**
+ * Whether the lights stay on once the plan is built.
+ *
+ * The board had both halves of this and never added them up: the Planner knew
+ * its plan draws 344 MW, the Overview knew the base draws 188 MW of the 550 MW
+ * standing, and the one question a plan of that size raises had no answer
+ * anywhere on the page.
+ */
+export function PlanPowerPanel({ power }: { power: PlanPower }) {
+  const share = power.capacityMW > 0 ? power.afterMW / power.capacityMW : 0;
+  const tone = power.over.length > 0 ? 'crit' : share > 0.9 ? 'warn' : 'ok';
+
+  return (
+    <Panel px={5} py={4}>
+      <Flex gap={7} wrap="wrap" align="flex-end">
+        {[
+          ['Drawn now', `${Math.round(power.nowMW)} MW`],
+          [
+            `This plan adds`,
+            `+${Math.round(power.addedMW)} MW`,
+            `${power.machines} machine${power.machines === 1 ? '' : 's'} left to build`,
+          ],
+          [
+            'Then',
+            `${Math.round(power.afterMW)} MW`,
+            `of ${Math.round(power.capacityMW)} MW built`,
+          ],
+        ].map(([label, value, note]) => (
+          <Box key={label}>
+            <Label display="block">{label}</Label>
+            <Mono fontSize="23px" fontWeight="600" lineHeight="1.15">
+              {value}
+            </Mono>
+            {note ? (
+              <Text fontFamily="mono" fontSize="10.5px" color="fg.subtle">
+                {note}
+              </Text>
+            ) : null}
+          </Box>
+        ))}
+        <Box flex="1" minW="180px" alignSelf="center">
+          {/* The bar carries the state; every number here stays in text ink. */}
+          <Meter value={Math.min(1, share)} tone={tone} />
+        </Box>
+      </Flex>
+
+      <Box mt={3.5} borderTopWidth="1px" borderColor="border.subtle" pt={3}>
+        {power.grids.map((grid) => (
+          <Flex key={grid.id} gap={3} align="center" py={0.5} wrap="wrap">
+            <Text fontSize="13px" w="70px" flex="none">
+              Grid {grid.id}
+            </Text>
+            <Box flex="1" minW="120px">
+              <Meter
+                value={grid.capacityMW > 0 ? Math.min(1, grid.afterMW / grid.capacityMW) : 1}
+                tone={
+                  grid.over
+                    ? 'crit'
+                    : grid.afterMW / Math.max(1, grid.capacityMW) > 0.9
+                      ? 'warn'
+                      : 'ok'
+                }
+              />
+            </Box>
+            <Mono fontSize="11.5px" color="fg.muted" w="132px" textAlign="end" flex="none">
+              {Math.round(grid.afterMW)} / {Math.round(grid.capacityMW)} MW
+            </Mono>
+            <Mono fontSize="11px" color="fg.subtle" w="78px" flex="none">
+              {grid.addedMW > 0 ? `+${Math.round(grid.addedMW)} MW` : '—'}
+            </Mono>
+          </Flex>
+        ))}
+      </Box>
+
+      <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted" mt={3}>
+        {power.over.length > 0
+          ? `Grid ${power.over.map((grid) => grid.id).join(' and ')} would be asked for more than ${power.over.length === 1 ? 'it can' : 'they can'} supply. Build generators there before the machines, or the whole circuit stops.`
+          : `New machines are charged to the grid their recipe already runs on, and to the largest grid where nothing runs it yet. Satisfactory does not blend circuits, so a base can sit at 70% overall with one grid over its own limit.`}
+      </Text>
+    </Panel>
+  );
 }
 
 /* ------------------------------------------------------------------ dropzone */
@@ -385,9 +471,23 @@ export function Summary({
     ['Targets', String(targetCount)],
   ];
   if (snapshot) {
+    /*
+     * Counted per line, not as one total minus another.
+     *
+     * `totalMachines - actualMachines` credits every machine standing in the
+     * world, including the ones the plan never asked for — a Solid Biofuel
+     * constructor and a Concrete constructor made the reference save's plan look
+     * two machines closer to done than it was, and disagreed with the power
+     * panel below it about how much was left.
+     */
+    const toBuild = result.lines.reduce(
+      (total, line) =>
+        total + Math.max(0, line.machinesToBuild - (snapshot.lines[line.recipe]?.count ?? 0)),
+      0,
+    );
     stats.push(['Built machines', String(actualMachines)]);
     stats.push(['Built power', `${Math.round(actualPowerMW)} MW`]);
-    stats.push(['Still to build', String(Math.max(0, result.totalMachines - actualMachines))]);
+    stats.push(['Still to build', String(toBuild)]);
   }
 
   return (

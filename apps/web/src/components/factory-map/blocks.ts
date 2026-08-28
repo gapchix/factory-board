@@ -30,6 +30,15 @@ export interface LabelBlock {
   readonly label: string;
   readonly count: number;
   /**
+   * True when nothing here is built yet — the block stands for machines the
+   * plan wants.
+   *
+   * Without it a dashed rectangle on the map is an unexplained empty box: the
+   * first person to see one asked what the weird empty boxes were, which is the
+   * correct question about a shape that names nothing.
+   */
+  readonly planned?: boolean | undefined;
+  /**
    * The ground the block stands on, in world metres.
    *
    * The whole rectangle rather than a point below it, because a caption is
@@ -107,5 +116,6 @@ export function widthOf(block: LabelBlock): number {
 
 /** How a block names itself on the map. */
 export function captionOf(block: LabelBlock): string {
-  return block.count > 1 ? `${block.label} ×${block.count}` : block.label;
+  const counted = block.count > 1 ? `${block.label} ×${block.count}` : block.label;
+  return block.planned ? `${counted} · to build` : counted;
 }

@@ -424,7 +424,7 @@ export function createScene(app: Application, data: SceneData, palette: Palette)
       style: {
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: LABEL_SIZE - 0.5,
-        fill: palette.muted,
+        fill: block.planned ? palette.accent : palette.muted,
         stroke: casing,
       },
     });

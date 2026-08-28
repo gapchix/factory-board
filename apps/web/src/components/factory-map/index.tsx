@@ -250,7 +250,28 @@ export default function FactoryMap({
 
     return {
       buildings,
-      blocks: blocksOf(buildings),
+      /*
+       * Machines and ghosts are blocked separately and then joined, so a ghost
+       * never merges into a block of real machines making the same thing — "Iron
+       * Rod ×7" over four built and three dashed would name neither. Ghosts come
+       * first so their captions get their pick of the space: a dashed rectangle
+       * that names nothing is not a map, it is a puzzle.
+       */
+      blocks: [
+        ...(showPlan
+          ? blocksOf(
+              ghosts.map((ghost) => ({
+                x: ghost.x,
+                y: ghost.y,
+                w: ghost.w,
+                l: ghost.l,
+                facing: ghost.facing,
+                product: ghost.name,
+              })),
+            ).map((block) => ({ ...block, planned: true }))
+          : []),
+        ...blocksOf(buildings),
+      ],
       ghosts: showPlan
         ? ghosts.map((ghost) => ({
             x: ghost.x,
@@ -860,6 +881,18 @@ export default function FactoryMap({
             <Label>{text}</Label>
           </Flex>
         ))}
+        {ghosts.length > 0 && showPlan ? (
+          <Flex align="center" gap={1.5}>
+            <Box
+              w="10px"
+              h="10px"
+              borderWidth="1px"
+              borderStyle="dashed"
+              borderColor="accent.solid"
+            />
+            <Label>planned, not built</Label>
+          </Flex>
+        ) : null}
         <Flex align="center" gap={1.5}>
           <Box w="14px" h="3px" bg="steel.500" />
           <Label>belts, chevrons downstream</Label>

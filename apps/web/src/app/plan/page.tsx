@@ -5,9 +5,10 @@ import { solve } from '@factory-board/planner';
 import { useMemo } from 'react';
 import { BoardGrid } from '@/components/board';
 import { FlowDiagram } from '@/components/flow-diagram';
-import { Balance, PhaseProposal, Summary, TargetEditor } from '@/components/panels';
+import { Balance, PhaseProposal, PlanPowerPanel, Summary, TargetEditor } from '@/components/panels';
 import { SectionHeading } from '@/components/primitives';
 import { diagnose } from '@/lib/diagnose';
+import { powerForPlan } from '@/lib/power-plan';
 import { gameDatabase as db } from '@/lib/game-database';
 import { planByZone } from '@/lib/zone-plan';
 import { buildZoneBoard } from '@/lib/zones';
@@ -44,6 +45,15 @@ export default function PlanPage() {
     return new Map(diagnose(db, snapshot).map((line) => [line.recipe, line]));
   }, [snapshot]);
 
+  /*
+   * What the factory will draw once this is built, and whether the generators
+   * standing can supply it — per grid, because that is where a fuse blows.
+   */
+  const power = useMemo(
+    () => (snapshot ? powerForPlan(db, result, snapshot) : null),
+    [snapshot, result],
+  );
+
   const built = useMemo(() => {
     if (!snapshot) return { machines: 0, powerMW: 0 };
     let machines = 0;
@@ -76,6 +86,20 @@ export default function PlanPage() {
           targetCount={targets.length}
         />
       </Box>
+
+      {power && power.machines > 0 ? (
+        <Box as="section" mb={9}>
+          <SectionHeading
+            title="Power when this is built"
+            note={
+              power.over.length > 0
+                ? `${power.over.length} grid${power.over.length === 1 ? '' : 's'} would be over capacity`
+                : `${power.grids.length} grid${power.grids.length === 1 ? '' : 's'} · drawn against built`
+            }
+          />
+          <PlanPowerPanel power={power} />
+        </Box>
+      ) : null}
 
       <Box as="section" mb={9}>
         <SectionHeading title="The flow" note="ore on the left, your targets on the right" />
