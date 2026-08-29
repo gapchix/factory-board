@@ -76,6 +76,21 @@ export interface BuildingPlacement {
    */
   readonly circuit?: number | undefined;
   /**
+   * What this one container is holding, by item.
+   *
+   * `snapshot.stored` is the same numbers added up across the base, and for a
+   * long time it was the only form kept — "which box the five thousand rods are
+   * in is not a question anyone asks". The diagnosis made it one: three of the
+   * reference save's five starving lines wait for something the base already
+   * holds thousands of, and *2,029 Wire sitting in a container* is only half an
+   * answer until the map can point at the container.
+   *
+   * Present on anything with a storage inventory, which includes the splitter
+   * holding two ore in transit — the reading is mechanical, and what is worth
+   * naming is a decision for the thing doing the naming.
+   */
+  readonly holding?: Readonly<Record<ItemId, number>> | undefined;
+  /**
    * A generator's remaining fuel, in items.
    *
    * The game keeps this per burner, and it is how a coal plant that averages

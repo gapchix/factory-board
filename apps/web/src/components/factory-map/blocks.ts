@@ -21,9 +21,22 @@ export interface BlockMember extends Placed {
    * a machine or a miner, the building's own name for a generator, which makes
    * power rather than anything that can be named as a product.
    *
-   * Empty for anything that produces nothing: foundations, walls, storage.
+   * For a building that produces nothing but is worth pointing at anyway — the
+   * Space Elevator, the HUB, a storage container — its own name.
+   *
+   * Empty only for what is never named: foundations, walls, and the fittings
+   * a belt runs through.
    */
   readonly product: string;
+  /**
+   * What this one holds, by item name, when it is a store.
+   *
+   * Present and empty for an empty container, which is the difference between
+   * "a box with nothing in it" and "not a box". A store is named by its
+   * *contents* rather than by what it is, because "Storage Container" is the
+   * one thing about it a reader can already see.
+   */
+  readonly holding?: Readonly<Record<string, number>> | undefined;
 }
 
 export interface LabelBlock {
@@ -51,6 +64,15 @@ export interface LabelBlock {
   readonly minY: number;
   readonly maxX: number;
   readonly maxY: number;
+  /**
+   * How much of `label` this store holds, summed across the boxes in it.
+   *
+   * Absent for machines, which are counted rather than measured — four
+   * smelters is `count: 4`, and 4,800 iron rods is not four of anything.
+   */
+  readonly held?: number | undefined;
+  /** Kinds of thing the store holds beyond the one it is named for. */
+  readonly alsoHolds?: number | undefined;
 }
 
 /**
@@ -65,6 +87,17 @@ export interface LabelBlock {
 const REACH_M = 30;
 
 /**
+ * Every store goes in one bucket, whatever is in it.
+ *
+ * Bucketing them by contents like machines would split a stack of boxes into
+ * one block per item and drop two captions on the same rectangle — which is
+ * what a base does: on the reference save one pair of containers stands at
+ * exactly the same point holding 2,705 Cable and 2,029 Wire. A stack of boxes
+ * is one *place*, so it is grouped by where it stands and named afterwards.
+ */
+const STORES = '#stores';
+
+/**
  * Group machines into the blocks a reader would name.
  *
  * Returned biggest first: when two labels want the same strip of screen, the
@@ -74,13 +107,14 @@ export function blocksOf(machines: readonly BlockMember[]): LabelBlock[] {
   const byProduct = new Map<string, BlockMember[]>();
   for (const machine of machines) {
     if (!machine.product) continue;
-    const bucket = byProduct.get(machine.product);
+    const key = machine.holding ? STORES : machine.product;
+    const bucket = byProduct.get(key);
     if (bucket) bucket.push(machine);
-    else byProduct.set(machine.product, [machine]);
+    else byProduct.set(key, [machine]);
   }
 
   const blocks: LabelBlock[] = [];
-  for (const [label, members] of byProduct) {
+  for (const [key, members] of byProduct) {
     for (const group of groupNearby(
       members,
       (machine) => ({ x: machine.x, y: machine.y }),
@@ -101,12 +135,44 @@ export function blocksOf(machines: readonly BlockMember[]): LabelBlock[] {
           maxY = Math.max(maxY, corners[i + 1]!);
         }
       }
-      blocks.push({ label, count: group.length, minX, minY, maxX, maxY });
+
+      const box = { count: group.length, minX, minY, maxX, maxY };
+      blocks.push(key === STORES ? { ...box, ...stored(group) } : { ...box, label: key });
     }
   }
 
   blocks.sort((a, b) => b.count - a.count || widthOf(b) - widthOf(a));
   return blocks;
+}
+
+/**
+ * How a store names itself: by what it mostly holds.
+ *
+ * A container's own name is the one thing about it a reader can already see —
+ * it is a box, drawn as a box. What they cannot see is that this box is where
+ * four thousand eight hundred iron rods went. An empty one falls back to what
+ * it is, because there is nothing else to say about it.
+ */
+function stored(group: readonly BlockMember[]): {
+  label: string;
+  held?: number;
+  alsoHolds?: number;
+} {
+  const total = new Map<string, number>();
+  for (const member of group) {
+    for (const [item, count] of Object.entries(member.holding ?? {})) {
+      total.set(item, (total.get(item) ?? 0) + count);
+    }
+  }
+
+  const ranked = [...total.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const biggest = ranked[0];
+  if (!biggest) return { label: group[0]?.product ?? '' };
+  return {
+    label: biggest[0],
+    held: biggest[1],
+    ...(ranked.length > 1 ? { alsoHolds: ranked.length - 1 } : {}),
+  };
 }
 
 /** How wide the block stands, in metres — what decides when a name is worth drawing. */
@@ -116,6 +182,10 @@ export function widthOf(block: LabelBlock): number {
 
 /** How a block names itself on the map. */
 export function captionOf(block: LabelBlock): string {
+  if (block.held !== undefined) {
+    const more = block.alsoHolds ? ` +${block.alsoHolds} more` : '';
+    return `${block.held.toLocaleString()} ${block.label}${more}`;
+  }
   const counted = block.count > 1 ? `${block.label} ×${block.count}` : block.label;
   return block.planned ? `${counted} · to build` : counted;
 }

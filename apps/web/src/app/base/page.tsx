@@ -283,6 +283,18 @@ export default function BasePage() {
   const [zoneSlug, setZoneSlug] = useState<string | null>(() =>
     typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('zone'),
   );
+  /**
+   * An item to go and find, from `/base?holding=Desc_Wire_C`.
+   *
+   * The other half of *"2,029 Wire sitting in a container"* — the sentence the
+   * diagnosis has been able to write since it learned to look in the
+   * warehouse, without ever being able to say which container.
+   */
+  const [findItem] = useState<string | null>(() =>
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('holding'),
+  );
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
@@ -329,6 +341,20 @@ export default function BasePage() {
 
   const selectedZone = zoneBySlug(board?.zones ?? [], zoneSlug);
   const selectedZoneId = selectedZone?.id ?? null;
+
+  /** The fullest box of what was asked for — the one worth walking to. */
+  const focusIndex = useMemo(() => {
+    if (!findItem || !snapshot) return null;
+    let best: number | null = null;
+    let most = 0;
+    snapshot.placements.forEach((placement, index) => {
+      const held = placement.holding?.[findItem] ?? 0;
+      if (held <= most) return;
+      most = held;
+      best = index;
+    });
+    return best;
+  }, [findItem, snapshot]);
 
   const focusSlug = useCallback((slug: string | null) => {
     setZoneSlug(slug);
@@ -420,6 +446,7 @@ export default function BasePage() {
           selectedZoneId={selectedZoneId}
           onSelectZone={selectZone}
           ghosts={ghosts}
+          focusIndex={focusIndex}
         />
       </Box>
 

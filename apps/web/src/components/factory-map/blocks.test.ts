@@ -87,6 +87,63 @@ describe('blocksOf', () => {
   });
 });
 
+/** A Storage Container is 5 × 11 m, and names itself by what is in it. */
+const box = (
+  x: number,
+  y: number,
+  holding: Record<string, number>,
+  product = 'Storage Container',
+): BlockMember => ({ x, y, w: 5, l: 11, facing: 0, product, holding });
+
+describe('a store', () => {
+  /*
+   * The one thing a reader can already see about a box is that it is a box.
+   * What they cannot see is that this is where the five thousand iron rods
+   * went — which the Overview has been reporting as a total, with nowhere to
+   * point at.
+   */
+  it('is named by what it holds, summed across the boxes', () => {
+    const blocks = blocksOf([box(0, 0, { 'Iron Rod': 4800 }), box(6, 0, { 'Iron Rod': 374 })]);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({ label: 'Iron Rod', held: 5174, count: 2 });
+    expect(captionOf(blocks[0]!)).toBe('5,174 Iron Rod');
+  });
+
+  /*
+   * Boxes get stacked, and a top-down map draws a stack as one rectangle. On
+   * the reference save two containers stand at exactly the same point holding
+   * Cable and Wire — bucketed by contents like machines that is two captions
+   * on one shape, and the placement drops one of them rather than stacking.
+   */
+  it('is one place even when the boxes hold different things', () => {
+    const blocks = blocksOf([box(0, 0, { Cable: 2705 }), box(0, 0, { Wire: 2029 })]);
+
+    expect(blocks).toHaveLength(1);
+    expect(captionOf(blocks[0]!)).toBe('2,705 Cable +1 more');
+  });
+
+  it('falls back to what it is when there is nothing in it', () => {
+    const blocks = blocksOf([box(0, 0, {})]);
+
+    expect(blocks[0]).toMatchObject({ label: 'Storage Container', count: 1 });
+    expect(blocks[0]?.held).toBeUndefined();
+    expect(captionOf(blocks[0]!)).toBe('Storage Container');
+  });
+
+  it('never joins a store to the machines beside it', () => {
+    // A box of iron rods next to the constructors making them is not a fifth
+    // constructor, and "Iron Rod ×5" would say it was.
+    const blocks = blocksOf([
+      smelter(0, 0, 'Iron Rod'),
+      smelter(12, 0, 'Iron Rod'),
+      box(20, 0, { 'Iron Rod': 4800 }),
+    ]);
+
+    expect(blocks.map((b) => captionOf(b))).toEqual(['Iron Rod ×2', '4,800 Iron Rod']);
+  });
+});
+
 describe('captionOf', () => {
   it('counts a block and leaves a lone machine uncounted', () => {
     const at = (label: string, count: number): LabelBlock => ({

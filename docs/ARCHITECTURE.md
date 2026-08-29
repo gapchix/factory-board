@@ -253,4 +253,5 @@ Recorded in full under [adr/](adr).
 | [The plan writes itself](adr/0026-the-plan-writes-itself.md)                                 | A blank page is a reason not to start; the save already says what the elevator is short of                           |
 | [A grid is checked first](adr/0025-a-grid-is-checked-before-a-buffer.md)                     | A dead grid looks exactly like starvation; real draw was 188 MW, not the 125 MW totalled from the DB                 |
 | [Power is an input like ore](adr/0031-power-is-an-input-like-ore.md)                         | Every generator declares zero draw, so the extractor dropped them all; a plan's 344 MW is 69 Coal/min of its own     |
+| [The map names its landmarks](adr/0033-the-map-names-its-landmarks.md)                       | The biggest building on the base had no caption; a box is named by what is in it, and the warehouse gets a place     |
 | [A rate has to travel](adr/0032-a-rate-has-to-travel.md)                                     | 176/min over a Mk.1 belt and 300 ore from two Mk.1 miners; flow is forced-only, and the nearest-belt guess was wrong |

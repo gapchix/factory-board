@@ -38,6 +38,7 @@ const placementSchema = z.object({
   uptime: z.number().min(0).max(1).optional(),
   input: z.record(z.string(), z.number()).optional(),
   output: z.record(z.string(), z.number()).optional(),
+  holding: z.record(z.string(), z.number()).optional(),
   fuel: z.number().optional(),
   circuit: z.number().optional(),
 });

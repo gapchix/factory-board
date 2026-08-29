@@ -578,6 +578,33 @@ It also took an invented number off the page: the raw-input table's "Mk.1 miners
 Next for it: the belt half is planning-only. Once a run is provably full the map could draw
 it, and the flow diagram's edges already carry rates that could carry a tier.
 
+### J. The map names its landmarks · shipped
+
+The map has named machines by what they make since [ADR 19](adr/0019-a-name-per-block-not-per-machine.md),
+and named nothing else at all. On the reference save that left **36 of the 79 drawn buildings
+anonymous**, the four biggest among them — the Space Elevator at 645 m², the thing the whole
+Progression view is about, drawn as an unlabelled grey slab
+([ADR 33](adr/0033-the-map-names-its-landmarks.md)).
+
+Everything drawn is named now, except the floor and the fittings a belt runs through. And a
+**box is named by what is in it**, because `Storage Container` is the one thing about a box
+you can already see:
+
+    5,174 Iron Rod +1 more      1,016 Copper Ingot +1 more      63 Rotor +1 more
+
+That needed a decision reversed. The reader summed every container into one base-wide total,
+against a comment reading _"which box the five thousand rods are in is not a question anyone
+asks"_. [ADR 24](adr/0024-the-buffers-say-why.md) made it one — three of five starving lines
+on that save are waiting for something the base already holds thousands of — so the board has
+been saying _"2,029 Wire sitting in a container"_ for a week with nowhere to point. The
+Overview's storage panel now carries a **find the box** link that flies the map to it and
+rings it.
+
+Next for it: the map backlog is down to find-a-machine and pinch-zoom. "What changed since
+the last save, drawn on the map" is **closed rather than pending** — the history digests
+carry no coordinates on purpose ([ADR 16](adr/0016-history-keeps-a-digest.md)), which is what
+makes them a kilobyte instead of forty.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.

@@ -8,6 +8,7 @@ import { Application } from 'pixi.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { traceChain, type Chain, type ChainStep } from '@/lib/chain';
 import { diagnose, explain } from '@/lib/diagnose';
+import { PHASES } from '@/lib/phases';
 import type { GhostSite } from '@/lib/ghosts';
 import { buildingName, itemName } from '@/lib/format';
 import type { ZoneView } from '@/lib/zones';
@@ -49,6 +50,16 @@ const DRAWN_AS_ROUTE =
   /ConveyorBelt|ConveyorLift|PowerLine|Pipeline|ConveyorPole|PowerPole|PowerConnection/;
 /** The floor of a factory, drawn first and quietly. */
 const FLOOR = /Foundation|Wall|Ramp|Pillar|Walkway|Catwalk|Fence|Stair/;
+/**
+ * A hole in a belt rather than a place: splitters, mergers, junctions, pumps.
+ *
+ * They are drawn, because they are where a run divides and that is worth
+ * seeing, and they are never named — forty-one of them captioned is not a map.
+ * They also hold things, a splitter sitting on two ore in transit, so this has
+ * to be asked *before* "does it hold anything", or the base sprouts a caption
+ * reading `2 Iron Ore` at every fork.
+ */
+const FITTING = /ConveyorAttachment|PipelineJunction|PipelinePump|Valve/;
 
 const MIN_ZOOM_FACTOR = 0.4;
 const MAX_ZOOM = 60;
@@ -111,6 +122,14 @@ export interface FactoryMapProps {
   onSelectZone: (id: string | null) => void;
   /** Machines the plan calls for that are not standing yet, already placed. */
   ghosts?: readonly GhostSite[] | undefined;
+  /**
+   * One building to fly to and light up, by its index into `placements`.
+   *
+   * How *"2,029 Wire sitting in a container"* gets somewhere to point. The
+   * board has been able to say that since the diagnosis learned to look in the
+   * warehouse, and the one thing it could not say was which container.
+   */
+  focusIndex?: number | null | undefined;
 }
 
 export default function FactoryMap({
@@ -120,6 +139,7 @@ export default function FactoryMap({
   selectedZoneId,
   onSelectZone,
   ghosts = [],
+  focusIndex = null,
 }: FactoryMapProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const probesRef = useRef<Partial<Record<TokenName, HTMLDivElement | null>>>({});
@@ -132,6 +152,8 @@ export default function FactoryMap({
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   /** Whether the camera has been anywhere yet, so a rebuild can put it back. */
   const placedRef = useRef(false);
+  /** The building already flown to, so a scene rebuild does not fly there again. */
+  const flownToRef = useRef<number | null>(null);
 
   const [palette, setPalette] = useState<Palette | null>(null);
   const [status, setStatus] = useState<'starting' | 'drawn' | 'failed'>('starting');
@@ -180,6 +202,24 @@ export default function FactoryMap({
      */
     const why = new Map(diagnose(db, snapshot).map((line) => [line.recipe, explain(line) ?? '']));
 
+    /*
+     * What the Space Elevator is waiting for, for the Space Elevator to say.
+     *
+     * The largest building on the base, the one the whole Progression view is
+     * about, and the map had it as an unlabelled grey slab. Named now like
+     * every other landmark; this is what it has to add beyond its name.
+     */
+    const phase = snapshot.phase?.target ? PHASES[snapshot.phase.target] : undefined;
+    const elevator = (machine: string): string | undefined => {
+      if (machine !== 'SpaceElevator' || !phase) return undefined;
+      const short = Object.entries(phase.requires)
+        .map(([item, needed]) => needed - (snapshot.phase?.delivered[item] ?? 0))
+        .filter((left) => left > 0).length;
+      return short === 0
+        ? `${phase.label} · everything delivered`
+        : `${phase.label} · ${short} part${short === 1 ? '' : 's'} still to deliver`;
+    };
+
     const zoneAt = (x: number, y: number) =>
       zones.find(
         (zone) =>
@@ -201,12 +241,18 @@ export default function FactoryMap({
       const resource = placement.resource ? itemName(db, placement.resource) : undefined;
 
       /*
-       * What this machine would put its name to on the map. A manufacturer and
-       * a miner are both named by what comes out of them; a generator makes
-       * power, which is not an item, so it is named by what it is. Anything
-       * making nothing — a foundation, a wall, a constructor with no recipe
-       * set — says nothing and is never part of a block.
+       * What this building would put its name to on the map. A manufacturer
+       * and a miner are both named by what comes out of them; a generator
+       * makes power, which is not an item, so it is named by what it is.
+       *
+       * And anything that makes nothing used to say nothing — which left the
+       * largest object on the base, the Space Elevator at 645 m², drawn as an
+       * unlabelled grey slab, along with the HUB and every storage container.
+       * A building that produces nothing is still a place, so it names itself.
+       * Only two things stay silent: the floor, and the fittings a belt runs
+       * through.
        */
+      const held = FITTING.test(placement.machine) ? undefined : placement.holding;
       const produces =
         placement.role === 'production'
           ? (product && itemName(db, product)) || ''
@@ -214,7 +260,16 @@ export default function FactoryMap({
             ? (resource ?? '')
             : placement.role === 'power'
               ? machine
-              : '';
+              : FITTING.test(placement.machine) || FLOOR.test(machine)
+                ? ''
+                : machine;
+
+      /* Item ids are the save's language; a caption is the reader's. */
+      const holding = held
+        ? Object.fromEntries(
+            Object.entries(held).map(([item, count]) => [itemName(db, item), count]),
+          )
+        : undefined;
 
       buildings.push({
         index,
@@ -227,13 +282,20 @@ export default function FactoryMap({
         uptime: placement.uptime ?? line?.uptime ?? null,
         zoneId: zoneAt(placement.x, placement.y),
         name: product ? itemName(db, product) : machine,
-        detail: placement.recipe ? machine : (resource ?? ''),
+        detail: placement.recipe ? machine : (resource ?? elevator(placement.machine) ?? ''),
         product: produces,
+        ...(holding === undefined ? {} : { holding }),
         why: (placement.recipe && why.get(placement.recipe)) || '',
       });
     });
-    // The floor first, so everything else stands on it.
-    buildings.sort((a, b) => Number(FLOOR.test(b.detail)) - Number(FLOOR.test(a.detail)));
+    /*
+     * The floor first, so everything else stands on it. Tested against the
+     * building's name rather than its detail, which is a recipe's machine or a
+     * miner's ore and is empty for every foundation there has ever been — so
+     * this sorted nothing at all until the captions needed the same question
+     * answered.
+     */
+    buildings.sort((a, b) => Number(FLOOR.test(b.name)) - Number(FLOOR.test(a.name)));
 
     /*
      * Routes are drawn as the runs they are — joined where they continue — but
@@ -609,6 +671,41 @@ export default function FactoryMap({
   useEffect(() => {
     sceneRef.current?.highlight(null, selectedZoneId);
   }, [selectedZoneId, status]);
+
+  /**
+   * Fly to one building when asked to, and light it up.
+   *
+   * Framed to a fixed thirty metres around it rather than to its own
+   * footprint: a storage container is 5 × 11 m and filling a 1,200 px canvas
+   * with one arrives at 4,000% zoom, looking at a brown rectangle with no
+   * ground around it to say where in the base you have landed.
+   */
+  useEffect(() => {
+    const at = focusIndex === null ? undefined : snapshot.placements[focusIndex];
+    if (!at || sizeRef.current.width === 0) return;
+    /*
+     * Once, when asked. The scene is rebuilt whenever the plan is toggled or
+     * the theme changes, and a flight that re-fires on a rebuild snatches the
+     * camera back from wherever the reader had panned to.
+     */
+    if (flownToRef.current === focusIndex) return;
+    flownToRef.current = focusIndex ?? null;
+    const { width, height } = sizeRef.current;
+    const REACH = 30;
+    targetRef.current = clamp(
+      fitCamera(
+        { minX: at.x - REACH, minY: at.y - REACH, maxX: at.x + REACH, maxY: at.y + REACH },
+        width,
+        height,
+        0.8,
+      ),
+    );
+    setShown({ scale: targetRef.current.scale, home: homeRef.current.scale });
+    sceneRef.current?.highlight(
+      data.buildings.find((building) => building.index === focusIndex) ?? null,
+      null,
+    );
+  }, [focusIndex, snapshot, data, clamp, sized, status]);
 
   /* ---------------------------------------------------------- the pointer */
 

@@ -771,3 +771,64 @@ describe('analyzeSave · power grids', () => {
     expect(snapshot.circuits[0]?.members).toHaveLength(1);
   });
 });
+
+/** A box, and what is in it. */
+const storage = (name: string, held: Record<string, number>): RawSaveObject => ({
+  instanceName: instance(`${name}.StorageInventory`),
+  typePath: '/Script/FactoryGame.FGInventoryComponent',
+  properties: {
+    mInventoryStacks: {
+      values: Object.entries(held).map(([item, count]) => ({
+        properties: {
+          Item: { value: { itemReference: { pathName: classPath(item) } } },
+          NumItems: { value: count },
+        },
+      })),
+    },
+  },
+});
+
+describe('analyzeSave · what each box holds', () => {
+  /*
+   * Only the base-wide total was kept, on the grounds that which box the five
+   * thousand rods are in is not a question anyone asks. The diagnosis made it
+   * one: three of the reference save's five starving lines wait for something
+   * the base already holds thousands of, and the advice that follows is only
+   * half an answer without somewhere to walk to.
+   */
+  it('keeps a container’s own contents as well as the total', () => {
+    const snapshot = analyzeSave(
+      save([
+        building('Build_StorageContainerMk1_C_1', 'StorageContainerMk1'),
+        storage('Build_StorageContainerMk1_C_1', { Desc_IronRod: 4800 }),
+        building('Build_StorageContainerMk1_C_2', 'StorageContainerMk1'),
+        storage('Build_StorageContainerMk1_C_2', { Desc_IronRod: 374, Desc_Wire: 2029 }),
+      ]),
+    );
+
+    expect(snapshot.stored).toEqual({ Desc_IronRod_C: 5174, Desc_Wire_C: 2029 });
+    expect(snapshot.placements[0]?.holding).toEqual({ Desc_IronRod_C: 4800 });
+    expect(snapshot.placements[1]?.holding).toEqual({
+      Desc_IronRod_C: 374,
+      Desc_Wire_C: 2029,
+    });
+  });
+
+  /*
+   * An empty record, not a missing one — the same rule the input buffers
+   * follow. "This box is empty" is a fact, and it is what tells a map that the
+   * grey rectangle is a box at all rather than a building with nothing to say.
+   */
+  it('says an empty box is empty rather than saying nothing', () => {
+    const snapshot = analyzeSave(
+      save([
+        building('Build_StorageContainerMk1_C_1', 'StorageContainerMk1'),
+        storage('Build_StorageContainerMk1_C_1', {}),
+        building('Build_ConstructorMk1_C_9'),
+      ]),
+    );
+
+    expect(snapshot.placements[0]?.holding).toEqual({});
+    expect(snapshot.placements[1]?.holding).toBeUndefined();
+  });
+});

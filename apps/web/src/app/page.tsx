@@ -451,7 +451,21 @@ export default function OverviewPage() {
                   <Text fontSize="12px" lineHeight="1.4" color="fg.muted" ml="162px" mb={1}>
                     {row.wantedBy
                       ? `${row.wantedBy} is starving for these.`
-                      : `${row.pilingFrom} cannot shift any more.`}
+                      : `${row.pilingFrom} cannot shift any more.`}{' '}
+                    {/*
+                     * And where they are. "2,029 Wire sitting in a container"
+                     * has been the board's most actionable sentence since the
+                     * diagnosis learned to look in the warehouse, and until
+                     * the map could name a box it did not say which container.
+                     */}
+                    <Box
+                      asChild
+                      color="accent.solid"
+                      textDecoration="underline"
+                      textUnderlineOffset="2px"
+                    >
+                      <Link href={`/base?holding=${row.item}`}>find the box</Link>
+                    </Box>
                   </Text>
                 ) : null}
               </Box>

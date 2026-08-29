@@ -71,6 +71,14 @@ export interface SceneBuilding {
   readonly detail: string;
   /** What it makes, for the block it belongs to. Empty if it makes nothing. */
   readonly product: string;
+  /**
+   * What it holds, by item name, when it is a store.
+   *
+   * Present and empty for an empty box, which is what tells a caption that the
+   * grey rectangle is a store at all rather than a building with nothing to
+   * say. Absent for anything that is not one.
+   */
+  readonly holding?: Readonly<Record<string, number>> | undefined;
   /** Why its line is slow, if it is. Empty when there is nothing to say. */
   readonly why: string;
 }

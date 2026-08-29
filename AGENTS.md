@@ -52,6 +52,11 @@ integration tests skip and the web app refuses to build with instructions.
 - **Only what is raw comes out of the ground, and the form has to match.** A miner names no
   resource because it takes whatever node it is bolted to; read as "anything", that offers a
   Miner Mk.1 for water and a Miner Mk.1 for Iron Rods.
+- **A building that makes nothing is still a place.** Everything drawn is named except the
+  floor and the fittings a belt runs through — a splitter is a hole in a belt, and forty-one
+  captioned power poles is not a map. A fitting holds items in transit, so ask "is it a
+  fitting" _before_ "does it hold anything".
+  [ADR 33](docs/adr/0033-the-map-names-its-landmarks.md)
 - **Power draw and power supply never share a field.** `machines[id].powerMW` is what a
   building takes; `generators[id].powerMW` is what one gives. A total that adds them is
   wrong by twice the difference.

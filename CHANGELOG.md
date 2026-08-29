@@ -249,6 +249,25 @@ machines · locked` — and is ordered cheapest first instead of by database ord
   finishes the sentence — _the Conveyor Belt Mk.1 out of it carries 60/min and these
   machines make 120_.
 
+- **The map names its landmarks.** A building said nothing unless it had a role, which left
+  36 of the reference save's 79 drawn buildings anonymous — including the four largest, the
+  Space Elevator (645 m²) among them, drawn as an unlabelled grey slab
+  ([ADR 33](docs/adr/0033-the-map-names-its-landmarks.md)). Everything drawn is named now
+  except the floor and the fittings a belt runs through.
+- **A box says what is in it**, because "Storage Container" is the one thing about a box a
+  reader can already see. `5,174 Iron Rod +1 more`, `1,016 Copper Ingot +1 more`. A stack of
+  boxes is one place — a base stacks them, and two on the reference save stand at exactly the
+  same point holding Cable and Wire.
+- **`placement.holding`** in `@factory-board/save-reader`: what one container holds, kept
+  alongside the base-wide total it was previously summed into.
+- **The warehouse has a place.** The Overview's storage panel gains a **find the box** link
+  per starving line; `/base?holding=Desc_Wire_C` flies the map to the fullest container
+  holding it and rings it. _"2,029 Wire sitting in a container"_ has been the board's most
+  actionable sentence since the diagnosis learned to look in the warehouse, and it has never
+  said which container.
+- **The Space Elevator carries its phase** in the hover card — the one thing it has to add
+  beyond its name.
+
 ### Changed
 
 - **Map captions appear when there is room rather than at a fixed zoom.** Machine names
@@ -441,6 +460,10 @@ machines · locked` — and is ordered cheapest first instead of by database ord
 
 ### Fixed
 
+- **Foundations were never drawn first.** The floor is sorted to the back of the scene by
+  matching a building against `Foundation|Wall|Ramp|…`, and it was matched against the
+  building's _detail_ — a recipe's machine, or a miner's ore, which is empty for every
+  foundation there has ever been. It tests the name now.
 - **The Planner's node estimate was invented.** The raw-input table printed a "Mk.1 miners"
   column computed as `rate / 60` — a hardcoded normal-purity Miner Mk.1, which tells someone
   with three Mk.3s nothing and never mentioned what was standing in their own save. It reads

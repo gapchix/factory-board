@@ -399,6 +399,8 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   const connections: { self: string; other: string }[] = [];
   const inputContents = new Map<string, Record<ItemId, number>>();
   const outputContents = new Map<string, Record<ItemId, number>>();
+  /** Building instance → what its storage inventory holds. */
+  const holdings = new Map<string, Record<ItemId, number>>();
   const stored: Record<ItemId, number> = {};
   /** Machines and generators whose buffers are joined on once every object is seen. */
   const needsBuffers: { index: number; owner: string; fuel: number | undefined }[] = [];
@@ -431,9 +433,19 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       } else if (instanceName.endsWith('.InputInventory')) {
         inputContents.set(ownerOf(instanceName), inventoryContents(properties));
       } else if (instanceName.endsWith('.StorageInventory')) {
-        // A stock level for the whole base rather than per container: which
-        // box the five thousand rods are in is not a question anyone asks.
-        for (const [item, count] of Object.entries(inventoryContents(properties))) {
+        /*
+         * Both: a stock level for the whole base, and what this one box holds.
+         *
+         * Only the total was kept, on the grounds that "which box the five
+         * thousand rods are in is not a question anyone asks". It became one.
+         * The diagnosis found three of the reference save's five starving
+         * lines waiting for something the base already holds thousands of, so
+         * "2,029 Wire sitting in a container" is now advice — and advice
+         * without a place to walk to is half of one.
+         */
+        const held = inventoryContents(properties);
+        holdings.set(ownerOf(instanceName), held);
+        for (const [item, count] of Object.entries(held)) {
           stored[item] = (stored[item] ?? 0) + count;
         }
       }
@@ -650,6 +662,21 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       ...(output === undefined ? {} : { output }),
       ...(pending.fuel === undefined ? {} : { fuel: pending.fuel }),
     };
+  }
+
+  /*
+   * And what each box holds, which is a join of its own: `needsBuffers` only
+   * collects machines and generators, and a storage container is neither —
+   * it has no recipe, no node and no fuel, so nothing about it was ever
+   * looked up. An empty record is kept rather than dropped, the same way an
+   * empty input buffer is: "this container is empty" is a fact, and it is
+   * what tells a map that the grey rectangle is a store at all.
+   */
+  for (const [owner, held] of holdings) {
+    const index = placementOf.get(owner);
+    const placement = index === undefined ? undefined : placements[index];
+    if (index === undefined || !placement) continue;
+    placements[index] = { ...placement, holding: held };
   }
 
   /*
