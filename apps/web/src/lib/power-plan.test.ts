@@ -10,6 +10,7 @@ const db = {
   buildings: {},
   recipes: {},
   milestones: {},
+  schematics: {},
   machines: {
     smelter: { id: 'smelter', name: 'Smelter', powerMW: 4 },
     assembler: { id: 'assembler', name: 'Assembler', powerMW: 15 },

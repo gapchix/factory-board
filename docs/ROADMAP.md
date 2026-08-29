@@ -466,6 +466,50 @@ The integration tests still skip there on purpose: they pin real numbers against
 extracted database, and pointing them at the demo would turn a check on reality into a
 check that the fixture matches itself.
 
+### G. What you can build, and what it would cost · shipped
+
+The recipe picker had been a dropdown of every recipe that makes the thing, in database
+order, marked `(alt)`. On a real database that is 110 alternates offered whether or not you
+have found the hard drive, and no word anywhere about what picking one would do.
+
+Measuring it against the reference save made it a correctness problem rather than a polish
+one ([ADR 30](adr/0030-the-save-says-what-you-can-build.md)). That save has unlocked **16 of
+291 recipes and none of the 110 alternates** — and the 44-machine Phase 2 plan the board
+writes in one click contains **six lines and nine machines behind two milestones nobody had
+bought**. The board was saying "build three Foundries" to someone who does not have the
+Foundry.
+
+The game files answer both halves and the extractor was throwing one away: it kept the 42
+numbered milestones out of `FGSchematic` and dropped the rest, which is where hard drives
+and MAM research live. The database now carries all 197 schematics that hand out a recipe,
+and the save's `mPurchasedSchematics` — which has always held tutorials and customizer
+unlocks alongside milestones — says which you own.
+
+**Every alternate is priced against the whole plan**, because pricing the line it changes
+reports the wrong number: Cast Screws removes the rod constructors that only ever existed to
+feed the screw constructors, and pricing the screw line alone misses five of them. So the
+Planner leads with a ranking, and on the reference save it is entirely a shopping list:
+
+    YOURS ALREADY        Nothing you have unlocked would improve this plan.
+
+    WORTH GOING AFTER
+      Alternate: Steel Screws          -9 machines  -24 MW  -40 Iron Ore · +18 Coal
+      Alternate: Plastic Smart Plating -9 machines   -3 MW  -58 Iron Ore · +11 Crude Oil
+      Alternate: Steel Rotor           -7 machines  -27 MW  -41 Iron Ore · +15 Coal
+
+Seventeen swaps would build that factory with fewer machines and the player has none of
+them. Each card's dropdown carries the same figures — `Alternate: Cast Screws · -5 machines
+· locked` — and a line you cannot build says so instead of reading as ordinary work.
+
+What keeps it honest: **a running line counts as proof**, so the worst available error —
+calling a machine you are looking at impossible — cannot happen, and a database with no
+unlock data says nothing rather than saying everything is locked. All twelve lines the
+reference base runs read as unlocked, which is the check that the reading is right.
+
+Next for it: nothing pressing. Swaps are priced one at a time against the plan as it
+stands, which is honest but means two of them do not add up — taking one re-prices the
+rest, and the page says so rather than pretending otherwise.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.
@@ -478,7 +522,9 @@ All three are designed to be useful outside this app.
 
 - Playwright E2E covering load → solve → compare
 - Favicon and app icons
-- Alternate-recipe picker: show what a swap costs in machines and power
+- ~~Alternate-recipe picker: show what a swap costs in machines and power~~ — done
+  2026-08-29, and it grew a second half nobody had asked for: which of them you have
+  actually unlocked. See G above.
 - Export/import a plan as JSON
 - ~~A small fixture game database so CI can type-check and build `apps/web`~~ — done
   2026-08-29, and it turned out to be a feature rather than a fixture. See F below.

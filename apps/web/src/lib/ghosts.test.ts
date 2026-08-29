@@ -10,6 +10,7 @@ const db = {
   machines: {},
   recipes: {},
   milestones: {},
+  schematics: {},
   buildings: {
     ConstructorMk1: {
       id: 'ConstructorMk1',

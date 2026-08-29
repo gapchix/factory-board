@@ -167,6 +167,38 @@ All notable changes to this project are documented here. The format follows
   On the reference save the frame goes from 417 × 145 m to the factory's own
   151 × 145 m, and the scale from 2.53 to 5.22 units per metre. 10 more tests.
 
+- **The database says what unlocks a recipe.** `GameDatabase` gains `schematics` — every
+  schematic that hands out a recipe, with its name, kind and tech tier. The extractor kept
+  the 42 numbered milestones out of `FGSchematic` and dropped the rest, which is where
+  hard drives and MAM research live; it now keeps all 197 that unlock something, covering
+  every one of the 291 recipes, for 37 KB on a 222 KB database
+  ([ADR 30](docs/adr/0030-the-save-says-what-you-can-build.md)).
+- **`unlockedRecipes` and `recipeUnlocks`** in `@factory-board/planner`: what a save's
+  purchased schematics let you build, and what would unlock what they do not. A database
+  with no unlock data answers `null` rather than an empty set, because "nothing is known"
+  must never be drawn as "you have nothing".
+- **`priceSwaps` and `priceAllSwaps`**: every recipe that could make an item, priced
+  against the _whole_ plan in machines, power and each raw resource. It has to be the
+  whole plan — Cast Screws removes the rod constructors that only existed to feed the
+  screw constructors, so pricing the screw line alone reports a saving of nothing and
+  misses five machines. 55 candidate solves take 34 ms on the reference plan.
+- **"Other ways to build it"** on the Planner: every alternate ranked by what it would
+  save, split into what the save has unlocked and what it has not. On the reference save
+  the first half reads _"Nothing you have unlocked would improve this plan"_ and the
+  second is a shopping list of seventeen hard drives, the best worth nine machines.
+- **A line you cannot build says so.** The 44-machine Phase 2 plan contains six lines and
+  nine machines behind two milestones the reference save has not bought, and reported them
+  as ordinary work. The card now reads `NOT UNLOCKED — it needs Tier 3 · Basic Steel
+Production`. The planner itself is not gated: planning ahead of your tech tree is
+  deliberate, and treating a locked recipe as absent would silently turn Steel Ingot into
+  a raw input.
+- **The recipe dropdown carries the price and the lock** — `Alternate: Cast Screws · -5
+machines · locked` — and is ordered cheapest first instead of by database order.
+- **The demo has hard drives.** A Foundry and a fourth alternate, so both halves are
+  visible without the game: its save has found the Cast Screws drive, which saves it a
+  machine, and not the Iron Alloy Ingot drive, which would save another by spending copper
+  ore. 39 more tests.
+
 ### Changed
 
 - **Map captions appear when there is room rather than at a fixed zoom.** Machine names
@@ -478,3 +510,8 @@ All notable changes to this project are documented here. The format follows
 - The scale bar and the zoom readout can no longer disagree. Both are derived from one
   piece of state rather than the readout from state and the bar from a ref the render
   had not seen move.
+- The demo base no longer runs recipes its own save says are locked. It made Rotors and
+  Reinforced Iron Plates while owning neither of the schematics that grant them — nobody
+  could see it until the board learned to read unlocks, and it would have made the board's
+  newest answer look broken on the first page anyone without the game opens. A test now
+  pins it.

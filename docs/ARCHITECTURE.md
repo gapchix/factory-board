@@ -209,8 +209,11 @@ assertions check the maths against the game rather than against themselves.
 ## Performance
 
 A 230 KB save parses in about 200 ms; large ones take a few seconds, which is why it
-happens in a Worker. The extracted database is ~120 KB of JSON for the full recipe book
-— small enough to inline with no loading state.
+happens in a Worker. The extracted database is ~220 KB of JSON for the full recipe book,
+its unlocks included — small enough to inline with no loading state.
+
+Pricing every alternate against a plan is a solve per candidate: 55 of them take 34 ms on
+the Phase 2 plan, in a memo that only re-runs when the plan changes.
 
 ## Key decisions
 
@@ -242,6 +245,7 @@ Recorded in full under [adr/](adr).
 | [Signposts at the camera](adr/0022-signposts-are-worked-out-at-the-camera.md)                | A pointer that goes stale is worse than none; and the frame is bought with buildings, the leash is not            |
 | [A caption is placed, not hung](adr/0023-a-caption-is-placed-not-hung.md)                    | A fixed offset has no second answer; rings of candidates took 19 crowded names to 22 clear ones                   |
 | [The buffers say why](adr/0024-the-buffers-say-why.md)                                       | Uptime has two causes wanting opposite fixes; "starving" was wrong about the two largest lines                    |
+| [The save says what you can build](adr/0030-the-save-says-what-you-can-build.md)             | 110 alternates offered and none of them unlocked; a swap is priced against the whole plan, never its own line     |
 | [The board ships a base of its own](adr/0029-the-board-ships-a-base-of-its-own.md)           | ADR 3 kept the data out and quietly kept everyone else out too; the demo is ours, so CI can build the app at last |
 | [The Planner plans against the world](adr/0028-the-planner-plans-against-the-world.md)       | It told you to build more of a line that was already backed up; stock, power and order all read from the save     |
 | [The plan stands on the ground](adr/0027-the-plan-stands-on-the-ground.md)                   | Ghosts go where the recipe already lives, facing as its neighbours do; the homeless are reported                  |

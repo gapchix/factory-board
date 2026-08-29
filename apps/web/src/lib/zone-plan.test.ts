@@ -41,6 +41,7 @@ const db: GameDatabase = {
     ConstructorMk1: { id: 'ConstructorMk1', name: 'Constructor' },
   },
   milestones: {},
+  schematics: {},
 };
 
 const machine = (x: number, y: number, recipe: string, id: string): BuildingPlacement => ({

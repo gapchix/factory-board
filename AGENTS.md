@@ -78,6 +78,13 @@ integration tests skip and the web app refuses to build with instructions.
   guard has to be state, not a ref: a ref set at the end of the restore effect is already
   true when the writers run in that same commit.
   [ADR 27](docs/adr/0027-the-plan-stands-on-the-ground.md)
+- **An absent fact is not a negative one.** A database with no unlock data answers `null`
+  rather than an empty set, a recipe nothing is known to unlock is never called locked, and
+  a line the factory is visibly running counts as unlocked whatever the schematic list
+  says. The worst error available here is telling someone the machines in front of them are
+  impossible. [ADR 30](docs/adr/0030-the-save-says-what-you-can-build.md)
+- **A swap is priced against the whole plan.** Changing one recipe moves everything upstream
+  of it, so pricing the line that changed reports the wrong number in the wrong direction.
 - **Domain rules get a test.** Changing one means changing the test that pins it, and
   saying why.
 

@@ -56,6 +56,7 @@ const db: GameDatabase = {
     },
   },
   milestones: {},
+  schematics: {},
 };
 
 const machine = (

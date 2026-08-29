@@ -11,6 +11,8 @@ export type ItemId = string;
 export type RecipeId = string;
 export type MachineId = string;
 export type MilestoneId = string;
+/** A milestone, a MAM research node or a hard drive — the same id space. */
+export type SchematicId = string;
 
 export interface GameItem {
   readonly id: ItemId;
@@ -83,6 +85,34 @@ export interface GameMilestone {
   readonly unlocks: readonly RecipeId[];
 }
 
+/**
+ * Where an unlock comes from, which is the difference between "buy the
+ * milestone" and "go and find a hard drive".
+ */
+export type SchematicKind = 'milestone' | 'research' | 'hard-drive' | 'other';
+
+/**
+ * One thing you unlock, and the recipes it hands you.
+ *
+ * The game keeps every unlock in one list — HUB milestones, MAM research and
+ * hard-drive alternates alike — and a save records which of them the player
+ * has bought. That pairing is what lets a plan say a line is not buildable
+ * yet, and what it would take to make it so.
+ *
+ * A recipe can have more than one of these: Turbofuel arrives with its own
+ * hard drive *or* with the sulfur research that also grants it, and owning
+ * either is enough.
+ */
+export interface GameSchematic {
+  readonly id: SchematicId;
+  readonly name: string;
+  readonly kind: SchematicKind;
+  /** The tech tier the game files state, or 0 where they state none. */
+  readonly tier: number;
+  /** Recipes this unlocks. Only ever recipes the database also knows. */
+  readonly unlocks: readonly RecipeId[];
+}
+
 export interface GameDatabase {
   /**
    * Steam build id of the install this was extracted from, or 0 when unknown.
@@ -97,6 +127,15 @@ export interface GameDatabase {
   /** Display names for every placeable building, machines included. */
   readonly buildings: Readonly<Record<MachineId, GameBuilding>>;
   readonly milestones: Readonly<Record<MilestoneId, GameMilestone>>;
+  /**
+   * Every unlock that hands out a recipe, milestones included.
+   *
+   * Overlaps `milestones` on purpose. That record is the tier ladder with its
+   * costs, which is what a progression view shows; this one answers a
+   * different question — what stands between you and a recipe — and has to
+   * cover research and hard drives to answer it at all.
+   */
+  readonly schematics: Readonly<Record<SchematicId, GameSchematic>>;
 }
 
 export interface ProductionTarget {

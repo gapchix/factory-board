@@ -5,6 +5,7 @@ import type {
   GameMachine,
   GameMilestone,
   GameRecipe,
+  GameSchematic,
   RecipePort,
 } from '@factory-board/planner';
 import {
@@ -25,6 +26,19 @@ const LITRES_PER_CUBIC_METRE = 1000;
 
 const MILESTONE_PATTERN = /^Schematic_(\d+)-(\d+)_C$/;
 
+/**
+ * The game's own word for where an unlock comes from, in ours.
+ *
+ * Only the three a player can act on are named. Everything else that hands out
+ * a recipe — the tutorial, the background unlocks the story grants — is
+ * `other`, because there is nothing to tell someone to go and do about it.
+ */
+const SCHEMATIC_KINDS: Readonly<Record<string, GameSchematic['kind']>> = {
+  EST_Milestone: 'milestone',
+  EST_MAM: 'research',
+  EST_Alternate: 'hard-drive',
+};
+
 export interface ExtractOptions {
   /** Steam build id to stamp on the database (see GameDatabase.sourceBuildId). */
   readonly sourceBuildId: number;
@@ -41,6 +55,7 @@ export interface ExtractionReport {
     readonly machines: number;
     readonly buildings: number;
     readonly milestones: number;
+    readonly schematics: number;
   };
   readonly skipped: readonly string[];
 }
@@ -229,6 +244,38 @@ function buildMilestones(
 }
 
 /**
+ * Every unlock that hands out a recipe this database kept.
+ *
+ * A recipe is behind exactly one of these in the usual case and behind two in a
+ * handful — Turbofuel arrives with its own hard drive and again with the sulfur
+ * research — so this is built as schematic-to-recipes and read in reverse.
+ *
+ * Schematics unlocking nothing the database kept are dropped, which is most of
+ * them: 574 classes in the game files, of which 197 unlock a recipe and the
+ * rest sell AWESOME Shop parts and paint colours.
+ */
+function buildSchematics(
+  docs: readonly DocsGroup[],
+  recipes: Readonly<Record<string, GameRecipe>>,
+): Record<string, GameSchematic> {
+  const schematics: Record<string, GameSchematic> = {};
+  for (const cls of classesMatching(docs, /FGSchematic/)) {
+    const unlocks = parseUnlockedRecipes(cls['mUnlocks']).filter((id) => id in recipes);
+    if (unlocks.length === 0) continue;
+
+    const type = readString(cls['mType']) ?? '';
+    schematics[cls.ClassName] = {
+      id: cls.ClassName,
+      name: readString(cls['mDisplayName']) ?? cls.ClassName,
+      kind: SCHEMATIC_KINDS[type] ?? 'other',
+      tier: readNumber(cls['mTechTier']) ?? 0,
+      unlocks,
+    };
+  }
+  return schematics;
+}
+
+/**
  * Turn a decoded Docs.json into the typed database the planner consumes.
  *
  * Items are pruned to those a recipe or milestone actually references, which
@@ -245,6 +292,7 @@ export function extractDatabase(
   const buildings = buildBuildings(docs);
   const recipes = buildRecipes(docs, items, machines, skipped);
   const milestones = buildMilestones(docs, items);
+  const schematics = buildSchematics(docs, recipes);
 
   const referenced = new Set<string>();
   for (const recipe of Object.values(recipes)) {
@@ -273,6 +321,7 @@ export function extractDatabase(
     machines: usedMachines,
     buildings,
     milestones,
+    schematics,
   };
 
   return {
@@ -284,6 +333,7 @@ export function extractDatabase(
       machines: Object.keys(usedMachines).length,
       buildings: Object.keys(buildings).length,
       milestones: Object.keys(milestones).length,
+      schematics: Object.keys(schematics).length,
     },
     skipped,
   };

@@ -209,6 +209,15 @@ export interface WorldSnapshot {
   readonly paths: readonly BuildingPath[];
   /** What feeds what, from the connections the save records. */
   readonly links: readonly BuildingLink[];
+  /**
+   * Every schematic the player has bought, not only the numbered milestones:
+   * the save keeps HUB tiers, tutorial steps, MAM research and hard-drive
+   * alternates in one list, and this is that list unfiltered.
+   *
+   * Named for what it is mostly used for. Callers wanting the tier ladder
+   * filter it against the database's milestones, as the progression view does;
+   * callers asking what you are able to build want all of it.
+   */
   readonly milestones: readonly MilestoneId[];
   /** Every power grid in the world, with what it draws and what it can supply. */
   readonly circuits: readonly PowerCircuit[];

@@ -1,5 +1,10 @@
 import type { GameDatabase, ItemId } from '@factory-board/planner';
 
+/** A whole-number change, with the sign kept: `+3`, `-12 MW`. */
+export function signed(value: number, unit = ''): string {
+  return `${value > 0 ? '+' : ''}${Math.round(value)}${unit}`;
+}
+
 /** Trim trailing zeros so 2.50 reads as 2.5 and 3.00 as 3. */
 export function rate(value: number, decimals = 1): string {
   if (!Number.isFinite(value)) return '0';

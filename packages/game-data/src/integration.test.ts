@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { solve, type GameDatabase } from '@factory-board/planner';
+import { priceSwaps, recipeUnlocks, solve, type GameDatabase } from '@factory-board/planner';
 import { parseGameDatabase } from './schema.js';
 
 /**
@@ -79,6 +79,58 @@ describe.skipIf(!available)('extracted database', () => {
     expect(result.rawInputs[IRON_ORE]).toBeCloseTo(300.75, 2);
     expect(result.rawInputs[COAL]).toBeCloseTo(124.5, 2);
     expect(result.rawInputs[COPPER_ORE]).toBeCloseTo(24, 2);
+  });
+
+  it('knows what stands between the player and every recipe it kept', () => {
+    expect(Object.keys(db.schematics).length).toBeGreaterThan(150);
+
+    const index = recipeUnlocks(db);
+    const orphaned = Object.keys(db.recipes).filter((id) => !index.has(id));
+    expect(orphaned).toEqual([]);
+  });
+
+  it('puts every alternate behind something, and names the tier for a milestone', () => {
+    const index = recipeUnlocks(db);
+    const alternates = Object.values(db.recipes).filter((r) => r.isAlternate);
+    expect(alternates.every((r) => (index.get(r.id) ?? []).length > 0)).toBe(true);
+
+    expect(index.get('Recipe_Alternate_Screw_C')?.[0]).toMatchObject({
+      name: 'Alternate: Cast Screws',
+      kind: 'hard-drive',
+    });
+    expect(index.get('Recipe_IngotSteel_C')?.[0]).toMatchObject({
+      name: 'Basic Steel Production',
+      kind: 'milestone',
+      tier: 3,
+    });
+  });
+
+  /*
+   * The same plan the numbers above pin, asked the other question: of the ways
+   * to make a screw, what does each cost. Cast Screws is the interesting answer
+   * — it removes the rod constructors that only ever existed to feed the screw
+   * constructors, and takes no more ore to do it.
+   */
+  it('prices a real alternate against the Phase 2 plan', () => {
+    const targets = [
+      { item: SMART_PLATING, ratePerMinute: 5 },
+      { item: VERSATILE_FRAMEWORK, ratePerMinute: 5 },
+      { item: AUTOMATED_WIRING, ratePerMinute: 1 },
+    ];
+    const swaps = priceSwaps(db, targets, {}, 'Desc_IronScrew_C');
+
+    const cast = swaps.find((s) => s.recipe === 'Recipe_Alternate_Screw_C');
+    expect(cast?.machines).toBe(-5);
+    expect(cast?.powerMW).toBe(-20);
+    expect(cast?.raw).toEqual({});
+
+    // And one that is cheaper still, by trading ore for coal you have to go and mine.
+    const steel = swaps.find((s) => s.recipe === 'Recipe_Alternate_Screw_2_C');
+    expect(steel?.machines).toBe(-9);
+    expect(steel?.raw[IRON_ORE]).toBeLessThan(0);
+    expect(steel?.raw[COAL]).toBeGreaterThan(0);
+
+    expect(swaps.find((s) => s.current)?.recipe).toBe('Recipe_Screw_C');
   });
 
   it('never mines SAM to make iron, on the real recipe book', () => {

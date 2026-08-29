@@ -1,9 +1,10 @@
 'use client';
 
 import { Box } from '@chakra-ui/react';
-import { solve } from '@factory-board/planner';
+import { priceAllSwaps, solve, type ItemId, type RecipeSwap } from '@factory-board/planner';
 import { useMemo } from 'react';
-import { BoardGrid } from '@/components/board';
+import { Alternates } from '@/components/alternates';
+import { BoardGrid, type SwapIndex } from '@/components/board';
 import { FlowDiagram } from '@/components/flow-diagram';
 import {
   Balance,
@@ -18,6 +19,7 @@ import { buildOrder } from '@/lib/build-order';
 import { diagnose } from '@/lib/diagnose';
 import { powerForPlan } from '@/lib/power-plan';
 import { gameDatabase as db } from '@/lib/game-database';
+import { unlockState } from '@/lib/unlocks';
 import { planByZone } from '@/lib/zone-plan';
 import { buildZoneBoard } from '@/lib/zones';
 import { useBoard } from '@/state/board';
@@ -26,6 +28,27 @@ export default function PlanPage() {
   const { targets, recipeChoices, snapshot, zoneNames, zoneAssignments } = useBoard();
 
   const result = useMemo(() => solve(db, targets, { recipeChoices }), [targets, recipeChoices]);
+
+  /*
+   * What every other recipe in the book would do to this plan.
+   *
+   * A few dozen solves, which is tens of milliseconds, and only when the plan
+   * itself changes. Computed once here rather than per card so the ranked list
+   * below and the picker on each card cannot disagree about what a swap costs.
+   */
+  const swaps = useMemo<SwapIndex>(() => {
+    const priced = priceAllSwaps(db, targets, { recipeChoices });
+    const byItem = new Map<ItemId, RecipeSwap[]>();
+    for (const swap of priced) {
+      const list = byItem.get(swap.item);
+      if (list) list.push(swap);
+      else byItem.set(swap.item, [swap]);
+    }
+    return byItem;
+  }, [targets, recipeChoices]);
+
+  /** What the save says you are able to build, and what stands in the way. */
+  const unlocks = useMemo(() => unlockState(db, snapshot), [snapshot]);
 
   /** Where the plan says each line goes, for the cards to say so. */
   const zonesFor = useMemo(() => {
@@ -142,8 +165,24 @@ export default function PlanPage() {
           actual={snapshot?.lines ?? {}}
           zonesFor={zonesFor}
           verdicts={verdicts}
+          swaps={swaps}
+          unlocks={unlocks}
         />
       </Box>
+
+      {result.lines.length > 0 ? (
+        <Box as="section" mb={9}>
+          <SectionHeading
+            title="Other ways to build it"
+            note={
+              unlocks.known
+                ? 'every alternate priced against this plan · yours first'
+                : 'every alternate priced against this plan'
+            }
+          />
+          <Alternates db={db} swaps={[...swaps.values()].flat()} unlocks={unlocks} />
+        </Box>
+      ) : null}
 
       <Box as="section" mb={9}>
         <SectionHeading title="Inputs & surplus" note="what the plan eats, and what it leaves" />

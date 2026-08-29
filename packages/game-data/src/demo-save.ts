@@ -326,7 +326,23 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
     placements,
     paths,
     links,
-    milestones: ['Schematic_1-1_C', 'Schematic_1-2_C'],
+    /*
+     * Every unlock this base must own for what it is running to be legal, plus
+     * exactly one hard drive.
+     *
+     * The list is checked by a test rather than trusted: a demo whose factory
+     * runs a recipe its own save says is locked would make the board's newest
+     * answer look broken on the first page anyone opens.
+     */
+    milestones: [
+      'Schematic_StartingRecipes_C',
+      'Schematic_Tutorial1_5_C',
+      'Schematic_Tutorial2_C',
+      'Schematic_1-1_C',
+      'Schematic_1-2_C',
+      'Schematic_2-1_C',
+      'Schematic_Alternate_Screw_C',
+    ],
     circuits: [
       // The main grid, comfortable. And a second one with a miner and a
       // constructor on it and nothing generating — every machine there reads as

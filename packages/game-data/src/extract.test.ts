@@ -120,9 +120,26 @@ const docs: DocsGroup[] = [
       {
         ClassName: 'Schematic_3-1_C',
         mDisplayName: 'Coal Power',
+        mType: 'EST_Milestone',
         mTechTier: 3,
         mCost: `(${itemRef('Desc_IronIngot', 150)})`,
         mUnlocks: 'Recipe_IngotIron_C',
+      },
+      {
+        ClassName: 'Schematic_Alternate_Water_C',
+        mDisplayName: 'Alternate: Water Thing',
+        mType: 'EST_Alternate',
+        mTechTier: 1,
+        mUnlocks: 'Recipe_WaterThing_C',
+      },
+      {
+        // Unlocks a hand-crafted recipe, which the extractor drops — so this
+        // has nothing left to unlock and should go with it.
+        ClassName: 'Schematic_Handcrafting_C',
+        mDisplayName: 'Handcrafting',
+        mType: 'EST_MAM',
+        mTechTier: 1,
+        mUnlocks: 'Recipe_HandOnly_C',
       },
       { ClassName: 'Schematic_Tutorial1_C', mDisplayName: 'Tutorial', mTechTier: 0 },
     ],
@@ -167,9 +184,34 @@ describe('extractDatabase', () => {
     ]);
   });
 
+  /*
+   * Milestones and schematics are extracted from the same classes and answer
+   * different questions, so they disagree on purpose: the tier ladder is the
+   * numbered ones, and what stands between you and a recipe is all of them.
+   */
+  it('keeps every schematic that hands out a recipe, not only the milestones', () => {
+    expect(Object.keys(report.database.schematics).sort()).toEqual([
+      'Schematic_3-1_C',
+      'Schematic_Alternate_Water_C',
+    ]);
+  });
+
+  it('says where an unlock comes from, which is what tells you what to go and do', () => {
+    expect(report.database.schematics['Schematic_3-1_C']?.kind).toBe('milestone');
+    expect(report.database.schematics['Schematic_Alternate_Water_C']?.kind).toBe('hard-drive');
+    expect(report.database.schematics['Schematic_Alternate_Water_C']?.tier).toBe(1);
+  });
+
+  it('drops a schematic whose only recipe the extractor threw away', () => {
+    // Otherwise a hand-crafted recipe leaves a phantom unlock behind it.
+    expect(report.database.schematics).not.toHaveProperty('Schematic_Handcrafting_C');
+    expect(report.database.schematics).not.toHaveProperty('Schematic_Tutorial1_C');
+  });
+
   it('reports what it counted', () => {
     expect(report.counts.recipes).toBe(2);
     expect(report.counts.machines).toBe(1);
+    expect(report.counts.schematics).toBe(2);
   });
 });
 
@@ -193,6 +235,7 @@ describe('parseGameDatabase', () => {
         machines: {},
         buildings: {},
         milestones: {},
+        schematics: {},
       }),
     ).toThrow(/failed validation/);
   });

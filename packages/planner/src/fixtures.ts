@@ -1,4 +1,10 @@
-import type { GameDatabase, GameItem, GameMachine, GameRecipe } from './types.js';
+import type {
+  GameDatabase,
+  GameItem,
+  GameMachine,
+  GameRecipe,
+  GameSchematic,
+} from './types.js';
 
 /**
  * A hand-written slice of the real game, used by the tests.
@@ -36,6 +42,14 @@ const recipe = (
 });
 
 const machine = (id: string, name: string, powerMW: number): GameMachine => ({ id, name, powerMW });
+
+const schematic = (
+  id: string,
+  name: string,
+  kind: GameSchematic['kind'],
+  tier: number,
+  unlocks: readonly string[],
+): GameSchematic => ({ id, name, kind, tier, unlocks });
 
 const byId = <T extends { id: string }>(entries: readonly T[]): Record<string, T> =>
   Object.fromEntries(entries.map((e) => [e.id, e]));
@@ -146,4 +160,29 @@ export const testDatabase: GameDatabase = {
     { id: 'MinerMk1', name: 'Miner Mk.1' },
   ]),
   milestones: {},
+  /*
+   * Enough unlocks to ask what a save can and cannot build. Every recipe above
+   * is behind exactly one of these except the coated plate, which is behind two
+   * — the game really does hand some recipes out twice, and owning either is
+   * enough.
+   */
+  schematics: byId([
+    schematic('s-1-1', 'Base Building', 'milestone', 1, [
+      'r-iron-ingot',
+      'r-iron-rod',
+      'r-iron-plate',
+      'r-screw',
+    ]),
+    schematic('s-2-1', 'Part Assembly', 'milestone', 2, [
+      'r-reinforced-iron-plate',
+      'r-rotor',
+      'r-smart-plating',
+    ]),
+    schematic('s-3-4', 'Basic Steel Production', 'milestone', 3, ['r-steel-ingot']),
+    schematic('s-drive-plate', 'Alternate: Coated Iron Plate', 'hard-drive', 0, [
+      'r-alt-steel-plate',
+    ]),
+    schematic('s-research-plating', 'Plating Research', 'research', 4, ['r-alt-steel-plate']),
+    schematic('s-research-sam', 'SAM Conversion', 'research', 8, ['r-iron-ore-from-sam']),
+  ]),
 };

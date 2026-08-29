@@ -53,6 +53,7 @@ const db: GameDatabase = {
   },
   buildings: {},
   milestones: {},
+  schematics: {},
 };
 
 const placement = (role: BuildingPlacement['role'], recipe?: string): BuildingPlacement => ({

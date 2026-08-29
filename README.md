@@ -67,7 +67,7 @@ the bundle. The page itself never touches your disk — it cannot, and shouldn't
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan                                                                                                       |
 | **Base**        | The factory drawn as it stands, every building at the size and angle you built it, coloured by uptime — click one to trace what feeds it. Grouped into zones named for what they make, mine or burn, nameable and linkable |
-| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus                                                                                                                                                    |
+| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus. Every alternate recipe priced against the whole plan in machines, power and ore — ranked, and split by what your save has actually unlocked       |
 | **History**     | Every autosave kept, so the session draws itself: what changed since the last save, machines, power and uptime over time, and a phase burn-down                                                                            |
 | **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                                                     |
 
@@ -80,7 +80,7 @@ Every install already contains a machine-readable dump of it at
 This is also just better: the data is exact for _your_ game version, including whatever
 the last patch changed, rather than whatever a maintainer last got round to updating.
 
-The demo database is a different thing: eleven items and nine recipes, **typed out by hand**
+The demo database is a different thing: fifteen items and fifteen recipes, **typed out by hand**
 in `packages/game-data/src/demo.ts` rather than extracted from anywhere. The rates and
 footprints match the real game because a demo that lies is worse than no demo, but nothing
 is copied from Coffee Stain's files.

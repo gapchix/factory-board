@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'rea
 import { MeterRow, StatRow, StatTile, TimeChart, uptimeTone } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
 import { Label, Mono, SectionHeading, Select } from '@/components/primitives';
-import { playTime, rate } from '@/lib/format';
+import { playTime, rate, signed } from '@/lib/format';
 import { gameDatabase as db } from '@/lib/game-database';
 import { changesBetween, digestOf, phaseProgress, type HistoryPoint } from '@/lib/history';
 import { forgetSession, isAvailable, pointsFor, sessions } from '@/lib/history-store';
@@ -42,7 +42,6 @@ const CHANGE = {
 } as const;
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
-const signed = (value: number, unit = '') => `${value > 0 ? '+' : ''}${Math.round(value)}${unit}`;
 
 export default function HistoryPage() {
   const { snapshot, source } = useBoard();

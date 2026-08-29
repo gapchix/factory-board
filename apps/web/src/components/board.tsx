@@ -1,14 +1,25 @@
 'use client';
 
 import { Box, Flex, Grid, Heading, Text } from '@chakra-ui/react';
-import type { GameDatabase, PlannedLine, SolveResult } from '@factory-board/planner';
+import type {
+  GameDatabase,
+  GameRecipe,
+  ItemId,
+  PlannedLine,
+  RecipeSwap,
+  SolveResult,
+} from '@factory-board/planner';
 import { recipesProducing } from '@factory-board/planner';
 import type { ActualLine } from '@factory-board/save-reader';
 import { useMemo } from 'react';
 import { explain, type LineDiagnosis } from '@/lib/diagnose';
-import { itemName, machineName, machineRank, rate } from '@/lib/format';
+import { itemName, machineName, machineRank, rate, signed } from '@/lib/format';
+import { describeLock, type UnlockState } from '@/lib/unlocks';
 import { useBoard } from '@/state/board';
 import { Label, Meter, Mono, Select } from './primitives';
+
+/** Recipe → what every way of making its product would cost, cheapest first. */
+export type SwapIndex = ReadonlyMap<ItemId, readonly RecipeSwap[]>;
 
 interface Row {
   readonly recipe: string;
@@ -38,6 +49,8 @@ function LineCard({
   db,
   zones,
   verdict,
+  swaps,
+  unlocks,
 }: {
   row: Row;
   db: GameDatabase;
@@ -45,6 +58,10 @@ function LineCard({
   zones: readonly string[] | undefined;
   /** Why this line is slow in the world, if it is. */
   verdict: LineDiagnosis | undefined;
+  /** What the other ways of making this product would cost. */
+  swaps: SwapIndex;
+  /** What this save can build, so the picker stops offering what it cannot. */
+  unlocks: UnlockState;
 }) {
   const { dispatch, recipeChoices } = useBoard();
   const recipe = db.recipes[row.recipe];
@@ -55,7 +72,45 @@ function LineCard({
   const colors = TONE_COLOR[status.tone];
 
   const product = recipe?.outputs[0]?.item;
-  const alternatives = useMemo(() => (product ? recipesProducing(db, product) : []), [db, product]);
+  const priced = product ? swaps.get(product) : undefined;
+
+  /*
+   * Every way to make this, in the order the pricing ranked them — cheapest
+   * first, which is a better dropdown than database order and is the whole
+   * reason the pricing exists. A line running in the world but absent from the
+   * plan has no pricing to rank by, and falls back to the recipe book.
+   */
+  const alternatives = useMemo(() => {
+    const all = product ? recipesProducing(db, product) : [];
+    if (!priced) return all;
+    const rank = new Map(priced.map((swap, index) => [swap.recipe, index]));
+    return [...all].sort((a, b) => (rank.get(a.id) ?? all.length) - (rank.get(b.id) ?? all.length));
+  }, [db, product, priced]);
+
+  /** The option's name, and what choosing it would do to the plan. */
+  const optionLabel = (option: GameRecipe): string => {
+    const price = priced?.find((swap) => swap.recipe === option.id);
+    const parts: string[] = [];
+
+    if (option.isAlternate && !option.name.startsWith('Alternate')) parts.push('alt');
+    if (price?.current) parts.push('in use');
+    else if (price) {
+      if (price.machines !== 0) parts.push(`${signed(price.machines)} machines`);
+      else if (Math.abs(price.powerMW) >= 0.5) parts.push(signed(price.powerMW, ' MW'));
+      else parts.push('no change');
+    }
+    if (!unlocks.unlocked(option.id)) parts.push('locked');
+
+    return parts.length > 0 ? `${option.name} · ${parts.join(' · ')}` : option.name;
+  };
+
+  /*
+   * A plan is allowed to call for a recipe you have not unlocked — planning
+   * ahead is the point of a planner. Saying so is not optional: on the
+   * reference save six of the seventeen lines proposed for Phase 2 are behind
+   * milestones nobody had bought, and the board reported them as ordinary work.
+   */
+  const lockedBy = unlocks.unlocked(row.recipe) ? null : describeLock(unlocks.behind(row.recipe));
 
   /*
    * The plan's instruction, checked against the world.
@@ -182,6 +237,24 @@ function LineCard({
         </Flex>
       ) : null}
 
+      {lockedBy ? (
+        <Flex
+          gap={2}
+          align="baseline"
+          borderLeftWidth="2px"
+          borderColor="fg.muted"
+          pl={2}
+          wrap="wrap"
+        >
+          <Label flex="none" color="fg">
+            Not unlocked
+          </Label>
+          <Text fontSize="12px" lineHeight="1.45" color="fg.muted">
+            This save cannot build it yet — it needs {lockedBy}.
+          </Text>
+        </Flex>
+      ) : null}
+
       {uptime !== null ? (
         <Flex align="center" gap={2.5}>
           <Label>uptime</Label>
@@ -204,8 +277,7 @@ function LineCard({
         >
           {alternatives.map((option) => (
             <option key={option.id} value={option.id}>
-              {option.name}
-              {option.isAlternate ? ' (alt)' : ''}
+              {optionLabel(option)}
             </option>
           ))}
         </Select>
@@ -235,10 +307,16 @@ export function BoardGrid({
   actual,
   zonesFor,
   verdicts,
+  swaps,
+  unlocks,
 }: {
   db: GameDatabase;
   result: SolveResult;
   actual: Readonly<Record<string, ActualLine>>;
+  /** What every other recipe for each product would cost the plan. */
+  swaps: SwapIndex;
+  /** What this save has unlocked, so a card can say what it cannot build. */
+  unlocks: UnlockState;
   /** Recipe → the zones its machines are meant to be built in. */
   zonesFor?: ReadonlyMap<string, readonly string[]> | undefined;
   /**
@@ -319,6 +397,8 @@ export function BoardGrid({
                 db={db}
                 zones={zonesFor?.get(row.recipe)}
                 verdict={verdicts?.get(row.recipe)}
+                swaps={swaps}
+                unlocks={unlocks}
               />
             ))}
           </Grid>

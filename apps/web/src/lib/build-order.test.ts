@@ -11,6 +11,7 @@ const db = {
   sourceBuildId: 0,
   buildings: {},
   milestones: {},
+  schematics: {},
   items: {
     ore: { id: 'ore', name: 'Iron Ore', isRaw: true, isFluid: false },
     ingot: { id: 'ingot', name: 'Iron Ingot', isRaw: false, isFluid: false },

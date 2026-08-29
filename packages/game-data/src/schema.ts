@@ -6,6 +6,7 @@ import type {
   GameMachine,
   GameMilestone,
   GameRecipe,
+  GameSchematic,
 } from '@factory-board/planner';
 
 /**
@@ -60,6 +61,14 @@ const gameMilestoneSchema = z.object({
   unlocks: z.array(z.string()),
 });
 
+const gameSchematicSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  kind: z.enum(['milestone', 'research', 'hard-drive', 'other']),
+  tier: z.number().int().nonnegative(),
+  unlocks: z.array(z.string()),
+});
+
 export const gameDatabaseSchema = z.object({
   sourceBuildId: z.number().int().nonnegative(),
   items: z.record(z.string(), gameItemSchema),
@@ -67,6 +76,14 @@ export const gameDatabaseSchema = z.object({
   machines: z.record(z.string(), gameMachineSchema),
   buildings: z.record(z.string(), gameBuildingSchema),
   milestones: z.record(z.string(), gameMilestoneSchema),
+  /*
+   * Defaulted rather than required, so a database generated before unlocks were
+   * extracted still loads. It then says nothing about what is locked, which is
+   * the correct answer for a database that does not know — see
+   * `unlockedRecipes`, which returns null rather than an empty set for exactly
+   * this case.
+   */
+  schematics: z.record(z.string(), gameSchematicSchema).default({}),
 });
 
 export type GameDatabaseShape = z.infer<typeof gameDatabaseSchema>;
@@ -103,6 +120,10 @@ const _milestoneKeys: AssertNoMissingKeys<
   GameMilestone,
   z.infer<typeof gameMilestoneSchema>
 > = true;
+const _schematicKeys: AssertNoMissingKeys<
+  GameSchematic,
+  z.infer<typeof gameSchematicSchema>
+> = true;
 const _databaseKeys: AssertNoMissingKeys<GameDatabase, GameDatabaseShape> = true;
 
 void [
@@ -112,6 +133,7 @@ void [
   _machineKeys,
   _buildingKeys,
   _milestoneKeys,
+  _schematicKeys,
   _databaseKeys,
 ];
 

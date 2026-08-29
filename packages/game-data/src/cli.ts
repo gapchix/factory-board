@@ -64,6 +64,7 @@ function main(): void {
     `Wrote    ${outPath} (${(json.length / 1024).toFixed(0)} KB)\n` +
       `         ${counts.recipes} recipes (${counts.alternateRecipes} alternate), ` +
       `${counts.items} items, ${counts.machines} machines, ${counts.milestones} milestones\n` +
+      `         ${counts.schematics} schematics that unlock a recipe\n` +
       `         source build id ${database.sourceBuildId || 'unknown'}`,
   );
   if (skipped.length > 0) {
