@@ -543,6 +543,41 @@ and the demo, which had to be correct before any of this could be shown on it, t
 be burning coal in burners that cannot take it, wired to a grid list that had gone stale,
 and claiming capacity from a generator standing empty. All three are fixed and pinned.
 
+### I. A rate has to travel, and start somewhere · shipped
+
+Everything the board says is a rate, and H priced the last thing a rate _costs_. This is the
+two things a rate has to **do**, neither of which was ever mentioned: travel down a belt, and
+start out of the ground ([ADR 32](adr/0032-a-rate-has-to-travel.md)).
+
+Measured against the plan the board writes for itself, both are broken on the reference save:
+
+    TOO MUCH FOR THE BELT IT RUNS ON    14 other lines fit down what already carries them
+      Screws        230   /min  on Mk.2 · 120/min   4 × Mk.1 · 2 × Mk.2 · 1 × Mk.3*
+      Iron Ingot    176.3 /min  on Mk.1 ·  60/min   3 × Mk.1 · 2 × Mk.2 · 1 × Mk.3*
+
+    MORE THAN THE MINE CAN GIVE         at 100% clock, and the nodes are not in the save
+      Iron Ore      300.8 /min  2 standing · 120/min   240 even with every node pure
+      Coal          124.5 /min  1 standing ·  60/min   120 even with every node pure
+
+The second block is the whole plan being **impossible on the mine that exists**, which no
+amount of machine-building fixes. The two are drawn apart on purpose: a belt is a ceiling you
+widen and the board offers every tier with a count; a node is one you cannot, so extraction
+is answered as the range half-to-double that purity makes it — a single number there would
+read as a measurement of something no save records.
+
+**What a belt carries is followed rather than guessed.** The first attempt compared a line's
+output against the belt _nearest_ it, and said two of twelve lines were over capacity. Neither
+is — four smelters making 30 each on four belts is not 120 on one. Flow is now walked out of
+each machine, along the run and through mergers, and **stops at a splitter**. Nothing on the
+base is over; the Screw run sits at exactly 120 of a Mk.2 belt's 120, which is a run the
+player upgraded by hand and the board could not have told them to.
+
+It also took an invented number off the page: the raw-input table's "Mk.1 miners" column was
+`rate / 60`, a hardcoded normal-purity Mk.1, and is now the mine standing in the save.
+
+Next for it: the belt half is planning-only. Once a run is provably full the map could draw
+it, and the flow diagram's edges already carry rates that could carry a tier.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.

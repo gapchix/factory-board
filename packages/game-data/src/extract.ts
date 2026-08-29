@@ -1,6 +1,8 @@
 import type {
   GameBuilding,
+  GameCarrier,
   GameDatabase,
+  GameExtractor,
   GameGenerator,
   GameItem,
   GameMachine,
@@ -56,6 +58,8 @@ export interface ExtractionReport {
     readonly alternateRecipes: number;
     readonly machines: number;
     readonly generators: number;
+    readonly carriers: number;
+    readonly extractors: number;
     readonly buildings: number;
     readonly milestones: number;
     readonly schematics: number;
@@ -279,6 +283,110 @@ function buildGenerators(
   return generators;
 }
 
+/**
+ * Belts, lifts and pipes, in the units a plan is written in.
+ *
+ * Both figures are stated in the game's own internal terms and neither is
+ * items a minute:
+ *
+ *  - `mSpeed` is **twice** the item rate. A Mk.1 belt says 120 and moves 60,
+ *    and the ladder checks out all the way up — 2400 for the Mk.6's 1,200.
+ *  - `mFlowLimit` is m³ a **second**. Five, for a Pipeline Mk.1, is the
+ *    300 m³/min the game's own tooltip quotes.
+ */
+const BELT_SPEED_PER_ITEM = 2;
+
+function buildCarriers(docs: readonly DocsGroup[]): Record<string, GameCarrier> {
+  const carriers: Record<string, GameCarrier> = {};
+
+  const add = (cls: DocsClass, kind: GameCarrier['kind'], ratePerMinute: number): void => {
+    if (ratePerMinute <= 0) return;
+    const id = cls.ClassName.replace(/^Build_|_C$/g, '');
+    carriers[id] = {
+      id,
+      name: readString(cls['mDisplayName']) ?? id,
+      kind,
+      ratePerMinute,
+    };
+  };
+
+  for (const cls of classesMatching(docs, /FGBuildableConveyorBelt/)) {
+    add(cls, 'belt', (readNumber(cls['mSpeed']) ?? 0) / BELT_SPEED_PER_ITEM);
+  }
+  for (const cls of classesMatching(docs, /FGBuildableConveyorLift/)) {
+    add(cls, 'lift', (readNumber(cls['mSpeed']) ?? 0) / BELT_SPEED_PER_ITEM);
+  }
+  /*
+   * The trailing quote is load-bearing. A native class reads
+   * `…FactoryGame.FGBuildablePipeline'`, so anchoring on the end of the string
+   * matches nothing, and leaving the anchor off matches the pump, the junction
+   * and the supports — none of which carry a flow limit, so the pipes came out
+   * empty either way.
+   */
+  for (const cls of classesMatching(docs, /FGBuildablePipeline'/)) {
+    add(cls, 'pipe', (readNumber(cls['mFlowLimit']) ?? 0) * SECONDS_PER_MINUTE);
+  }
+
+  return carriers;
+}
+
+/**
+ * Miners, pumps and extractors, at a normal node.
+ *
+ * `mItemsPerCycle / mExtractCycleTime` a second is the rate, in internal units
+ * — so a Water Extractor's 2000 a second is 120 m³ a minute once fluids are
+ * normalised like everything else.
+ *
+ * **Purity is a property of the node, and the Water Extractor stands on
+ * none.** The game separates them itself: water comes from `FGBuildableWaterPump`
+ * and everything else from the resource-extractor classes, so which of them
+ * ranges from half to double is read rather than guessed at from a class name.
+ */
+function buildExtractors(
+  docs: readonly DocsGroup[],
+  items: Readonly<Record<string, GameItem>>,
+): Record<string, GameExtractor> {
+  const extractors: Record<string, GameExtractor> = {};
+
+  const add = (cls: DocsClass, purityVaries: boolean): void => {
+    const perCycle = readNumber(cls['mItemsPerCycle']) ?? 0;
+    const cycle = readNumber(cls['mExtractCycleTime']) ?? 0;
+    if (perCycle <= 0 || cycle <= 0) return;
+
+    const forms = readString(cls['mAllowedResourceForms']) ?? '';
+    const fluid = /RF_LIQUID|RF_GAS/.test(forms);
+
+    const resources: string[] = [];
+    for (const match of (readString(cls['mAllowedResources']) ?? '').matchAll(
+      /([A-Za-z0-9_]+_C)/g,
+    )) {
+      const id = match[1];
+      if (id && items[id] && !resources.includes(id)) resources.push(id);
+    }
+
+    const perSecond = perCycle / cycle;
+    const id = cls.ClassName.replace(/^Build_|_C$/g, '');
+    extractors[id] = {
+      id,
+      name: readString(cls['mDisplayName']) ?? id,
+      ratePerMinute: (fluid ? perSecond / LITRES_PER_CUBIC_METRE : perSecond) * SECONDS_PER_MINUTE,
+      purityVaries,
+      fluid,
+      resources,
+    };
+  };
+
+  for (const cls of classesMatching(
+    docs,
+    /FGBuildableResourceExtractor|FGBuildableFrackingExtractor/,
+  )) {
+    add(cls, true);
+  }
+  for (const cls of classesMatching(docs, /FGBuildableWaterPump/)) add(cls, false);
+
+  return extractors;
+}
+
 function toPorts(
   raw: unknown,
   items: Readonly<Record<string, GameItem>>,
@@ -402,6 +510,8 @@ export function extractDatabase(
   const buildings = buildBuildings(docs);
   const recipes = buildRecipes(docs, items, machines, skipped);
   const generators = buildGenerators(docs, items);
+  const carriers = buildCarriers(docs);
+  const extractors = buildExtractors(docs, items);
   const milestones = buildMilestones(docs, items);
   const schematics = buildSchematics(docs, recipes);
 
@@ -444,6 +554,8 @@ export function extractDatabase(
     recipes,
     machines: usedMachines,
     generators,
+    carriers,
+    extractors,
     buildings,
     milestones,
     schematics,
@@ -457,6 +569,8 @@ export function extractDatabase(
       alternateRecipes: Object.values(recipes).filter((r) => r.isAlternate).length,
       machines: Object.keys(usedMachines).length,
       generators: Object.keys(generators).length,
+      carriers: Object.keys(carriers).length,
+      extractors: Object.keys(extractors).length,
       buildings: Object.keys(buildings).length,
       milestones: Object.keys(milestones).length,
       schematics: Object.keys(schematics).length,

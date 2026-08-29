@@ -1,6 +1,7 @@
-import type { GameDatabase, ItemId, RecipeId } from '@factory-board/planner';
+import type { GameDatabase, ItemId, MachineId, RecipeId } from '@factory-board/planner';
 import type { BuildingPlacement, PowerCircuit, WorldSnapshot } from '@factory-board/save-reader';
 import { itemName } from './format';
+import { forcedFlow, tightestPerRecipe } from './throughput';
 
 /**
  * Why a line is slow — starving or backed up.
@@ -91,6 +92,21 @@ export interface PowerFault {
   readonly capacityMW: number;
 }
 
+/**
+ * The belt a backed-up line's product cannot get down.
+ *
+ * "Backed up" says the line has nowhere to put things and leaves the reason to
+ * be found. Sometimes the reason is the belt itself, and the save states it:
+ * a run that every one of these machines' output is forced through, carrying
+ * more than its tier can take.
+ */
+export interface CarrierLimit {
+  readonly carrier: MachineId;
+  readonly name: string;
+  readonly capacityPerMinute: number;
+  readonly carryingPerMinute: number;
+}
+
 export interface LineDiagnosis {
   readonly recipe: RecipeId;
   readonly verdict: Verdict;
@@ -99,6 +115,8 @@ export interface LineDiagnosis {
   readonly shortage: Shortage | null;
   readonly backlog: Backlog | null;
   readonly power: PowerFault | null;
+  /** Set only when a full belt is the stated reason a line is backed up. */
+  readonly carrier: CarrierLimit | null;
 }
 
 /**
@@ -156,6 +174,7 @@ export function diagnoseLine(
   placements: readonly BuildingPlacement[],
   stored: Readonly<Record<ItemId, number>> = {},
   circuits: readonly PowerCircuit[] = [],
+  carrier: CarrierLimit | null = null,
 ): LineDiagnosis {
   const machines = placements.length;
   const base = {
@@ -165,6 +184,7 @@ export function diagnoseLine(
     shortage: null,
     backlog: null,
     power: null,
+    carrier: null,
   } as const;
   if (uptime === null) return { ...base, verdict: 'unmeasured' };
   if (uptime >= RUNNING) return { ...base, verdict: 'running' };
@@ -199,7 +219,7 @@ export function diagnoseLine(
       stored: stored[port.item] ?? 0,
     };
   }
-  if (worstBacklog) return { ...base, verdict: 'blocked', backlog: worstBacklog };
+  if (worstBacklog) return { ...base, verdict: 'blocked', backlog: worstBacklog, carrier };
 
   /* Then the tightest ingredient. Batches rather than items, so a recipe
    * wanting 25 screws and one wanting 2 wire can be compared at all. */
@@ -272,8 +292,26 @@ export function diagnose(db: GameDatabase, snapshot: WorldSnapshot): LineDiagnos
     else byRecipe.set(placement.recipe, [placement]);
   }
 
+  /*
+   * A full belt is a reason, where the save can prove one. `forcedFlow` only
+   * reports segments a line's output *cannot* avoid, so a limit named here is
+   * arithmetic on two stated numbers rather than a story about a backlog.
+   */
+  const tightest = tightestPerRecipe(forcedFlow(db, snapshot));
+
   const out: LineDiagnosis[] = [];
   for (const [recipe, line] of Object.entries(snapshot.lines)) {
+    const segment = tightest.get(recipe);
+    const full =
+      segment && segment.carryingPerMinute >= segment.capacityPerMinute
+        ? {
+            carrier: segment.carrier,
+            name: segment.name,
+            capacityPerMinute: segment.capacityPerMinute,
+            carryingPerMinute: segment.carryingPerMinute,
+          }
+        : null;
+
     out.push(
       diagnoseLine(
         db,
@@ -282,6 +320,7 @@ export function diagnose(db: GameDatabase, snapshot: WorldSnapshot): LineDiagnos
         byRecipe.get(recipe) ?? [],
         snapshot.stored,
         snapshot.circuits,
+        full,
       ),
     );
   }
@@ -291,7 +330,7 @@ export function diagnose(db: GameDatabase, snapshot: WorldSnapshot): LineDiagnos
 
 /** One line of prose saying what is wrong, or null when nothing is. */
 export function explain(diagnosis: LineDiagnosis): string | null {
-  const { shortage, backlog, power } = diagnosis;
+  const { shortage, backlog, power, carrier } = diagnosis;
   switch (diagnosis.verdict) {
     case 'unpowered':
       if (!power) return null;
@@ -299,11 +338,17 @@ export function explain(diagnosis: LineDiagnosis): string | null {
         ? 'Not wired to a power grid.'
         : `Grid ${power.circuit} is over capacity — ${Math.round(power.demandMW)} MW asked for, ${Math.round(power.capacityMW)} MW built.`;
     case 'blocked':
-      return backlog
-        ? `Output full — ${Math.round(backlog.held)} ${backlog.name} waiting${
-            backlog.stored > 0 ? `, ${backlog.stored.toLocaleString()} more in storage` : ''
-          }. Nothing downstream is taking them.`
-        : null;
+      if (!backlog) return null;
+      return (
+        `Output full — ${Math.round(backlog.held)} ${backlog.name} waiting${
+          backlog.stored > 0 ? `, ${backlog.stored.toLocaleString()} more in storage` : ''
+        }. ` +
+        /* Where the belt itself is the reason, say so instead of leaving
+         * "nothing downstream is taking them" to be investigated. */
+        (carrier
+          ? `The ${carrier.name} out of it carries ${carrier.capacityPerMinute}/min and these machines make ${Math.round(carrier.carryingPerMinute)}.`
+          : 'Nothing downstream is taking them.')
+      );
     case 'starving': {
       if (!shortage) return null;
       const short =

@@ -105,6 +105,20 @@ machines eat and never inside it — the plan does not choose which generator an
 Fluid energy is stated **per litre** where fluid amounts are stated per litre, and is
 normalised the same way: Fuel is 750 MJ/m³, not 0.75.
 
+### A rate has to travel, and start somewhere
+
+A plan is a set of rates, and every one of them has to fit down a belt and come out of the
+ground. Both are checked against the world rather than in the abstract, and the two are not
+the same kind of limit: **a belt is a ceiling you widen** — another belt, or a better tier,
+which the board offers with counts — and **a node is one you cannot**, so extraction is
+answered as the range half-to-double that node purity makes it and never as a single figure.
+
+What a belt carries is followed through the network the save states, and only where the flow
+is **forced**: out of a machine, along the run, through mergers, stopping at a splitter.
+Comparing a line's output against the belt nearest it is not a reading — it called two of the
+reference save's lines over capacity when neither is.
+[ADR 32](adr/0032-a-rate-has-to-travel.md)
+
 ### Byproducts are surplus, not credit
 
 A recipe with two outputs produces both. The planner reports the excess as surplus rather

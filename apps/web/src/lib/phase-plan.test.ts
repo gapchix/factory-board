@@ -45,6 +45,8 @@ const db: GameDatabase = {
   },
   milestones: {},
   generators: {},
+  carriers: {},
+  extractors: {},
   schematics: {},
 };
 

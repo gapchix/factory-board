@@ -190,6 +190,50 @@ export const testDatabase: GameDatabase = {
       },
     ]),
   ]),
+  /*
+   * The real ladder: 60, 120, 270 items a minute, and 300 m³ down a pipe.
+   * A lift is in here because a run can contain one, and it is the only
+   * carrier that must never be *offered* — it is a belt that goes up.
+   */
+  carriers: byId([
+    { id: 'belt-1', name: 'Conveyor Belt Mk.1', kind: 'belt' as const, ratePerMinute: 60 },
+    { id: 'belt-2', name: 'Conveyor Belt Mk.2', kind: 'belt' as const, ratePerMinute: 120 },
+    { id: 'belt-3', name: 'Conveyor Belt Mk.3', kind: 'belt' as const, ratePerMinute: 270 },
+    { id: 'lift-1', name: 'Conveyor Lift Mk.1', kind: 'lift' as const, ratePerMinute: 60 },
+    { id: 'pipe-1', name: 'Pipeline Mk.1', kind: 'pipe' as const, ratePerMinute: 300 },
+    // The cosmetic twin the game ships: same pipe, no flow indicator.
+    { id: 'pipe-1-clean', name: 'Clean Pipeline Mk.1', kind: 'pipe' as const, ratePerMinute: 300 },
+  ]),
+  /*
+   * 60 a minute on a normal node, doubling per mark; water is 120 m³ and has
+   * no node under it to be pure or impure.
+   */
+  extractors: byId([
+    {
+      id: 'miner-1',
+      name: 'Miner Mk.1',
+      ratePerMinute: 60,
+      purityVaries: true,
+      fluid: false,
+      resources: [],
+    },
+    {
+      id: 'miner-2',
+      name: 'Miner Mk.2',
+      ratePerMinute: 120,
+      purityVaries: true,
+      fluid: false,
+      resources: [],
+    },
+    {
+      id: 'water-pump',
+      name: 'Water Extractor',
+      ratePerMinute: 120,
+      purityVaries: false,
+      fluid: true,
+      resources: ['water'],
+    },
+  ]),
   buildings: byId([
     { id: 'smelter', name: 'Smelter' },
     { id: 'foundry', name: 'Foundry' },

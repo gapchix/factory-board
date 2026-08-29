@@ -10,6 +10,7 @@ import {
   Balance,
   BuildOrder,
   PhaseProposal,
+  PhysicsPanel,
   PlanPowerPanel,
   Summary,
   TargetEditor,
@@ -18,6 +19,7 @@ import { SectionHeading } from '@/components/primitives';
 import { buildOrder } from '@/lib/build-order';
 import { diagnose } from '@/lib/diagnose';
 import { powerForPlan } from '@/lib/power-plan';
+import { physics } from '@/lib/throughput';
 import { gameDatabase as db } from '@/lib/game-database';
 import { unlockState } from '@/lib/unlocks';
 import { planByZone } from '@/lib/zone-plan';
@@ -86,6 +88,16 @@ export default function PlanPage() {
   );
 
   /*
+   * Whether the plan can be moved and fed. Every other figure on this page is
+   * a rate, and a rate has to travel down a belt and start out of the ground —
+   * two ceilings the board wrote straight past.
+   */
+  const limits = useMemo(
+    () => (snapshot ? physics(db, result, snapshot) : null),
+    [snapshot, result],
+  );
+
+  /*
    * The order the machines are worth placing in. Not a schedule — only the
    * difference between a machine that will run when you build it and one that
    * will stand idle waiting for a chain nobody has started.
@@ -142,6 +154,20 @@ export default function PlanPage() {
         </Box>
       ) : null}
 
+      {limits && (limits.moves.length > 0 || limits.supply.some((row) => row.mine)) ? (
+        <Box as="section" mb={9}>
+          <SectionHeading
+            title="Can it be moved and fed"
+            note={
+              limits.moves.length > 0
+                ? `${limits.moves.length} line${limits.moves.length === 1 ? '' : 's'} outgrow their belt`
+                : 'rates against the belts and the mine'
+            }
+          />
+          <PhysicsPanel db={db} view={limits} />
+        </Box>
+      ) : null}
+
       {order.length > 0 ? (
         <Box as="section" mb={9}>
           <SectionHeading
@@ -186,7 +212,7 @@ export default function PlanPage() {
 
       <Box as="section" mb={9}>
         <SectionHeading title="Inputs & surplus" note="what the plan eats, and what it leaves" />
-        <Balance db={db} result={result} stored={snapshot?.stored} />
+        <Balance db={db} result={result} stored={snapshot?.stored} limits={limits} />
       </Box>
     </>
   );

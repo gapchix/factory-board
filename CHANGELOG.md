@@ -225,6 +225,30 @@ machines · locked` — and is ordered cheapest first instead of by database ord
   they cost — _1 generator out of fuel, 75 MW idle_ — which is the difference between a
   burner that wants a walk across the base and the reason a grid is browning out.
 
+- **The database knows what a rate travels down and comes out of.** `GameDatabase` gains
+  `carriers` — every belt, lift and pipe with what it moves a minute — and `extractors`,
+  with what each pulls at a normal node. Neither figure is stated in a plan's units:
+  `mSpeed` is twice the item rate and `mFlowLimit` is m³ a _second_
+  ([ADR 32](docs/adr/0032-a-rate-has-to-travel.md)).
+- **`carriersFor`, `extractionFrom` and `extractorsFor`** in `@factory-board/planner`: how
+  many of each tier it takes to move a rate, and what a set of standing extractors can
+  deliver. Extraction answers as a **range**, half to double, because node purity is
+  world-generation data no save contains — a single number there would read as a
+  measurement.
+- **"Can it be moved and fed"** on the Planner. The plan the board writes in one click asks
+  for 176 Iron Ingot/min over a Mk.1 belt that carries sixty, and 300.75 Iron Ore/min from
+  two Miner Mk.1s that cannot give 240 with both nodes pure. Three of the reference save's
+  seventeen lines outgrow the belt they run on, and two of its raw inputs are beyond the
+  mine that exists whatever is under it.
+- **What a belt carries is followed through the save's own network**, out of each machine,
+  along the run and through mergers — and stops at a splitter, because how much goes each
+  way depends on what the far ends take. A tier standing anywhere in the world counts as one
+  you have, so the suggestions mark what you would have to unlock.
+- **A backed-up line can name the belt.** "Nothing downstream is taking them" is where the
+  diagnosis stopped; where a run the output cannot avoid is at or over capacity it now
+  finishes the sentence — _the Conveyor Belt Mk.1 out of it carries 60/min and these
+  machines make 120_.
+
 ### Changed
 
 - **Map captions appear when there is room rather than at a fixed zoom.** Machine names
@@ -417,6 +441,11 @@ machines · locked` — and is ordered cheapest first instead of by database ord
 
 ### Fixed
 
+- **The Planner's node estimate was invented.** The raw-input table printed a "Mk.1 miners"
+  column computed as `rate / 60` — a hardcoded normal-purity Miner Mk.1, which tells someone
+  with three Mk.3s nothing and never mentioned what was standing in their own save. It reads
+  `2 standing · 120 /min (60–240)` now: the mine that is there, and the purity as the range
+  it is.
 - **The demo base was burning coal in its Biomass Burners**, which no burner will take.
   Nothing read a generator's fuel until the database learned what fuel costs, and then the
   demo was quoting a rate for something that cannot happen. They burn Solid Biofuel.

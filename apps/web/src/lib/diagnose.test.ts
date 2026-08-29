@@ -57,6 +57,8 @@ const db: GameDatabase = {
   },
   milestones: {},
   generators: {},
+  carriers: {},
+  extractors: {},
   schematics: {},
 };
 
@@ -92,6 +94,54 @@ describe('diagnoseLine', () => {
     expect(line.verdict).toBe('blocked');
     expect(line.backlog).toMatchObject({ item: 'iron-rod', held: 200, stored: 5178 });
     expect(explain(line)).toContain('Nothing downstream');
+  });
+
+  /*
+   * "Nothing downstream is taking them" is where the board used to stop, and
+   * sometimes the belt itself is the answer: a run every one of these machines
+   * has to get its output down, carrying more than its tier can take. Two
+   * stated numbers rather than a story about a backlog — and only ever offered
+   * where `forcedFlow` proves the output cannot go round it.
+   */
+  it('names the belt when a full one is the reason', () => {
+    const line = diagnoseLine(
+      db,
+      'r-iron-rod',
+      0.67,
+      [machine({ 'iron-ingot': 100 }, { 'iron-rod': 200 })],
+      {},
+      [],
+      {
+        carrier: 'ConveyorBeltMk1',
+        name: 'Conveyor Belt Mk.1',
+        capacityPerMinute: 60,
+        carryingPerMinute: 120,
+      },
+    );
+
+    expect(line.verdict).toBe('blocked');
+    expect(explain(line)).toContain('Conveyor Belt Mk.1 out of it carries 60/min');
+    expect(explain(line)).not.toContain('Nothing downstream');
+  });
+
+  it('does not blame a belt for a line that is starving', () => {
+    const line = diagnoseLine(
+      db,
+      'r-rotor',
+      0.6,
+      [machine({ 'iron-rod': 200, screw: 0 }, {})],
+      {},
+      [],
+      {
+        carrier: 'ConveyorBeltMk1',
+        name: 'Conveyor Belt Mk.1',
+        capacityPerMinute: 60,
+        carryingPerMinute: 120,
+      },
+    );
+
+    expect(line.verdict).toBe('starving');
+    expect(line.carrier).toBeNull();
   });
 
   it('names the ingredient that ran out, not the one that did not', () => {

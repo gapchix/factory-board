@@ -126,6 +126,32 @@ export const demoDatabase: GameDatabase = {
       { item: 'Desc_Biofuel_C', ratePerMinute: 4 },
     ]),
   ]),
+  /*
+   * The two belts the demo base is built from, at the real 60 and 120 a
+   * minute. A base that has only Mk.1 is the interesting case: it is the tier
+   * every rate on the page has to fit through.
+   */
+  carriers: byId([
+    { id: 'ConveyorBeltMk1', name: 'Conveyor Belt Mk.1', kind: 'belt' as const, ratePerMinute: 60 },
+    {
+      id: 'ConveyorBeltMk2',
+      name: 'Conveyor Belt Mk.2',
+      kind: 'belt' as const,
+      ratePerMinute: 120,
+    },
+  ]),
+  /* 60 a minute on a normal node — and what is under any given one is not in
+   * a save, here or anywhere else. */
+  extractors: byId([
+    {
+      id: 'MinerMk1',
+      name: 'Miner Mk.1',
+      ratePerMinute: 60,
+      purityVaries: true,
+      fluid: false,
+      resources: [],
+    },
+  ]),
   buildings: byId([
     // Footprints are the game's own clearance boxes, which is what lets the map
     // draw a demo base at believable proportions.

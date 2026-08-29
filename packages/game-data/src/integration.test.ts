@@ -3,6 +3,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  carriersFor,
+  extractionFrom,
+  extractorsFor,
   generatorsToCover,
   priceSwaps,
   recipeUnlocks,
@@ -139,6 +142,66 @@ describe.skipIf(!available)('extracted database', () => {
     expect(cover?.capacityMW).toBe(375);
     expect(cover?.fuelPerMinute).toBeCloseTo(68.8, 1);
     expect(cover?.supplemental?.ratePerMinute).toBeCloseTo(206.4, 1);
+  });
+
+  /*
+   * The belt and miner ladders, in the units a plan is written in. The game
+   * states neither: `mSpeed` is twice the item rate and `mFlowLimit` is m³ a
+   * second, so both come out wrong in a way that looks plausible.
+   */
+  it('reads the belt and pipe ladder at the rates the game quotes', () => {
+    expect(
+      Object.values(db.carriers)
+        .filter((c) => c.kind === 'belt')
+        .map((c) => c.ratePerMinute)
+        .sort((a, b) => a - b),
+    ).toEqual([60, 120, 270, 480, 780, 1200]);
+
+    expect(db.carriers['Pipeline']?.ratePerMinute).toBe(300);
+    expect(db.carriers['PipelineMK2']?.ratePerMinute).toBe(600);
+    // A lift is a belt that goes up, and is kept so a run containing one can
+    // still be priced.
+    expect(db.carriers['ConveyorLiftMk3']).toMatchObject({ kind: 'lift', ratePerMinute: 270 });
+  });
+
+  it('reads what every extractor pulls at a normal node', () => {
+    expect(db.extractors['MinerMk1']).toMatchObject({ ratePerMinute: 60, purityVaries: true });
+    expect(db.extractors['MinerMk3']?.ratePerMinute).toBe(240);
+    // Water comes out of a lake rather than a node, so it has no purity.
+    expect(db.extractors['WaterPump']).toMatchObject({
+      ratePerMinute: 120,
+      purityVaries: false,
+      resources: ['Desc_Water_C'],
+    });
+    // A miner names no resource because it takes whatever it is bolted to —
+    // which must not be read as "it will take water".
+    expect(extractorsFor(db, 'Desc_Water_C')).toEqual(['FrackingExtractor', 'WaterPump']);
+    expect(extractorsFor(db, IRON_ORE)).toEqual(['MinerMk1', 'MinerMk2', 'MinerMk3']);
+  });
+
+  /*
+   * What the Phase 2 plan asks of the world it is planned against. 176 Iron
+   * Ingot a minute is three Mk.1 belts, and 300.75 Iron Ore is more than two
+   * Miner Mk.1s can give with both nodes pure.
+   */
+  it('measures the Phase 2 plan against belts and nodes', () => {
+    const result = solve(db, [
+      { item: SMART_PLATING, ratePerMinute: 5 },
+      { item: VERSATILE_FRAMEWORK, ratePerMinute: 5 },
+      { item: AUTOMATED_WIRING, ratePerMinute: 1 },
+    ]);
+
+    const ingot = result.lines.find((line) => line.recipe === 'Recipe_IngotIron_C');
+    expect(ingot?.outputPerMinute).toBeCloseTo(176.25, 2);
+    expect(
+      carriersFor(db, ingot!.outputPerMinute)
+        .slice(0, 3)
+        .map((c) => c.count),
+    ).toEqual([3, 2, 1]);
+
+    const mine = extractionFrom(db, ['MinerMk1', 'MinerMk1'])!;
+    expect(mine.max).toBe(240);
+    expect(result.rawInputs[IRON_ORE]).toBeGreaterThan(mine.max);
   });
 
   it('knows what stands between the player and every recipe it kept', () => {

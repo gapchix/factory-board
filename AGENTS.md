@@ -41,6 +41,17 @@ integration tests skip and the web app refuses to build with instructions.
 - **Fluids are m³ everywhere.** Normalised once in the extractor; nothing downstream
   converts. That includes **energy**, which the game states per litre: Fuel is 750 MJ/m³,
   and read as 0.75 a Fuel-Powered Generator burns twenty thousand m³ a minute.
+- **What a belt carries is followed, not measured from nearby.** Flow is walked from each
+  machine along the run and through mergers, and **stops at a splitter** — how much goes
+  each way depends on what the far ends take. Comparing a line's output to the belt nearest
+  it called two of the reference save's twelve lines over capacity; none is.
+  [ADR 32](docs/adr/0032-a-rate-has-to-travel.md)
+- **A belt is a ceiling you widen; a node is one you cannot.** Extraction is answered as a
+  range — half on impure, double on pure — because node purity is world-generation data no
+  save records. A single number there would read as a measurement.
+- **Only what is raw comes out of the ground, and the form has to match.** A miner names no
+  resource because it takes whatever node it is bolted to; read as "anything", that offers a
+  Miner Mk.1 for water and a Miner Mk.1 for Iron Rods.
 - **Power draw and power supply never share a field.** `machines[id].powerMW` is what a
   building takes; `generators[id].powerMW` is what one gives. A total that adds them is
   wrong by twice the difference.

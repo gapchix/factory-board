@@ -8,6 +8,7 @@ import { itemName, rate, unit } from '@/lib/format';
 import { duration, planForPhase } from '@/lib/phase-plan';
 import type { BuildStep } from '@/lib/build-order';
 import type { PlanPower } from '@/lib/power-plan';
+import type { Physics } from '@/lib/throughput';
 import { PHASES, PRESETS } from '@/lib/phases';
 import { buildZoneBoard, zoneAt } from '@/lib/zones';
 import { useBoard } from '@/state/board';
@@ -333,6 +334,135 @@ export function PlanPowerPanel({ db, power }: { db: GameDatabase; power: PlanPow
         {power.unpricedMW > 0
           ? ` About ${Math.round(power.unpricedMW)} MW of what is drawn today comes from generators the database cannot price, so the fuel is a floor rather than the whole bill.`
           : ''}
+      </Text>
+    </Panel>
+  );
+}
+
+/* ------------------------------------------------------------------- physics */
+
+/**
+ * Whether the plan can be moved and fed.
+ *
+ * Everything else on this page is a rate, and a rate has to travel down a belt
+ * and start out of the ground. Both have hard ceilings the board never
+ * mentioned: it writes 176 Iron Ingot a minute over a Mk.1 belt that carries
+ * sixty, and 300.75 Iron Ore for a mine of two Miner Mk.1s that cannot give
+ * 240 with both nodes pure.
+ *
+ * The two are drawn apart on purpose. **A belt is a ceiling you widen** — build
+ * another, or a better one, and the panel offers both. **A node is a ceiling
+ * you cannot**: more ore means more nodes, somewhere else on the map, and no
+ * save says where they are or how good they are.
+ */
+export function PhysicsPanel({ db, view }: { db: GameDatabase; view: Physics }) {
+  const short = view.supply.filter((row) => row.impossible || row.tight);
+
+  return (
+    <Panel px={5} py={4}>
+      {view.moves.length > 0 ? (
+        <Box>
+          <Flex gap={2} align="baseline" wrap="wrap" mb={2}>
+            <Label color="fg">Too much for the belt it runs on</Label>
+            <Text fontSize="12.5px" color="fg.muted">
+              {view.fine} other line{view.fine === 1 ? '' : 's'} fit{view.fine === 1 ? 's' : ''}{' '}
+              down what already carries {view.fine === 1 ? 'it' : 'them'}
+            </Text>
+          </Flex>
+
+          {view.moves.map((row) => (
+            <Flex
+              key={row.recipe}
+              gap={3}
+              align="baseline"
+              wrap="wrap"
+              py={1}
+              borderTopWidth="1px"
+              borderColor="border.subtle"
+            >
+              <Text fontSize="13.5px" w="150px" flex="none" truncate>
+                {itemName(db, row.item)}
+              </Text>
+              <Mono fontSize="12px" w="96px" flex="none" textAlign="end">
+                {rate(row.ratePerMinute)}
+                {unit(db, row.item)}
+              </Mono>
+              <Mono fontSize="11.5px" color="fg.muted" w="168px" flex="none">
+                {row.today
+                  ? `on ${row.today.name.replace('Conveyor Belt ', '')} · ${row.today.capacityPerMinute}/min`
+                  : 'nothing carries it yet'}
+              </Mono>
+              <Mono fontSize="11.5px" color="fg.subtle">
+                {row.needs
+                  .slice(0, 3)
+                  .map(
+                    (need) =>
+                      `${need.count} × ${need.name.replace(/Conveyor Belt |Pipeline /, '')}${
+                        view.built.has(need.carrier) ? '' : '*'
+                      }`,
+                  )
+                  .join('  ·  ')}
+              </Mono>
+            </Flex>
+          ))}
+        </Box>
+      ) : (
+        <Text fontSize="13px" color="fg.muted">
+          Every line in this plan fits down the belt it already runs on.
+        </Text>
+      )}
+
+      {short.length > 0 ? (
+        <Box mt={3.5} pt={3} borderTopWidth="1px" borderColor="border.default">
+          <Flex gap={2} align="baseline" wrap="wrap" mb={2}>
+            <Label color="fg">More than the mine can give</Label>
+            <Text fontSize="12.5px" color="fg.muted">
+              at 100% clock, and the nodes are not in the save
+            </Text>
+          </Flex>
+
+          {short.map((row) => (
+            <Flex
+              key={row.item}
+              gap={3}
+              align="baseline"
+              wrap="wrap"
+              py={1}
+              borderTopWidth="1px"
+              borderColor="border.subtle"
+            >
+              <Text fontSize="13.5px" w="150px" flex="none" truncate>
+                {itemName(db, row.item)}
+              </Text>
+              <Mono fontSize="12px" w="96px" flex="none" textAlign="end">
+                {rate(row.ratePerMinute)}
+                {unit(db, row.item)}
+              </Mono>
+              <Mono fontSize="11.5px" color="fg.muted" w="168px" flex="none">
+                {row.mine
+                  ? `${row.mine.extractors} standing · ${rate(row.mine.ratePerMinute)}${unit(db, row.item)}`
+                  : 'nothing standing on it'}
+              </Mono>
+              <Mono fontSize="11.5px" color="fg.subtle">
+                {row.mine
+                  ? row.impossible
+                    ? `${rate(row.mine.max)} even with every node pure`
+                    : `enough only if the nodes are better than normal — ${rate(row.mine.min)} to ${rate(row.mine.max)}`
+                  : ''}
+              </Mono>
+            </Flex>
+          ))}
+        </Box>
+      ) : null}
+
+      <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted" mt={3}>
+        A belt is a ceiling you can widen: build another, or a better one — a tier marked{' '}
+        <Box as="span" fontFamily="mono">
+          *
+        </Box>{' '}
+        is one nothing in this world is built from yet. A node is not. More ore means more nodes,
+        and which nodes exist and how pure they are is world-generation data no save file records,
+        so the mine is answered as a range rather than as a number.
       </Text>
     </Panel>
   );
@@ -678,14 +808,34 @@ export function Balance({
   db,
   result,
   stored,
+  limits,
 }: {
   db: GameDatabase;
   result: SolveResult;
   /** What is standing in containers, so the plan can credit it. */
   stored?: Readonly<Record<string, number>> | undefined;
+  /** The mine standing in the save, so raw inputs have something to be against. */
+  limits?: Physics | null | undefined;
 }) {
   const raw = Object.entries(result.rawInputs).sort((a, b) => b[1] - a[1]);
   const surplus = Object.entries(result.surplus).sort((a, b) => b[1] - a[1]);
+
+  /*
+   * What the mine standing in the save gives, per resource — "2 standing ·
+   * 120/min (60–240)". The range is the purity nobody is told: half on impure
+   * nodes, double on pure, and there is no third number to give.
+   */
+  const supplyFor = limits
+    ? new Map(
+        limits.supply.map((row) => [
+          row.item,
+          row.mine
+            ? `${row.mine.extractors} standing · ${rate(row.mine.ratePerMinute)}${unit(db, row.item)}` +
+              (row.mine.purityVaries ? ` (${rate(row.mine.min)}–${rate(row.mine.max)})` : '')
+            : 'nothing standing',
+        ]),
+      )
+    : undefined;
 
   /*
    * What the warehouse already covers.
@@ -746,7 +896,7 @@ export function Balance({
             <tr>
               <Th>Raw input required</Th>
               <Th style={{ textAlign: 'end' }}>Rate</Th>
-              <Th style={{ textAlign: 'end' }}>Mk.1 miners</Th>
+              <Th style={{ textAlign: 'end' }}>Out of the ground</Th>
             </tr>
           </thead>
           <tbody>
@@ -757,9 +907,14 @@ export function Balance({
                   {rate(value)}
                   {unit(db, item)}
                 </NumTd>
-                <NumTd color="fg.subtle">
-                  {db.items[item]?.isFluid ? '—' : `${rate(value / 60, 2)} nodes`}
-                </NumTd>
+                {/*
+                 * This column used to divide by a hardcoded sixty and print
+                 * "5.01 nodes", which assumed a Miner Mk.1 on a normal node
+                 * and told a player with three Mk.3s nothing they could use.
+                 * The mine standing in the save is a fact; the purity under it
+                 * is not, so it is stated as a range.
+                 */}
+                <NumTd color="fg.subtle">{supplyFor?.get(item) ?? '—'}</NumTd>
               </tr>
             ))}
           </tbody>
@@ -791,8 +946,11 @@ export function Balance({
       ) : null}
 
       <Text fontSize="13px" color="fg.subtle" mt={2.5}>
-        Node counts assume a Mk.1 miner on a normal node (60/min). Byproducts are listed as surplus
-        but not credited back into the plan — feed them somewhere or sink them.
+        {supplyFor
+          ? 'What the mine gives is at 100% clock on the nodes it stands on; the range is impure to pure, which no save records. '
+          : ''}
+        Byproducts are listed as surplus but not credited back into the plan — feed them somewhere
+        or sink them.
       </Text>
     </>
   );

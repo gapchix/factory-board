@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type {
   GameBuilding,
+  GameCarrier,
   GameDatabase,
+  GameExtractor,
   GameGenerator,
   GameItem,
   GameMachine,
@@ -47,6 +49,22 @@ const gameGeneratorSchema = z.object({
   name: z.string().min(1),
   powerMW: z.number().positive(),
   fuels: z.array(generatorFuelSchema).min(1),
+});
+
+const gameCarrierSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  kind: z.enum(['belt', 'lift', 'pipe']),
+  ratePerMinute: z.number().positive(),
+});
+
+const gameExtractorSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  ratePerMinute: z.number().positive(),
+  purityVaries: z.boolean(),
+  fluid: z.boolean(),
+  resources: z.array(z.string()),
 });
 
 const gameRecipeSchema = z.object({
@@ -99,6 +117,10 @@ export const gameDatabaseSchema = z.object({
    * generators were extracted still loads, and then says nothing about power
    * rather than claiming the game has none. */
   generators: z.record(z.string(), gameGeneratorSchema).default({}),
+  /* Same again: without these the board says nothing about what a rate has to
+   * travel down or come out of, rather than claiming every belt is a Mk.1. */
+  carriers: z.record(z.string(), gameCarrierSchema).default({}),
+  extractors: z.record(z.string(), gameExtractorSchema).default({}),
   buildings: z.record(z.string(), gameBuildingSchema),
   milestones: z.record(z.string(), gameMilestoneSchema),
   /*
@@ -144,6 +166,11 @@ const _generatorKeys: AssertNoMissingKeys<
   GameGenerator,
   z.infer<typeof gameGeneratorSchema>
 > = true;
+const _carrierKeys: AssertNoMissingKeys<GameCarrier, z.infer<typeof gameCarrierSchema>> = true;
+const _extractorKeys: AssertNoMissingKeys<
+  GameExtractor,
+  z.infer<typeof gameExtractorSchema>
+> = true;
 const _buildingKeys: AssertNoMissingKeys<GameBuilding, z.infer<typeof gameBuildingSchema>> = true;
 const _milestoneKeys: AssertNoMissingKeys<
   GameMilestone,
@@ -161,6 +188,8 @@ void [
   _recipeKeys,
   _machineKeys,
   _generatorKeys,
+  _carrierKeys,
+  _extractorKeys,
   _buildingKeys,
   _milestoneKeys,
   _schematicKeys,

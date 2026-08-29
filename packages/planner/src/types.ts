@@ -134,6 +134,57 @@ export interface GameGenerator {
   readonly fuels: readonly GeneratorFuel[];
 }
 
+/**
+ * Anything that moves a rate from one machine to another, and how much of one
+ * it can move.
+ *
+ * A plan is a set of rates and a belt is a rate limit, and until these existed
+ * the board could write "176 Iron Ingot a minute" over a Mk.1 belt that carries
+ * sixty and say nothing at all.
+ *
+ * A **lift** is a belt that goes up: same rate, same tier, and never a choice
+ * you make for throughput. It is here so the world can be read — a lift in the
+ * middle of a run is as much of a limit as the belt either side of it — and is
+ * left out of what gets *offered*.
+ */
+export interface GameCarrier {
+  readonly id: MachineId;
+  readonly name: string;
+  readonly kind: 'belt' | 'lift' | 'pipe';
+  /** Items a minute for a belt or lift, m³ a minute for a pipe. */
+  readonly ratePerMinute: number;
+}
+
+/**
+ * A miner, pump or extractor, and what it pulls out of the ground.
+ *
+ * The rate is for a **normal** node at 100% clock, because that is the only
+ * one the game files state. What is under any particular miner is
+ * world-generation data no save records — see SPEC — so the range a set of
+ * these can deliver is half to double, and the board says so rather than
+ * picking a number out of it.
+ */
+export interface GameExtractor {
+  readonly id: MachineId;
+  readonly name: string;
+  /** At 100% clock on a normal node, in display units. */
+  readonly ratePerMinute: number;
+  /**
+   * Whether the node underneath has a purity at all. Water does not: a Water
+   * Extractor is 120 m³/min wherever it stands, because it draws from a lake
+   * rather than a node.
+   */
+  readonly purityVaries: boolean;
+  /** Pulls fluids rather than solids, which is what its form says. */
+  readonly fluid: boolean;
+  /**
+   * The resources it will take, where the game names them — a Water Extractor
+   * takes water and nothing else. Empty means anything of its form, which is
+   * every miner: they take whatever node they are bolted to.
+   */
+  readonly resources: readonly ItemId[];
+}
+
 export interface GameMilestone {
   readonly id: MilestoneId;
   readonly name: string;
@@ -189,6 +240,10 @@ export interface GameDatabase {
    * be wrong by twice the difference.
    */
   readonly generators: Readonly<Record<MachineId, GameGenerator>>;
+  /** Belts, lifts and pipes, with what each can move in a minute. */
+  readonly carriers: Readonly<Record<MachineId, GameCarrier>>;
+  /** Miners, pumps and extractors, with what each pulls at a normal node. */
+  readonly extractors: Readonly<Record<MachineId, GameExtractor>>;
   /** Display names for every placeable building, machines included. */
   readonly buildings: Readonly<Record<MachineId, GameBuilding>>;
   readonly milestones: Readonly<Record<MilestoneId, GameMilestone>>;
