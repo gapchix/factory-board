@@ -35,6 +35,7 @@ const db: GameDatabase = {
     GeneratorCoal: { id: 'GeneratorCoal', name: 'Coal-Powered Generator' },
   },
   milestones: {},
+  generators: {},
   schematics: {},
 };
 

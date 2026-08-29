@@ -93,6 +93,18 @@ remembers to convert.
 draws power. Totals use the rounded figure; the exact figure stays visible so you can see
 the headroom.
 
+### Power is an input, and its bill follows the load
+
+Generators throttle to what their circuit is drawing and burn fuel in proportion, so the
+running cost of a factory's power is a function of the megawatts drawn and not of how many
+generators stand behind them. Five coal generators at 20% cost exactly what one at full
+output costs. A plan's fuel is therefore priced from its draw, alongside the ore its
+machines eat and never inside it — the plan does not choose which generator answers it.
+[ADR 31](adr/0031-power-is-an-input-like-ore.md)
+
+Fluid energy is stated **per litre** where fluid amounts are stated per litre, and is
+normalised the same way: Fuel is 750 MJ/m³, not 0.75.
+
 ### Byproducts are surplus, not credit
 
 A recipe with two outputs produces both. The planner reports the excess as surplus rather
@@ -173,7 +185,7 @@ They use unrelated numbering. Comparing them produces nonsense.
 
 | Source                                                  | Provides                                           | Notes                                                            |
 | ------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| `CommunityResources/Docs/en-US.json`                    | Recipes, items, machines, milestones               | UTF-16LE with BOM. Nested structs are escaped strings, not JSON. |
+| `CommunityResources/Docs/en-US.json`                    | Recipes, items, machines, generators, milestones   | UTF-16LE with BOM. Nested structs are escaped strings, not JSON. |
 | `%LOCALAPPDATA%/FactoryGame/Saved/SaveGames/<id>/*.sav` | Built machines, recipes, uptime, milestones, phase | Parsed by [`@etothepii/satisfactory-file-parser`][parser].       |
 
 [parser]: https://www.npmjs.com/package/@etothepii/satisfactory-file-parser
@@ -181,7 +193,9 @@ They use unrelated numbering. Comparing them produces nonsense.
 ### What saves do _not_ contain
 
 Resource node **type and purity** are world-generation data, not save data — only mutated
-state is written. Any feature needing a node map has to source it elsewhere.
+state is written. Any feature needing a node map has to source it elsewhere. The Geothermal
+Generator's output is the same fact seen from the other side — it depends on the vent it
+stands on — which is why it is the one generator the database leaves out.
 
 What a **placed extractor** is producing is a different question, and the save does answer
 it: the miner's output buffer is locked to the ore it stands on, and reports it even when

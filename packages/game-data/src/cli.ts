@@ -65,6 +65,7 @@ function main(): void {
       `         ${counts.recipes} recipes (${counts.alternateRecipes} alternate), ` +
       `${counts.items} items, ${counts.machines} machines, ${counts.milestones} milestones\n` +
       `         ${counts.schematics} schematics that unlock a recipe\n` +
+      `         ${counts.generators} generators that burn a fuel\n` +
       `         source build id ${database.sourceBuildId || 'unknown'}`,
   );
   if (skipped.length > 0) {

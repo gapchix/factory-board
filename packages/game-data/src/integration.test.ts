@@ -2,7 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { priceSwaps, recipeUnlocks, solve, type GameDatabase } from '@factory-board/planner';
+import {
+  generatorsToCover,
+  priceSwaps,
+  recipeUnlocks,
+  solve,
+  type GameDatabase,
+} from '@factory-board/planner';
 import { parseGameDatabase } from './schema.js';
 
 /**
@@ -79,6 +85,60 @@ describe.skipIf(!available)('extracted database', () => {
     expect(result.rawInputs[IRON_ORE]).toBeCloseTo(300.75, 2);
     expect(result.rawInputs[COAL]).toBeCloseTo(124.5, 2);
     expect(result.rawInputs[COPPER_ORE]).toBeCloseTo(24, 2);
+  });
+
+  /*
+   * Every one of these is a number a player can read off the game's own power
+   * panel, and each of the four generators is a different shape of answer:
+   * a burner takes only fuel, a coal generator takes water with it, a fuel
+   * generator burns a fluid, and a reactor hands something back.
+   */
+  it('prices every generator the game states an output for', () => {
+    expect(Object.keys(db.generators).sort()).toEqual([
+      'GeneratorBiomass_Automated',
+      'GeneratorCoal',
+      'GeneratorFuel',
+      'GeneratorNuclear',
+    ]);
+
+    const coal = db.generators['GeneratorCoal'];
+    expect(coal?.powerMW).toBe(75);
+    expect(coal?.fuels[0]).toEqual({
+      item: COAL,
+      ratePerMinute: 15,
+      supplemental: { item: 'Desc_Water_C', ratePerMinute: 45 },
+    });
+
+    // Fluid energy is stated per litre. Missed, Fuel reads as 0.75 MJ and a
+    // Fuel-Powered Generator burns twenty thousand m³ a minute.
+    expect(db.items['Desc_LiquidFuel_C']?.energyMJ).toBe(750);
+    expect(db.generators['GeneratorFuel']?.fuels[0]).toEqual({
+      item: 'Desc_LiquidFuel_C',
+      ratePerMinute: 20,
+    });
+
+    // Waste is per fuel rod, not per minute: 0.2 rods a minute at fifty each.
+    expect(db.generators['GeneratorNuclear']?.fuels[0]?.byproduct).toEqual({
+      item: 'Desc_NuclearWaste_C',
+      ratePerMinute: 10,
+    });
+
+    // The Geothermal Generator is left out: its output is the purity of the
+    // vent under it, which no save records.
+    expect(db.generators['GeneratorGeoThermal']).toBeUndefined();
+  });
+
+  /*
+   * What a plan's power actually costs, which is the question the board could
+   * not ask before. Phase 2 draws 344 MW; on coal that is five generators and
+   * a mining operation of its own.
+   */
+  it('costs the Phase 2 plan its own power', () => {
+    const cover = generatorsToCover(db, 344, { prefer: [{ generator: 'GeneratorCoal' }] })[0];
+    expect(cover?.count).toBe(5);
+    expect(cover?.capacityMW).toBe(375);
+    expect(cover?.fuelPerMinute).toBeCloseTo(68.8, 1);
+    expect(cover?.supplemental?.ratePerMinute).toBeCloseTo(206.4, 1);
   });
 
   it('knows what stands between the player and every recipe it kept', () => {

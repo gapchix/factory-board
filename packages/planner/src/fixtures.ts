@@ -1,5 +1,6 @@
 import type {
   GameDatabase,
+  GameGenerator,
   GameItem,
   GameMachine,
   GameRecipe,
@@ -43,6 +44,19 @@ const recipe = (
 
 const machine = (id: string, name: string, powerMW: number): GameMachine => ({ id, name, powerMW });
 
+/**
+ * Generators at the game's real numbers, so the tests check the maths against
+ * Satisfactory rather than against themselves: a Coal-Powered Generator makes
+ * 75 MW off 15 Coal/min and 45 m³ Water/min, and a Biomass Burner 30 MW off
+ * 4 Solid Biofuel/min.
+ */
+const generator = (
+  id: string,
+  name: string,
+  powerMW: number,
+  fuels: GameGenerator['fuels'],
+): GameGenerator => ({ id, name, powerMW, fuels });
+
 const schematic = (
   id: string,
   name: string,
@@ -58,9 +72,13 @@ export const testDatabase: GameDatabase = {
   sourceBuildId: 24656030,
   items: byId([
     item('iron-ore', 'Iron Ore', { isRaw: true }),
-    item('coal', 'Coal', { isRaw: true }),
+    item('coal', 'Coal', { isRaw: true, energyMJ: 300 }),
     item('water', 'Water', { isRaw: true, isFluid: true }),
     item('sam', 'SAM', { isRaw: true }),
+    item('leaves', 'Leaves', { isRaw: true, energyMJ: 15 }),
+    item('solid-biofuel', 'Solid Biofuel', { energyMJ: 450 }),
+    item('uranium-rod', 'Uranium Fuel Rod', { energyMJ: 750_000 }),
+    item('uranium-waste', 'Uranium Waste'),
     item('iron-ingot', 'Iron Ingot'),
     item('iron-rod', 'Iron Rod'),
     item('iron-plate', 'Iron Plate'),
@@ -150,6 +168,27 @@ export const testDatabase: GameDatabase = {
     // The trap: a NON-alternate late-game Converter recipe that manufactures a
     // raw resource. Real Satisfactory ships several of these.
     recipe('r-iron-ore-from-sam', 'Iron Ore', 6, 'converter', [['sam', 2]], [['iron-ore', 12]]),
+  ]),
+  generators: byId([
+    // Leaves first, as the game lists them — 120 a minute for 30 MW, which is
+    // the arithmetic that made a caller-supplied fuel necessary.
+    generator('biomass-burner', 'Biomass Burner', 30, [
+      { item: 'leaves', ratePerMinute: 120 },
+      { item: 'solid-biofuel', ratePerMinute: 4 },
+    ]),
+    generator('coal-generator', 'Coal-Powered Generator', 75, [
+      { item: 'coal', ratePerMinute: 15, supplemental: { item: 'water', ratePerMinute: 45 } },
+    ]),
+    // The one generator that hands something back, which is a different shape
+    // of answer: 240 m³ of water in, ten waste out, and somewhere to put it.
+    generator('nuclear-plant', 'Nuclear Power Plant', 2500, [
+      {
+        item: 'uranium-rod',
+        ratePerMinute: 0.2,
+        supplemental: { item: 'water', ratePerMinute: 240 },
+        byproduct: { item: 'uranium-waste', ratePerMinute: 10 },
+      },
+    ]),
   ]),
   buildings: byId([
     { id: 'smelter', name: 'Smelter' },

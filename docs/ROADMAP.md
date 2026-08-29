@@ -510,6 +510,39 @@ Next for it: nothing pressing. Swaps are priced one at a time against the plan a
 stands, which is honest but means two of them do not add up — taking one re-prices the
 rest, and the page says so rather than pretending otherwise.
 
+### H. Power is an input · shipped
+
+The board could say a plan draws 344 MW from the first week. What it could not say was
+anything about where those megawatts come from, because **nothing in the database knew a
+generator from a wall**: the extractor keeps a building only if it declares
+`mPowerConsumption`, and every generator in the game declares zero. So when a grid went
+over, the page said _"build generators there"_ and stopped — which generator, how many, fed
+with what, all unanswered ([ADR 31](adr/0031-power-is-an-input-like-ore.md)).
+
+The database now carries the four generators that state an output, with every fuel each one
+takes priced per minute, and the panel answers the question it has been asking:
+
+    GRID 1 IS 9 MW SHORT   build one of these · the fuel is what carrying the gap costs
+      1 ×  Biomass Burner            30 MW    1.2 /min Solid Biofuel
+      1 ×  Coal-Powered Generator    75 MW    1.8 /min Coal · 5.4 m³/min Water
+
+Which generator is a question for the world, not the arithmetic: it leads with what that
+grid already burns. **So is which fuel** — the game lists a Biomass Burner's fuels with
+Leaves first, so the honest arithmetic for 240 MW was _876 Leaves a minute_, and the app
+takes the fuel from what the base mines, makes, or has in a box instead.
+
+And the half nobody had asked for. A plan's inputs were the ore its machines eat; the power
+to run them was free. It is not: generators burn in proportion to what is drawn from them,
+so a plan's megawatts are also fuel a minute. On the reference save the Phase 2 plan takes
+the base from 20.4 Coal/min to 48.7, 61 m³ of water to 146, and **9.6 Solid Biofuel a
+minute to 19** — which nothing there makes, because they are carried to the burners by hand.
+The plan's own coal is 124.5/min; the coal to _run_ it is another 68.8.
+
+The Overview's dry-generator count grew a price — _1 generator out of fuel, 75 MW idle_ —
+and the demo, which had to be correct before any of this could be shown on it, turned out to
+be burning coal in burners that cannot take it, wired to a grid list that had gone stale,
+and claiming capacity from a generator standing empty. All three are fixed and pinned.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.
@@ -534,7 +567,10 @@ All three are designed to be useful outside this app.
 - **Node budget.** How many miners at what purity a plan needs. Blocked: node type and
   purity are world-generation data and are not in save files — see
   [SPEC.md](SPEC.md#what-saves-do-not-contain).
-- **Power modelling.** Generators, fuel burn and headroom, not just draw.
+- ~~**Power modelling.**~~ Shipped 2026-08-29 — generators, fuel burn and headroom rather
+  than draw alone. See H below. What is left of it is generation as a _plan_: the fuel a
+  cover needs is reported, not solved, so "20 m³/min of Fuel" does not yet come with the
+  refineries that make it.
 - ~~**Multi-save comparison.**~~ Shipped 2026-08-29, but not as written. History can now
   compare **any two saves of one session** — a from/with picker over what it has recorded —
   which is the question a player actually has: _what changed in the last hour_. Two

@@ -199,6 +199,32 @@ machines · locked` — and is ordered cheapest first instead of by database ord
   machine, and not the Iron Alloy Ingot drive, which would save another by spending copper
   ore. 39 more tests.
 
+- **The database knows what a generator is.** `GameDatabase` gains `generators` — the four
+  buildings that declare an output, each with its power and every fuel it takes, priced per
+  minute; and items gain `energyMJ`. Every generator declares `mPowerConsumption` of zero,
+  so the extractor had been dropping all of them: power was a number the factory spent and
+  nothing that anything produced
+  ([ADR 31](docs/adr/0031-power-is-an-input-like-ore.md)). 17 generator-and-fuel pairs and
+  26 fuels, for 2.5 KB on a 225 KB database.
+- **`fuelToCarry` and `generatorsToCover`** in `@factory-board/planner`: what a load costs
+  per minute in fuel, water and waste, and what it would take to cover a shortfall.
+  Generators throttle to what their grid draws and burn in proportion, so a bill follows
+  the megawatts rather than the generators — five coal generators at 20% cost exactly what
+  one at full output costs.
+- **A grid that would go over says what to build there.** The Planner has told anyone
+  short of power to "build generators" since grids were first read, without knowing what a
+  generator is. It now names them, counts them and prices the fuel, leading with whatever
+  that grid already burns: _Grid 1 is 9 MW short — 1 × Biomass Burner, 1.2 Solid
+  Biofuel/min_.
+- **And what feeding the whole thing costs.** A plan's inputs were the ore its machines
+  eat; the power to run them was free. On the reference save the Phase 2 plan takes the
+  base from 20.4 Coal/min to 48.7, from 61 m³ of water to 146, and **from 9.6 Solid
+  Biofuel a minute to 19** — which nothing on that base makes, because they are carried to
+  the burners by hand.
+- **A generator standing empty is priced.** The Overview counted them; it now says what
+  they cost — _1 generator out of fuel, 75 MW idle_ — which is the difference between a
+  burner that wants a walk across the base and the reason a grid is browning out.
+
 ### Changed
 
 - **Map captions appear when there is room rather than at a fixed zoom.** Machine names
@@ -391,6 +417,22 @@ machines · locked` — and is ordered cheapest first instead of by database ord
 
 ### Fixed
 
+- **The demo base was burning coal in its Biomass Burners**, which no burner will take.
+  Nothing read a generator's fuel until the database learned what fuel costs, and then the
+  demo was quoting a rate for something that cannot happen. They burn Solid Biofuel.
+- **The demo's hand-typed indices had gone stale, in two places.** Grid 0 listed the first
+  ten buildings and none of its own burners, so a board pricing what a grid burns found no
+  generators on the only grid that has any; and seven of the ten belt links pointed at
+  whatever had drifted into that index — `20 → 0` was written as _iron miner into the first
+  smelter_ and had become _the Smart Plating assembler into it_, which the map drew. Both
+  are worked out from the placements now, and a test pins that every link joins buildings
+  that could be joined and every grid member says it is on that grid.
+- **The demo claimed 90 MW off three burners with one of them empty**, which is a state
+  the game cannot be in: a save reports what its generators can supply now. It has four
+  burners, three of them burning, and the fourth is what "30 MW idle" points at.
+- The demo banner no longer says no Satisfactory install was found when one was. It sat
+  directly beside a button offering to go back to the real save it said could not be
+  found; with a database from the reader's own install it now says so.
 - The demo base has power lines and a wired second grid. It carried a power _story_ — one
   circuit comfortable, one with no generation on it — and nothing on the map to show it,
   because poles are drawn as wiring rather than as buildings and no wiring existed.

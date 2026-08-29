@@ -128,17 +128,17 @@ export default function PlanPage() {
         />
       </Box>
 
-      {power && power.machines > 0 ? (
+      {power && (power.machines > 0 || power.fuel.length > 0) ? (
         <Box as="section" mb={9}>
           <SectionHeading
-            title="Power when this is built"
+            title={power.machines > 0 ? 'Power when this is built' : 'Power'}
             note={
               power.over.length > 0
                 ? `${power.over.length} grid${power.over.length === 1 ? '' : 's'} would be over capacity`
-                : `${power.grids.length} grid${power.grids.length === 1 ? '' : 's'} · drawn against built`
+                : `${power.grids.length} grid${power.grids.length === 1 ? '' : 's'} · drawn against built · and what that burns`
             }
           />
-          <PlanPowerPanel power={power} />
+          <PlanPowerPanel db={db} power={power} />
         </Box>
       ) : null}
 

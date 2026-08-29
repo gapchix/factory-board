@@ -53,6 +53,7 @@ const db: GameDatabase = {
   },
   buildings: {},
   milestones: {},
+  generators: {},
   schematics: {},
 };
 

@@ -176,14 +176,17 @@ export function BuildOrder({ steps }: { steps: readonly BuildStep[] }) {
 /* ----------------------------------------------------------------- power */
 
 /**
- * Whether the lights stay on once the plan is built.
+ * Whether the lights stay on once the plan is built, what to build if they
+ * would not, and what keeping them on costs a minute.
  *
- * The board had both halves of this and never added them up: the Planner knew
- * its plan draws 344 MW, the Overview knew the base draws 188 MW of the 550 MW
- * standing, and the one question a plan of that size raises had no answer
- * anywhere on the page.
+ * The board had the first half and never added it up: the Planner knew its plan
+ * draws 344 MW, the Overview knew the base draws 188 MW of the 550 MW standing,
+ * and the one question a plan of that size raises had no answer anywhere on the
+ * page. It then told anyone who went over to *"build generators"* without
+ * knowing what a generator is, and charged nothing at all for the coal they eat
+ * — which on the reference save is another 69/min on top of the plan's own 124.
  */
-export function PlanPowerPanel({ power }: { power: PlanPower }) {
+export function PlanPowerPanel({ db, power }: { db: GameDatabase; power: PlanPower }) {
   const share = power.capacityMW > 0 ? power.afterMW / power.capacityMW : 0;
   const tone = power.over.length > 0 ? 'crit' : share > 0.9 ? 'warn' : 'ok';
 
@@ -249,10 +252,87 @@ export function PlanPowerPanel({ power }: { power: PlanPower }) {
         ))}
       </Box>
 
+      {power.over.map((grid) => (
+        <Box key={grid.id} mt={3.5} pt={3} borderTopWidth="1px" borderColor="border.default">
+          <Flex gap={2} align="baseline" wrap="wrap" mb={1.5}>
+            <Label color="fg">
+              Grid {grid.id} is {Math.round(grid.afterMW - grid.capacityMW)} MW short
+            </Label>
+            <Text fontSize="12.5px" color="fg.muted">
+              {grid.cover.length > 0
+                ? 'build one of these there · the fuel is what carrying the gap costs'
+                : 'and nothing in the database says what would cover it'}
+            </Text>
+          </Flex>
+          {grid.cover.slice(0, 3).map((cover) => (
+            <Flex key={cover.generator} gap={3} align="baseline" wrap="wrap" py={0.5}>
+              <Mono fontSize="12px" w="34px" flex="none" textAlign="end">
+                {cover.count} ×
+              </Mono>
+              <Text fontSize="13px" w="190px" flex="none" truncate>
+                {cover.generatorName}
+              </Text>
+              <Mono fontSize="11.5px" color="fg.muted" w="72px" flex="none" textAlign="end">
+                {cover.capacityMW} MW
+              </Mono>
+              <Mono fontSize="11.5px" color="fg.subtle">
+                {rate(cover.fuelPerMinute)}
+                {unit(db, cover.fuel)} {itemName(db, cover.fuel)}
+                {cover.supplemental
+                  ? ` · ${rate(cover.supplemental.ratePerMinute)}${unit(db, cover.supplemental.item)} ${itemName(db, cover.supplemental.item)}`
+                  : ''}
+                {cover.byproduct
+                  ? ` · ${rate(cover.byproduct.ratePerMinute)}${unit(db, cover.byproduct.item)} ${itemName(db, cover.byproduct.item)} back`
+                  : ''}
+              </Mono>
+            </Flex>
+          ))}
+        </Box>
+      ))}
+
+      {power.fuel.length > 0 ? (
+        <Box mt={3.5} pt={3} borderTopWidth="1px" borderColor="border.default">
+          <Flex gap={2} align="baseline" wrap="wrap" mb={1.5}>
+            <Label color="fg">And feeding it</Label>
+            <Text fontSize="12.5px" color="fg.muted">
+              what the generators burn to hold that draw
+            </Text>
+          </Flex>
+          {[...power.fuel, ...power.byproducts].map((line) => {
+            const back = power.byproducts.includes(line);
+            return (
+              <Flex key={line.item} gap={3} align="baseline" wrap="wrap" py={0.5}>
+                <Text fontSize="13px" w="150px" flex="none" truncate>
+                  {itemName(db, line.item)}
+                  {back ? ' back' : ''}
+                </Text>
+                <Mono fontSize="11.5px" color="fg.muted" w="96px" flex="none" textAlign="end">
+                  {rate(line.nowPerMinute)}
+                  {unit(db, line.item)}
+                </Mono>
+                <Mono fontSize="11.5px" color="fg.subtle" w="14px" flex="none" textAlign="center">
+                  →
+                </Mono>
+                <Mono fontSize="11.5px" w="96px" flex="none" textAlign="end">
+                  {rate(line.afterPerMinute)}
+                  {unit(db, line.item)}
+                </Mono>
+              </Flex>
+            );
+          })}
+        </Box>
+      ) : null}
+
       <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted" mt={3}>
         {power.over.length > 0
-          ? `Grid ${power.over.map((grid) => grid.id).join(' and ')} would be asked for more than ${power.over.length === 1 ? 'it can' : 'they can'} supply. Build generators there before the machines, or the whole circuit stops.`
-          : `New machines are charged to the grid their recipe already runs on, and to the largest grid where nothing runs it yet. Satisfactory does not blend circuits, so a base can sit at 70% overall with one grid over its own limit.`}
+          ? `Grid ${power.over.map((grid) => grid.id).join(' and ')} would be asked for more than ${power.over.length === 1 ? 'it can' : 'they can'} supply, and the whole circuit stops when that happens — not the machines you added last. `
+          : `New machines are charged to the grid their recipe already runs on, and to the largest grid where nothing runs it yet. Satisfactory does not blend circuits, so a base can sit at 70% overall with one grid over its own limit. `}
+        {power.fuel.length > 0
+          ? `Generators throttle to what is drawn from them and burn fuel in proportion, so the fuel above is the running cost of the megawatts, not of the generators — and none of it appears in the plan's own inputs.`
+          : ''}
+        {power.unpricedMW > 0
+          ? ` About ${Math.round(power.unpricedMW)} MW of what is drawn today comes from generators the database cannot price, so the fuel is a floor rather than the whole bill.`
+          : ''}
       </Text>
     </Panel>
   );

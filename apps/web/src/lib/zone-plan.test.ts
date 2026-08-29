@@ -41,6 +41,7 @@ const db: GameDatabase = {
     ConstructorMk1: { id: 'ConstructorMk1', name: 'Constructor' },
   },
   milestones: {},
+  generators: {},
   schematics: {},
 };
 

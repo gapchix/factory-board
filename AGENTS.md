@@ -39,7 +39,22 @@ integration tests skip and the web app refuses to build with instructions.
   Adding a field to a domain type means adding it to the schema in the same commit; the
   assertion will say so.
 - **Fluids are m³ everywhere.** Normalised once in the extractor; nothing downstream
-  converts.
+  converts. That includes **energy**, which the game states per litre: Fuel is 750 MJ/m³,
+  and read as 0.75 a Fuel-Powered Generator burns twenty thousand m³ a minute.
+- **Power draw and power supply never share a field.** `machines[id].powerMW` is what a
+  building takes; `generators[id].powerMW` is what one gives. A total that adds them is
+  wrong by twice the difference.
+- **A generator's fuel bill follows the load, not the generators.** They throttle to what
+  their circuit draws and burn in proportion, so five at 20% cost what one at 100% costs.
+  A grid over capacity is capped at 1 — it browns out, it does not burn harder.
+  [ADR 31](docs/adr/0031-power-is-an-input-like-ore.md)
+- **A save's `capacityMW` is what its generators can supply now, not what was built.** An
+  empty generator contributes nothing to it, so it contributes nothing to the fuel bill
+  either. Comparing it against a nameplate total is not a fuel reading: two of the
+  reference save's fourteen generators are not in `Docs.json` at all.
+- **A hand-written world states its indices, it does not type them.** The demo's grid
+  membership and belt links were literal numbers into `placements`; the list grew, and
+  seven of ten links silently came to mean something else. Derive them.
 - **Two build numbers, never compared.** `sourceBuildId` is Steam's;
   `saveBuildVersion` is the game's. Unrelated numbering.
 - **A belt's spline runs downstream.** `mSplineData` is stored in build order, input

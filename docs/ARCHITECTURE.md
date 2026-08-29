@@ -251,3 +251,4 @@ Recorded in full under [adr/](adr).
 | [The plan stands on the ground](adr/0027-the-plan-stands-on-the-ground.md)                   | Ghosts go where the recipe already lives, facing as its neighbours do; the homeless are reported                  |
 | [The plan writes itself](adr/0026-the-plan-writes-itself.md)                                 | A blank page is a reason not to start; the save already says what the elevator is short of                        |
 | [A grid is checked first](adr/0025-a-grid-is-checked-before-a-buffer.md)                     | A dead grid looks exactly like starvation; real draw was 188 MW, not the 125 MW totalled from the DB              |
+| [Power is an input like ore](adr/0031-power-is-an-input-like-ore.md)                         | Every generator declares zero draw, so the extractor dropped them all; a plan's 344 MW is 69 Coal/min of its own  |

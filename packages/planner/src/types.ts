@@ -21,6 +21,18 @@ export interface GameItem {
   readonly isRaw: boolean;
   /** Measured in m³/min rather than items/min. */
   readonly isFluid: boolean;
+  /**
+   * What burning one of these releases, in megajoules per *display* unit — so
+   * per m³ for a fluid, not per litre.
+   *
+   * The game states fluid energy per litre, which makes Fuel look like 0.75
+   * beside Coal's 300 and turns a generator's burn rate into a thousandfold
+   * error in whichever direction you guess. Normalised here with every other
+   * fluid figure, once, at the extractor.
+   *
+   * Absent for everything that is not a fuel, which is most of the book.
+   */
+  readonly energyMJ?: number | undefined;
 }
 
 export interface RecipePort {
@@ -77,6 +89,51 @@ export interface GameBuilding {
   readonly footprintM?: { readonly width: number; readonly length: number } | undefined;
 }
 
+/**
+ * One thing a generator will burn, and what burning it costs per minute.
+ *
+ * Rates are for the generator at full output. Fuel burn is linear in load —
+ * a generator carrying half a grid burns half the coal — so a rate here scales
+ * straight down, and nothing needs a second figure for part load.
+ */
+export interface GeneratorFuel {
+  readonly item: ItemId;
+  /** Burned per minute at full output, in display units. */
+  readonly ratePerMinute: number;
+  /**
+   * The second input some generators need alongside the fuel — water, for
+   * every one that has it. Absent where the generator wants nothing else.
+   */
+  readonly supplemental?: { readonly item: ItemId; readonly ratePerMinute: number } | undefined;
+  /** What comes back out: nuclear waste, and nothing else in the game today. */
+  readonly byproduct?: { readonly item: ItemId; readonly ratePerMinute: number } | undefined;
+}
+
+/**
+ * A building that makes power rather than drawing it.
+ *
+ * Deliberately not a `GameMachine`: a machine's `powerMW` is what it *takes*,
+ * and putting a number that means the opposite in the same field is how a
+ * total ends up 500 MW wrong with nothing to show for it.
+ *
+ * Only generators that burn something are here. The Geothermal Generator's
+ * output depends on the purity of the vent it stands on, which is
+ * world-generation data no save records — the same wall the node budget runs
+ * into. A generator whose output cannot be stated is left out rather than
+ * given a made-up one.
+ */
+export interface GameGenerator {
+  readonly id: MachineId;
+  readonly name: string;
+  /** Output at full load, in MW. */
+  readonly powerMW: number;
+  /**
+   * Every fuel it takes, in the game's own order, which puts the plain one
+   * first: Coal before Compacted Coal, Fuel before Turbofuel.
+   */
+  readonly fuels: readonly GeneratorFuel[];
+}
+
 export interface GameMilestone {
   readonly id: MilestoneId;
   readonly name: string;
@@ -124,6 +181,14 @@ export interface GameDatabase {
   readonly items: Readonly<Record<ItemId, GameItem>>;
   readonly recipes: Readonly<Record<RecipeId, GameRecipe>>;
   readonly machines: Readonly<Record<MachineId, GameMachine>>;
+  /**
+   * Every generator that burns a fuel, with what it makes and what that costs.
+   *
+   * Separate from `machines` because the two answer opposite questions — one
+   * is draw, the other is supply — and a plan that added them together would
+   * be wrong by twice the difference.
+   */
+  readonly generators: Readonly<Record<MachineId, GameGenerator>>;
   /** Display names for every placeable building, machines included. */
   readonly buildings: Readonly<Record<MachineId, GameBuilding>>;
   readonly milestones: Readonly<Record<MilestoneId, GameMilestone>>;

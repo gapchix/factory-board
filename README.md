@@ -63,13 +63,13 @@ the bundle. The page itself never touches your disk — it cannot, and shouldn't
 
 ## The views
 
-|                 |                                                                                                                                                                                                                            |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan                                                                                                       |
-| **Base**        | The factory drawn as it stands, every building at the size and angle you built it, coloured by uptime — click one to trace what feeds it. Grouped into zones named for what they make, mine or burn, nameable and linkable |
-| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus. Every alternate recipe priced against the whole plan in machines, power and ore — ranked, and split by what your save has actually unlocked       |
-| **History**     | Every autosave kept, so the session draws itself: what changed since the last save, machines, power and uptime over time, and a phase burn-down                                                                            |
-| **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                                                     |
+|                 |                                                                                                                                                                                                                                                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**    | What the factory is doing now: bottlenecks ranked worst-first, power draw, machine census, progress against the plan                                                                                                                                                                                            |
+| **Base**        | The factory drawn as it stands, every building at the size and angle you built it, coloured by uptime — click one to trace what feeds it. Grouped into zones named for what they make, mine or burn, nameable and linkable                                                                                      |
+| **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus. Every alternate recipe priced against the whole plan in machines, power and ore — ranked, and split by what your save has actually unlocked. Power per grid, what to build where one would go over, and the fuel a minute it all costs |
+| **History**     | Every autosave kept, so the session draws itself: what changed since the last save, machines, power and uptime over time, and a phase burn-down                                                                                                                                                                 |
+| **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                                                                                                                                          |
 
 ## Why extract instead of ship the data?
 
@@ -80,7 +80,7 @@ Every install already contains a machine-readable dump of it at
 This is also just better: the data is exact for _your_ game version, including whatever
 the last patch changed, rather than whatever a maintainer last got round to updating.
 
-The demo database is a different thing: fifteen items and fifteen recipes, **typed out by hand**
+The demo database is a different thing: sixteen items, fifteen recipes and a burner, **typed out by hand**
 in `packages/game-data/src/demo.ts` rather than extracted from anywhere. The rates and
 footprints match the real game because a demo that lies is worse than no demo, but nothing
 is copied from Coffee Stain's files.
@@ -89,7 +89,7 @@ is copied from Coffee Stain's files.
 
 | Package                                              | What it does                                                                                                                                                                         |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@factory-board/planner`](packages/planner)         | Expands production targets into machine counts, power and ore rates. Pure, no dependencies.                                                                                          |
+| [`@factory-board/planner`](packages/planner)         | Expands production targets into machine counts, power and ore rates, and prices what generators burn to supply them. Pure, no dependencies.                                          |
 | [`@factory-board/game-data`](packages/game-data)     | Reads `Docs.json` from your install into a typed, validated database. Ships the `factory-board-extract` CLI, and a hand-written demo database and base for running without the game. |
 | [`@factory-board/save-reader`](packages/save-reader) | Reduces a `.sav` to the production lines, buildings and progress it contains. Runs in the browser.                                                                                   |
 | [`@factory-board/layout`](packages/layout)           | Clusters buildings into zones and lays out the production graph. Pure geometry, no dependencies.                                                                                     |

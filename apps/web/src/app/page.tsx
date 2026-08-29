@@ -180,6 +180,17 @@ export default function OverviewPage() {
       .map((placement, index) => ({ placement, index }))
       .filter(({ placement }) => placement.role === 'power' && (placement.fuel ?? 0) === 0);
 
+    /*
+     * And what standing empty costs. The count alone says a burner needs
+     * feeding; the megawatts say whether that is a walk across the base or the
+     * reason a grid is browning out — one dry Coal-Powered Generator is 75 MW
+     * built and not received.
+     */
+    const idleMW = dryGenerators.reduce(
+      (total, { placement }) => total + (db.generators[placement.machine]?.powerMW ?? 0),
+      0,
+    );
+
     return {
       machines,
       powerMW,
@@ -201,6 +212,7 @@ export default function OverviewPage() {
       overloaded,
       undelivered,
       dryGenerators,
+      idleMW,
       lineCount: lines.length,
     };
   }, [snapshot, plan]);
@@ -328,7 +340,7 @@ export default function OverviewPage() {
           title="Power draw"
           note={
             view.dryGenerators.length > 0
-              ? `MW by machine type · ${view.dryGenerators.length} generator${view.dryGenerators.length === 1 ? '' : 's'} out of fuel`
+              ? `MW by machine type · ${view.dryGenerators.length} generator${view.dryGenerators.length === 1 ? '' : 's'} out of fuel${view.idleMW > 0 ? `, ${Math.round(view.idleMW)} MW idle` : ''}`
               : 'MW by machine type'
           }
         >

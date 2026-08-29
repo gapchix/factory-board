@@ -1,5 +1,6 @@
 import type {
   GameDatabase,
+  GameGenerator,
   GameItem,
   GameMachine,
   GameRecipe,
@@ -22,7 +23,7 @@ import type {
  * but every byte of it is typed out here, the same way
  * `packages/planner/src/fixtures.ts` has always carried a smaller version for
  * the tests. Nothing is copied from the game's files, and it goes nowhere near
- * complete: fifteen items and fifteen recipes against a real database's 168
+ * complete: sixteen items and fifteen recipes against a real database's 168
  * and 291.
  *
  * It is enough to make every view answer something — a chain three steps deep,
@@ -66,6 +67,13 @@ const schematic = (
 
 const machine = (id: string, name: string, powerMW: number): GameMachine => ({ id, name, powerMW });
 
+const generator = (
+  id: string,
+  name: string,
+  powerMW: number,
+  fuels: GameGenerator['fuels'],
+): GameGenerator => ({ id, name, powerMW, fuels });
+
 const building = (id: string, name: string, width?: number, length?: number) => ({
   id,
   name,
@@ -82,7 +90,13 @@ export const demoDatabase: GameDatabase = {
     item('Desc_OreIron_C', 'Iron Ore', { isRaw: true }),
     item('Desc_OreCopper_C', 'Copper Ore', { isRaw: true }),
     item('Desc_Stone_C', 'Limestone', { isRaw: true }),
-    item('Desc_Coal_C', 'Coal', { isRaw: true }),
+    item('Desc_Coal_C', 'Coal', { isRaw: true, energyMJ: 300 }),
+    /*
+     * What the burners eat. No recipe makes it here, which is not an omission:
+     * at this tier you carry biomass to the burners by hand, and the board
+     * saying what that costs per minute is the point of having the number.
+     */
+    item('Desc_Biofuel_C', 'Solid Biofuel', { energyMJ: 450 }),
     item('Desc_IronIngot_C', 'Iron Ingot'),
     item('Desc_CopperIngot_C', 'Copper Ingot'),
     item('Desc_IronRod_C', 'Iron Rod'),
@@ -100,6 +114,17 @@ export const demoDatabase: GameDatabase = {
     machine('FoundryMk1', 'Foundry', 16),
     machine('ConstructorMk1', 'Constructor', 4),
     machine('AssemblerMk1', 'Assembler', 15),
+  ]),
+  /*
+   * 30 MW off 4 Solid Biofuel a minute, which is the real burner. Three of the
+   * demo base's four are burning, so its 90 MW of capacity is bought with 12
+   * Solid Biofuel a minute at full output — and nothing on the base makes any,
+   * which is what an early game looks like and what the board can now say.
+   */
+  generators: byId([
+    generator('GeneratorBiomass_Automated', 'Biomass Burner', 30, [
+      { item: 'Desc_Biofuel_C', ratePerMinute: 4 },
+    ]),
   ]),
   buildings: byId([
     // Footprints are the game's own clearance boxes, which is what lets the map
@@ -295,11 +320,7 @@ export const demoDatabase: GameDatabase = {
         { item: 'Desc_IronPlateReinforced_C', amount: 150 },
         { item: 'Desc_Cable_C', amount: 300 },
       ],
-      unlocks: [
-        'Recipe_IronPlateReinforced_C',
-        'Recipe_Rotor_C',
-        'Recipe_SpaceElevatorPart_1_C',
-      ],
+      unlocks: ['Recipe_IronPlateReinforced_C', 'Recipe_Rotor_C', 'Recipe_SpaceElevatorPart_1_C'],
     },
     {
       id: 'Schematic_2-2_C',

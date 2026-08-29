@@ -14,6 +14,16 @@ import { parseGameDatabase } from './schema.js';
 const snapshot = demoSnapshot() as {
   readonly lines: Readonly<Record<string, unknown>>;
   readonly milestones: readonly string[];
+  readonly placements: readonly {
+    machine: string;
+    recipe?: string;
+    resource?: string;
+    role?: string;
+    fuel?: number;
+    circuit?: number;
+  }[];
+  readonly links: readonly { from: number; to: number }[];
+  readonly circuits: readonly { id: number; members: readonly number[]; capacityMW: number }[];
 };
 
 describe('the demo database', () => {
@@ -62,5 +72,42 @@ describe('the demo save', () => {
       (id) => !(id in db.schematics) && !(id in db.milestones),
     );
     expect(unknown).toEqual([]);
+  });
+
+  /*
+   * The failure mode of a base written by hand: indices into a list that later
+   * grew. Both the grid membership and the links were typed out as numbers and
+   * both had gone stale — `20 → 0` meant *iron miner into the first smelter*
+   * and had become *the Smart Plating assembler into it*. They are worked out
+   * from the placements now, and this is the check that they still line up.
+   */
+  it('joins buildings that could actually be joined', () => {
+    for (const link of snapshot.links) {
+      const from = snapshot.placements[link.from];
+      const to = snapshot.placements[link.to];
+      expect(from?.role === 'production' || from?.role === 'extraction').toBe(true);
+      expect(to?.role).toBe('production');
+    }
+
+    for (const circuit of snapshot.circuits) {
+      for (const index of circuit.members) {
+        expect(snapshot.placements[index]?.circuit).toBe(circuit.id);
+      }
+    }
+  });
+
+  /*
+   * A generator with nothing in it supplies nothing, and a save's capacity
+   * figure is what its generators can give *now*. The demo claimed 90 MW off
+   * three burners with one of them empty — a state the game cannot be in.
+   */
+  it('only counts the generators that are burning towards a grid’s capacity', () => {
+    for (const circuit of snapshot.circuits) {
+      const burning = circuit.members
+        .map((index) => snapshot.placements[index])
+        .filter((placement) => placement?.role === 'power' && (placement.fuel ?? 0) > 0)
+        .reduce((total, placement) => total + (db.generators[placement!.machine]?.powerMW ?? 0), 0);
+      expect(burning).toBe(circuit.capacityMW);
+    }
   });
 });

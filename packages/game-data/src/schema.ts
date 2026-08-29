@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type {
   GameBuilding,
   GameDatabase,
+  GameGenerator,
   GameItem,
   GameMachine,
   GameMilestone,
@@ -26,6 +27,26 @@ const gameItemSchema = z.object({
   name: z.string().min(1),
   isRaw: z.boolean(),
   isFluid: z.boolean(),
+  energyMJ: z.number().positive().optional(),
+});
+
+const generatorInputSchema = z.object({
+  item: z.string().min(1),
+  ratePerMinute: z.number().positive(),
+});
+
+const generatorFuelSchema = z.object({
+  item: z.string().min(1),
+  ratePerMinute: z.number().positive(),
+  supplemental: generatorInputSchema.optional(),
+  byproduct: generatorInputSchema.optional(),
+});
+
+const gameGeneratorSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  powerMW: z.number().positive(),
+  fuels: z.array(generatorFuelSchema).min(1),
 });
 
 const gameRecipeSchema = z.object({
@@ -74,6 +95,10 @@ export const gameDatabaseSchema = z.object({
   items: z.record(z.string(), gameItemSchema),
   recipes: z.record(z.string(), gameRecipeSchema),
   machines: z.record(z.string(), gameMachineSchema),
+  /* Defaulted for the same reason as `schematics`: a database generated before
+   * generators were extracted still loads, and then says nothing about power
+   * rather than claiming the game has none. */
+  generators: z.record(z.string(), gameGeneratorSchema).default({}),
   buildings: z.record(z.string(), gameBuildingSchema),
   milestones: z.record(z.string(), gameMilestoneSchema),
   /*
@@ -115,6 +140,10 @@ const _shapeSatisfiesDomain: GameDatabaseShape extends GameDatabase ? true : nev
 const _itemKeys: AssertNoMissingKeys<GameItem, z.infer<typeof gameItemSchema>> = true;
 const _recipeKeys: AssertNoMissingKeys<GameRecipe, z.infer<typeof gameRecipeSchema>> = true;
 const _machineKeys: AssertNoMissingKeys<GameMachine, z.infer<typeof gameMachineSchema>> = true;
+const _generatorKeys: AssertNoMissingKeys<
+  GameGenerator,
+  z.infer<typeof gameGeneratorSchema>
+> = true;
 const _buildingKeys: AssertNoMissingKeys<GameBuilding, z.infer<typeof gameBuildingSchema>> = true;
 const _milestoneKeys: AssertNoMissingKeys<
   GameMilestone,
@@ -131,6 +160,7 @@ void [
   _itemKeys,
   _recipeKeys,
   _machineKeys,
+  _generatorKeys,
   _buildingKeys,
   _milestoneKeys,
   _schematicKeys,

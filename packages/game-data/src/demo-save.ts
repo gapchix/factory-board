@@ -160,6 +160,31 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       uptime: 0,
       circuit: 1,
     },
+    /*
+     * Four burners on Solid Biofuel — which is what a Biomass Burner takes.
+     * They were written burning coal, which no burner will do; nothing read a
+     * generator's fuel until the database learned what fuel costs, and then the
+     * demo was quoting a rate for something that cannot happen.
+     *
+     * Three are burning and one has run dry, which is why the grid below
+     * reports 90 MW rather than the 120 that stand there: a save states what
+     * its generators can supply *now*, and an empty one supplies nothing.
+     * There were three before, one of them empty, and 90 MW claimed anyway —
+     * a demo that could not have happened, and the only kind of error a
+     * hand-written base can make that a real save cannot.
+     */
+    {
+      machine: 'GeneratorBiomass_Automated',
+      x: -54,
+      y: 66,
+      z: 0,
+      facing: 0,
+      role: 'power',
+      resource: 'Desc_Biofuel_C',
+      uptime: 1,
+      fuel: 95,
+      circuit: 0,
+    },
     {
       machine: 'GeneratorBiomass_Automated',
       x: -40,
@@ -167,7 +192,7 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       z: 0,
       facing: 0,
       role: 'power',
-      resource: 'Desc_Coal_C',
+      resource: 'Desc_Biofuel_C',
       uptime: 1,
       fuel: 180,
       circuit: 0,
@@ -179,7 +204,7 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       z: 0,
       facing: 0,
       role: 'power',
-      resource: 'Desc_Coal_C',
+      resource: 'Desc_Biofuel_C',
       uptime: 1,
       fuel: 140,
       circuit: 0,
@@ -191,7 +216,7 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       z: 0,
       facing: 0,
       role: 'power',
-      resource: 'Desc_Coal_C',
+      resource: 'Desc_Biofuel_C',
       uptime: 0.62,
       fuel: 0,
       circuit: 0,
@@ -238,7 +263,7 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
     belt([-144, 74], [-130, 70]),
 
     /* The main grid: burners out to a spine, and the spine out to each row. */
-    wire([-40, 66], [-12, 66]),
+    wire([-54, 66], [-12, 66]),
     wire([-12, 66], [4, 44]),
     wire([4, 44], [-56, 44]),
     wire([-56, 44], [-60, 14]),
@@ -262,17 +287,37 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
    * these rather than guessing from geometry, so the demo has to state them the
    * way a real save does.
    */
+  /**
+   * The nth machine set to a recipe, and the miner on a resource, by index.
+   *
+   * Typed out as numbers once, and by the time anything traced a chain with
+   * them the list above had grown: `20 → 0` was written as *iron miner into
+   * the first smelter* and had become *the Smart Plating assembler into it*.
+   * Seven of the ten links pointed somewhere they were never meant to, and a
+   * map that traces what feeds what drew every one of them.
+   */
+  const at = (match: (p: Record<string, unknown>) => boolean, nth = 0): number =>
+    placements.flatMap((p, index) => (match(p) ? [index] : []))[nth] ?? -1;
+  const making = (recipe: string, nth = 0) => at((p) => p['recipe'] === recipe, nth);
+  const mining = (resource: string) =>
+    at((p) => p['role'] === 'extraction' && p['resource'] === resource);
+
   const links = [
-    { from: 20, to: 0, kind: 'belt' }, // iron miner  → first smelter
-    { from: 21, to: 4, kind: 'belt' }, // copper miner → copper smelter
-    { from: 0, to: 6, kind: 'belt' }, // iron ingot   → iron rod
-    { from: 1, to: 10, kind: 'belt' }, // iron ingot  → iron plate
-    { from: 6, to: 12, kind: 'belt' }, // iron rod    → screws
-    { from: 12, to: 16, kind: 'belt' }, // screws     → reinforced plate
-    { from: 12, to: 17, kind: 'belt' }, // screws     → rotor
-    { from: 16, to: 18, kind: 'belt' }, // plate      → smart plating
-    { from: 4, to: 14, kind: 'belt' }, // copper ingot → wire
-    { from: 14, to: 15, kind: 'belt' }, // wire       → cable
+    { from: mining('Desc_OreIron_C'), to: making('Recipe_IngotIron_C'), kind: 'belt' },
+    { from: mining('Desc_OreCopper_C'), to: making('Recipe_IngotCopper_C'), kind: 'belt' },
+    // Two smelters feeding two different lines, as a base of this size does.
+    { from: making('Recipe_IngotIron_C'), to: making('Recipe_IronRod_C'), kind: 'belt' },
+    { from: making('Recipe_IngotIron_C', 1), to: making('Recipe_IronPlate_C'), kind: 'belt' },
+    { from: making('Recipe_IronRod_C'), to: making('Recipe_Screw_C'), kind: 'belt' },
+    { from: making('Recipe_Screw_C'), to: making('Recipe_IronPlateReinforced_C'), kind: 'belt' },
+    { from: making('Recipe_Screw_C'), to: making('Recipe_Rotor_C'), kind: 'belt' },
+    {
+      from: making('Recipe_IronPlateReinforced_C'),
+      to: making('Recipe_SpaceElevatorPart_1_C'),
+      kind: 'belt',
+    },
+    { from: making('Recipe_IngotCopper_C'), to: making('Recipe_Wire_C'), kind: 'belt' },
+    { from: making('Recipe_Wire_C'), to: making('Recipe_Cable_C'), kind: 'belt' },
   ];
 
   const line = (recipe: string, machine: string, count: number, uptime: number | null) => ({
@@ -282,6 +327,10 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
     uptime,
     clock: 1,
   });
+
+  /** Everything above that says it is on this grid, by index. */
+  const wiredTo = (circuit: number): number[] =>
+    placements.flatMap((placement, index) => (placement['circuit'] === circuit ? [index] : []));
 
   return {
     sessionName: 'demo',
@@ -307,7 +356,7 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       ConstructorMk1: 13,
       AssemblerMk1: 3,
       MinerMk1: 3,
-      GeneratorBiomass_Automated: 3,
+      GeneratorBiomass_Automated: 4,
       StorageContainerMk1: 3,
       TradingPost: 1,
       ConveyorBeltMk1: 11,
@@ -343,12 +392,20 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       'Schematic_2-1_C',
       'Schematic_Alternate_Screw_C',
     ],
+    /*
+     * The main grid, comfortable — three burners, 90 MW. And a second one with
+     * a miner and a constructor on it and nothing generating, where every
+     * machine reads as stopped and only the grid explains why.
+     *
+     * Membership is worked out from the placements rather than typed out. It
+     * was typed out once, and by the time anything read it the list had gone
+     * stale: grid 0 held the first ten buildings and none of its own burners,
+     * so a board that priced the fuel a grid burns found no generators on the
+     * only grid that has any.
+     */
     circuits: [
-      // The main grid, comfortable. And a second one with a miner and a
-      // constructor on it and nothing generating — every machine there reads as
-      // stopped, and only the grid explains why.
-      { id: 0, members: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], demandMW: 78, capacityMW: 90 },
-      { id: 1, members: [19, 22], demandMW: 9, capacityMW: 0 },
+      { id: 0, members: wiredTo(0), demandMW: 78, capacityMW: 90 },
+      { id: 1, members: wiredTo(1), demandMW: 9, capacityMW: 0 },
     ],
     phase: {
       current: 'GP_Project_Assembly_Phase_1',

@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { defaultIsDemo, defaultSave, demoSave } from '@/lib/default-snapshot';
 import { playTime } from '@/lib/format';
+import { gameDatabase } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
 import { useSaveLoader } from '@/hooks/use-save-loader';
 import { Label, Mono } from './primitives';
@@ -267,8 +268,14 @@ export function Header() {
             Demo
           </Label>
           <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted">
-            Every number on this page is from a base that does not exist. No Satisfactory install
-            was found, so the board is running on its own hand-written data — drop a{' '}
+            Every number on this page is from a base that does not exist.{' '}
+            {/* And only claim the install is missing when it is: this banner sat
+                beside a button offering to go back to the real save it said
+                could not be found. */}
+            {gameDatabase.sourceBuildId === 0
+              ? 'No Satisfactory install was found, so the board is running on its own hand-written data'
+              : 'The recipes are your own install’s; the factory is not'}{' '}
+            — drop a{' '}
             <Box as="span" fontFamily="mono">
               .sav
             </Box>{' '}

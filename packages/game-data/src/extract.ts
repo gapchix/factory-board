@@ -1,11 +1,13 @@
 import type {
   GameBuilding,
   GameDatabase,
+  GameGenerator,
   GameItem,
   GameMachine,
   GameMilestone,
   GameRecipe,
   GameSchematic,
+  GeneratorFuel,
   RecipePort,
 } from '@factory-board/planner';
 import {
@@ -53,6 +55,7 @@ export interface ExtractionReport {
     readonly recipes: number;
     readonly alternateRecipes: number;
     readonly machines: number;
+    readonly generators: number;
     readonly buildings: number;
     readonly milestones: number;
     readonly schematics: number;
@@ -75,11 +78,20 @@ function buildItems(docs: readonly DocsGroup[]): {
 
   const add = (cls: DocsClass): void => {
     if (items[cls.ClassName]) return;
+    const isFluid = FLUID_FORMS.has(readString(cls['mForm']) ?? '');
+    /*
+     * Fluid energy is stated per litre and solid energy per item, so Fuel
+     * arrives as 0.75 beside Coal's 300. Normalised here with every other
+     * fluid figure — a generator's burn rate is otherwise wrong by a factor of
+     * a thousand, in the direction that looks plausible.
+     */
+    const energy = readNumber(cls['mEnergyValue']) ?? 0;
     items[cls.ClassName] = {
       id: cls.ClassName,
       name: readString(cls['mDisplayName']) ?? cls.ClassName,
       isRaw: rawIds.has(cls.ClassName),
-      isFluid: FLUID_FORMS.has(readString(cls['mForm']) ?? ''),
+      isFluid,
+      ...(energy > 0 ? { energyMJ: isFluid ? energy * LITRES_PER_CUBIC_METRE : energy } : {}),
     };
   };
 
@@ -167,6 +179,104 @@ function buildMachines(docs: readonly DocsGroup[]): Record<string, GameMachine> 
     }
   }
   return machines;
+}
+
+/** `/Game/…/Desc_Water.Desc_Water_C` or a bare `Desc_Water_C`, either way. */
+function className(raw: unknown): string | undefined {
+  const text = readString(raw);
+  if (!text) return undefined;
+  const match = /([A-Za-z0-9_]+_C)'?"?$/.exec(text.trim());
+  return match?.[1];
+}
+
+const SECONDS_PER_MINUTE = 60;
+
+/**
+ * Every generator that burns something, priced per minute at full output.
+ *
+ * Three numbers out of the game files, and one of them is not a number:
+ *
+ *  - **Fuel** comes from the item's own energy. A generator is a converter of
+ *    megajoules into megawatt-seconds at par, so 75 MW off 300 MJ Coal is
+ *    75/300 a second — 15 Coal/min, which is what the game does.
+ *  - **Water** comes from `mSupplementalToPowerRatio`, which is litres per
+ *    second per megawatt. Ten, for a Coal-Powered Generator, is 45 m³/min.
+ *  - **Waste** comes from `mByproductAmount`, which is per fuel *item* rather
+ *    than per minute, so it is priced off the fuel rate rather than the power.
+ *
+ * The Geothermal Generator is left out. It declares no fuel and no output —
+ * what it makes depends on the purity of the vent it stands on, which is
+ * world-generation data no save records, the same wall the node budget runs
+ * into. A generator whose output cannot be stated is better absent than
+ * invented.
+ */
+function buildGenerators(
+  docs: readonly DocsGroup[],
+  items: Readonly<Record<string, GameItem>>,
+): Record<string, GameGenerator> {
+  const generators: Record<string, GameGenerator> = {};
+
+  for (const cls of classesMatching(docs, /FGBuildableGenerator/)) {
+    const powerMW = readNumber(cls['mPowerProduction']) ?? 0;
+    const entries = cls['mFuel'];
+    if (powerMW <= 0 || !Array.isArray(entries)) continue;
+
+    const ratio = readNumber(cls['mSupplementalToPowerRatio']) ?? 0;
+    const fuels: GeneratorFuel[] = [];
+
+    for (const entry of entries as readonly Record<string, unknown>[]) {
+      const fuelId = className(entry['mFuelClass']);
+      const fuel = fuelId ? items[fuelId] : undefined;
+      if (!fuel?.energyMJ) continue;
+
+      /** Display units a minute: m³ for a fluid, items for anything else. */
+      const perMinute = (perSecond: number, item: GameItem): number =>
+        (item.isFluid ? perSecond / LITRES_PER_CUBIC_METRE : perSecond) * SECONDS_PER_MINUTE;
+
+      const ratePerMinute = (powerMW / fuel.energyMJ) * SECONDS_PER_MINUTE;
+
+      const supplementalId = className(entry['mSupplementalResourceClass']);
+      const supplemental = supplementalId ? items[supplementalId] : undefined;
+
+      const byproductId = className(entry['mByproduct']);
+      const byproduct = byproductId ? items[byproductId] : undefined;
+      const byproductAmount = readNumber(entry['mByproductAmount']) ?? 0;
+
+      fuels.push({
+        item: fuel.id,
+        ratePerMinute,
+        ...(supplemental && ratio > 0
+          ? {
+              supplemental: {
+                item: supplemental.id,
+                ratePerMinute: perMinute(powerMW * ratio, supplemental),
+              },
+            }
+          : {}),
+        ...(byproduct && byproductAmount > 0
+          ? {
+              byproduct: {
+                item: byproduct.id,
+                ratePerMinute: byproduct.isFluid
+                  ? (ratePerMinute * byproductAmount) / LITRES_PER_CUBIC_METRE
+                  : ratePerMinute * byproductAmount,
+              },
+            }
+          : {}),
+      });
+    }
+
+    if (fuels.length === 0) continue;
+    const id = cls.ClassName.replace(/^Build_|_C$/g, '');
+    generators[id] = {
+      id,
+      name: readString(cls['mDisplayName']) ?? id,
+      powerMW,
+      fuels,
+    };
+  }
+
+  return generators;
 }
 
 function toPorts(
@@ -291,6 +401,7 @@ export function extractDatabase(
   const machines = buildMachines(docs);
   const buildings = buildBuildings(docs);
   const recipes = buildRecipes(docs, items, machines, skipped);
+  const generators = buildGenerators(docs, items);
   const milestones = buildMilestones(docs, items);
   const schematics = buildSchematics(docs, recipes);
 
@@ -300,6 +411,19 @@ export function extractDatabase(
   }
   for (const milestone of Object.values(milestones)) {
     for (const port of milestone.cost) referenced.add(port.item);
+  }
+  /*
+   * Fuel counts as a reference. Every one of them happens to be in a recipe
+   * today, so nothing would visibly break — until a generator names something
+   * no recipe touches and the pruner quietly drops the item its burn rate is
+   * stated in.
+   */
+  for (const generator of Object.values(generators)) {
+    for (const fuel of generator.fuels) {
+      referenced.add(fuel.item);
+      if (fuel.supplemental) referenced.add(fuel.supplemental.item);
+      if (fuel.byproduct) referenced.add(fuel.byproduct.item);
+    }
   }
 
   const usedItems: Record<string, GameItem> = {};
@@ -319,6 +443,7 @@ export function extractDatabase(
     items: usedItems,
     recipes,
     machines: usedMachines,
+    generators,
     buildings,
     milestones,
     schematics,
@@ -331,6 +456,7 @@ export function extractDatabase(
       recipes: Object.keys(recipes).length,
       alternateRecipes: Object.values(recipes).filter((r) => r.isAlternate).length,
       machines: Object.keys(usedMachines).length,
+      generators: Object.keys(generators).length,
       buildings: Object.keys(buildings).length,
       milestones: Object.keys(milestones).length,
       schematics: Object.keys(schematics).length,

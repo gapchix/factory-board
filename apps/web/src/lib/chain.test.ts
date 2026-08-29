@@ -42,6 +42,7 @@ const db: GameDatabase = {
     Pipeline: { id: 'Pipeline', name: 'Pipeline' },
   },
   milestones: {},
+  generators: {},
   schematics: {},
 };
 
