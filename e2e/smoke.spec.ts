@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -45,6 +46,26 @@ test('a dropped Docs.json becomes the recipe book, and is remembered', async ({ 
 
   await page.getByRole('button', { name: 'Forget' }).click();
   await expect(strip(page)).not.toContainText('docs-mini.json');
+});
+
+test('a file dropped anywhere on the page is read', async ({ page }) => {
+  await page.goto('/');
+  // React attaches the window listeners after hydration; the page says when.
+  await page.waitForSelector('body[data-drop-ready="1"]');
+  const docs = readFileSync(DOCS_FIXTURE, 'utf8');
+  // A synthetic drop on the body, with a real File in a real DataTransfer:
+  // this is the path a visitor takes, and the picker tests never touch it.
+  await page.evaluate((text) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([text], 'docs-mini.json', { type: 'application/json' }));
+    for (const type of ['dragenter', 'dragover', 'drop'] as const) {
+      document.body.dispatchEvent(
+        new DragEvent(type, { dataTransfer: transfer, bubbles: true, cancelable: true }),
+      );
+    }
+  }, docs);
+  await expect(strip(page)).toContainText('docs-mini.json · 2');
+  await page.getByRole('button', { name: 'Forget' }).click();
 });
 
 test('a JSON that is not a recipe book says so', async ({ page }) => {

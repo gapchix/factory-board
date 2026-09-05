@@ -1,7 +1,7 @@
 import type { GameDatabase } from '@factory-board/planner';
-import type { ActualLine, BuildingRole } from '@factory-board/save-reader';
-import { itemName } from './format';
-import { PHASES, requiredFor } from './phases';
+import type { ActualLine, BuildingRole, WorldSnapshot } from '@factory-board/save-reader';
+import { itemName, recipeName } from './format';
+import { PHASES, quotaFor } from './phases';
 
 /**
  * A save, reduced to what a session's history needs.
@@ -63,6 +63,28 @@ export interface DigestSource {
   } | null;
   /** Only the role is read: extractors and generators are counted, and the length taken. */
   readonly placements: readonly { readonly role?: BuildingRole | undefined }[];
+}
+
+/**
+ * A snapshot reduced to what a digest reads, and nothing else.
+ *
+ * For the saves that arrive alongside the one on screen: the board keeps them
+ * until the history has them, and four hundred placements a save is the
+ * weight [ADR 16](../../../../docs/adr/0016-history-keeps-a-digest.md) took out.
+ * Only the role survives, because that is all `digestOf` reads off a placement.
+ */
+export function toDigestSource(snapshot: WorldSnapshot): DigestSource {
+  return {
+    sessionName: snapshot.sessionName,
+    playDurationSeconds: snapshot.playDurationSeconds,
+    savedAt: snapshot.savedAt,
+    lines: snapshot.lines,
+    milestones: snapshot.milestones,
+    phase: snapshot.phase,
+    placements: snapshot.placements.map((placement) =>
+      placement.role === undefined ? {} : { role: placement.role },
+    ),
+  };
 }
 
 export function digestOf(db: GameDatabase, snapshot: DigestSource, source: string): HistoryPoint {
@@ -136,10 +158,7 @@ export interface Changes {
 const WORKING = 0.6;
 const STOPPED = 0.05;
 
-const nameOf = (db: GameDatabase, recipe: string): string => {
-  const product = db.recipes[recipe]?.outputs[0]?.item;
-  return product ? itemName(db, product) : (db.recipes[recipe]?.name ?? recipe);
-};
+const nameOf = recipeName;
 
 /**
  * What happened between two saves.
@@ -231,9 +250,24 @@ export interface PhaseProgress {
   readonly secondsLeft: number | null;
 }
 
+/**
+ * The quota as this point's world has it — the same reading Progression
+ * uses, withdrawn when the point has delivered past it, so the burn-down
+ * cannot show a finished phase the Progression view has just refused to
+ * put a denominator on.
+ */
+function quotaAt(point: HistoryPoint, phase: string) {
+  return quotaFor({
+    current: null,
+    target: phase,
+    delivered: point.delivered,
+    costMultiplier: point.costMultiplier,
+  });
+}
+
 /** Share of a phase delivered at that point, counting every item it asks for. */
 function shareOf(point: HistoryPoint, phase: string): number {
-  const required = requiredFor(phase, point.costMultiplier);
+  const required = quotaAt(point, phase)?.requires;
   if (!required) return 0;
   let delivered = 0;
   let total = 0;
@@ -259,10 +293,10 @@ export function phaseProgress(
   const latest = points[points.length - 1];
   if (!latest?.phase) return null;
   const definition = PHASES[latest.phase];
-  const requires = requiredFor(latest.phase, latest.costMultiplier);
-  if (!definition || !requires) return null;
+  const quota = quotaAt(latest, latest.phase);
+  if (!definition || !quota) return null;
 
-  const items = Object.entries(requires).map(([item, required]) => ({
+  const items = Object.entries(quota.requires).map(([item, required]) => ({
     item,
     name: itemName(db, item),
     delivered: Math.min(latest.delivered[item] ?? 0, required),

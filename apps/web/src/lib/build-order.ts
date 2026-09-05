@@ -1,6 +1,6 @@
 import type { GameDatabase, ItemId, RecipeId, SolveResult } from '@factory-board/planner';
 import type { WorldSnapshot } from '@factory-board/save-reader';
-import { itemName, machineName } from './format';
+import { recipeName, machineName } from './format';
 
 /**
  * What to build first.
@@ -106,10 +106,7 @@ export function buildOrder(
     return seen;
   };
 
-  const nameOf = (recipe: RecipeId) => {
-    const product = db.recipes[recipe]?.outputs[0]?.item;
-    return product ? itemName(db, product) : (db.recipes[recipe]?.name ?? recipe);
-  };
+  const nameOf = (recipe: RecipeId) => recipeName(db, recipe);
 
   const steps: BuildStep[] = missing.map(({ line, count }) => {
     const needs = waitsOn.get(line.recipe) ?? new Set<RecipeId>();

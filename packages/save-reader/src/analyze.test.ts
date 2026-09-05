@@ -193,6 +193,10 @@ describe('analyzeSave', () => {
 
   it('says whether the save was written with mods loaded', () => {
     expect(analyzeSave(save([])).modded).toBe(false);
+    // The parser stores it as an Int32, and a boolean is what a hand-written
+    // fixture is tempted to write; both read.
+    expect(analyzeSave(save([], { isModdedSave: 0 })).modded).toBe(false);
+    expect(analyzeSave(save([], { isModdedSave: 1 })).modded).toBe(true);
     expect(analyzeSave(save([], { isModdedSave: true })).modded).toBe(true);
   });
 

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { IBM_Plex_Mono, IBM_Plex_Sans, Saira_Condensed } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Box } from '@chakra-ui/react';
+import { DropAnywhere } from '@/components/drop-anywhere';
 import { Footer } from '@/components/footer';
 import { Header } from '@/components/header';
 import { SITE_URL } from '@/lib/about';
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <Providers>
           <Header />
+          <DropAnywhere />
           <Box as="main" maxW="1320px" mx="auto" px={5} pt={6} pb={12}>
             {children}
           </Box>

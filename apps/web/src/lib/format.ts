@@ -15,6 +15,28 @@ export function itemName(db: GameDatabase, id: ItemId): string {
   return db.items[id]?.name ?? id.replace(/^Desc_|_C$/g, '');
 }
 
+/**
+ * What a production line is called: the thing it makes.
+ *
+ * A recipe the book does not know — a real save against the demo book, a mod
+ * recipe, a newer game version — used to print its class name, `Recipe_IngotIron_C`,
+ * which reads as a fault. It is humanised instead: still visibly not a proper
+ * name, no longer a code.
+ */
+export function recipeName(db: GameDatabase, id: string): string {
+  const recipe = db.recipes[id];
+  if (recipe) {
+    const product = recipe.outputs[0]?.item;
+    return product ? itemName(db, product) : recipe.name;
+  }
+  return humanise(id.replace(/^Recipe_|_C$/g, '')).replace(/\s+/g, ' ');
+}
+
+/** Sizes a file the way a person would say it. */
+export function megabytes(bytes: number): string {
+  return `${(bytes / 1_048_576).toFixed(bytes < 10 * 1_048_576 ? 1 : 0)} MB`;
+}
+
 export function unit(db: GameDatabase, id: ItemId): string {
   return db.items[id]?.isFluid ? ' m³/min' : ' /min';
 }

@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import { defaultSave } from '@/lib/default-snapshot';
-import { digestOf } from '@/lib/history';
+import { digestOf, type DigestSource } from '@/lib/history';
 import { recordPoint } from '@/lib/history-store';
 import { loadPlan, savePlan } from '@/lib/plan-storage';
 import { loadZoneNames, saveZoneNames } from '@/lib/zone-storage';
@@ -46,6 +46,13 @@ interface BoardState {
   zoneNames: ZoneName[];
   snapshot: WorldSnapshot | null;
   source: SnapshotSource | null;
+  /**
+   * The other saves of the last drop, for the history. Kept in state rather
+   * than written on arrival so they are digested against whatever recipe
+   * book is current, and again when a new one is dropped, exactly like the
+   * snapshot on screen.
+   */
+  earlier: readonly { source: string; snapshot: DigestSource }[];
   status: LoadStatus;
 }
 
@@ -66,7 +73,12 @@ type Action =
       zoneNames: ZoneName[];
     }
   | { type: 'parsing'; fileName: string; bytes: number }
-  | { type: 'loaded'; snapshot: WorldSnapshot; source: SnapshotSource }
+  | {
+      type: 'loaded';
+      snapshot: WorldSnapshot;
+      source: SnapshotSource;
+      earlier?: readonly { source: string; snapshot: DigestSource }[] | undefined;
+    }
   | { type: 'failed'; message: string }
   /** The reader has read the failure; the save that loaded before it stays. */
   | { type: 'dismiss' }
@@ -79,6 +91,7 @@ const initialState: BoardState = {
   zoneNames: [],
   snapshot: null,
   source: null,
+  earlier: [],
   status: { kind: 'idle' },
 };
 
@@ -151,6 +164,7 @@ function reducer(state: BoardState, action: Action): BoardState {
         ...state,
         snapshot: action.snapshot,
         source: action.source,
+        earlier: action.earlier ?? [],
         status: { kind: 'idle' },
       };
     case 'failed':
@@ -158,7 +172,7 @@ function reducer(state: BoardState, action: Action): BoardState {
     case 'dismiss':
       return state.status.kind === 'failed' ? { ...state, status: { kind: 'idle' } } : state;
     case 'clearSave':
-      return { ...state, snapshot: null, source: null, status: { kind: 'idle' } };
+      return { ...state, snapshot: null, source: null, earlier: [], status: { kind: 'idle' } };
     default:
       return state;
   }
@@ -259,6 +273,14 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       void recordPoint(digestOf(db, seed.snapshot, seed.source));
     }
   }, [db]);
+
+  // And the rest of the last drop, the same way: three autosave slots dropped
+  // together are a series, digested against the book of the moment.
+  useEffect(() => {
+    for (const seed of state.earlier) {
+      void recordPoint(digestOf(db, seed.snapshot, seed.source));
+    }
+  }, [db, state.earlier]);
 
   const addTarget = useCallback((item: string, ratePerMinute: number) => {
     dispatch({ type: 'addTarget', item, ratePerMinute });

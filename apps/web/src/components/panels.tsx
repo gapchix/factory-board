@@ -3,7 +3,7 @@
 import { Box, Button, Flex, Grid, Heading, Text } from '@chakra-ui/react';
 import type { GameDatabase, SolveResult } from '@factory-board/planner';
 import type { WorldSnapshot } from '@factory-board/save-reader';
-import { useMemo, useState, type DragEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { itemName, rate, unit } from '@/lib/format';
 import { duration, planForPhase } from '@/lib/phase-plan';
 import type { BuildStep } from '@/lib/build-order';
@@ -12,8 +12,7 @@ import type { Physics } from '@/lib/throughput';
 import { PHASES, PRESETS, phaseLabel, quotaFor } from '@/lib/phases';
 import { buildZoneBoard, zoneAt } from '@/lib/zones';
 import { useBoard } from '@/state/board';
-import { useDropFiles } from '@/hooks/use-drop-files';
-import { megabytes } from '@/hooks/use-save-loader';
+import { megabytes } from '@/lib/format';
 import { Field, Label, Meter, Mono, NumTd, Panel, Select, Td, TableFrame, Th } from './primitives';
 
 /* -------------------------------------------------------------- phase plan */
@@ -473,16 +472,12 @@ export function PhysicsPanel({ db, view }: { db: GameDatabase; view: Physics }) 
 
 export function SaveDropzone() {
   const { status } = useBoard();
-  const dropFiles = useDropFiles();
   const [hot, setHot] = useState(false);
-
-  const onDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setHot(false);
-    // All of them: three autosave slots are a series, and a recipe book
-    // dropped alongside is read first.
-    if (event.dataTransfer.files.length > 0) void dropFiles(event.dataTransfer.files);
-  };
+  /*
+   * The drop itself is caught by the window (`DropAnywhere`), which is what
+   * makes "drop it on the page" true everywhere, this box included. What the
+   * box adds is somewhere to aim at, and the highlight while aiming.
+   */
 
   const failed = status.kind === 'failed';
 
@@ -495,12 +490,9 @@ export function SaveDropzone() {
       px={6}
       py={8}
       textAlign="center"
-      onDragOver={(event) => {
-        event.preventDefault();
-        setHot(true);
-      }}
+      onDragOver={() => setHot(true)}
       onDragLeave={() => setHot(false)}
-      onDrop={onDrop}
+      onDrop={() => setHot(false)}
     >
       <Heading
         as="h3"

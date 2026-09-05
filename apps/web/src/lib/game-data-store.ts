@@ -49,7 +49,7 @@ let opening: Promise<IDBDatabase | null> | null = null;
 
 function open(): Promise<IDBDatabase | null> {
   if (opening) return opening;
-  opening = new Promise((resolve) => {
+  const pending: Promise<IDBDatabase | null> = new Promise<IDBDatabase | null>((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') {
         resolve(null);
@@ -67,8 +67,14 @@ function open(): Promise<IDBDatabase | null> {
     } catch {
       resolve(null);
     }
+  }).then((db) => {
+    // A refusal is not cached: the next call asks again, in case it was
+    // momentary. A success is.
+    if (!db) opening = null;
+    return db;
   });
-  return opening;
+  opening = pending;
+  return pending;
 }
 
 function run<T>(

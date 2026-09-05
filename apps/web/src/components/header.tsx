@@ -1,6 +1,7 @@
 'use client';
 
 import { Box, Button, chakra, Flex, Text } from '@chakra-ui/react';
+import type { WorldSnapshot } from '@factory-board/save-reader';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -8,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { unknownLines } from '@/lib/coverage';
 import { defaultIsDemo, defaultSave, demoSave } from '@/lib/default-snapshot';
 import { playTime } from '@/lib/format';
-import { useBoard } from '@/state/board';
+import { useBoard, type SnapshotSource } from '@/state/board';
 import { useGameData } from '@/state/game-data';
 import { useDropFiles } from '@/hooks/use-drop-files';
 import { Label, Mono } from './primitives';
@@ -24,7 +25,9 @@ const ROUTES = [
 function Nav() {
   const pathname = usePathname();
   return (
-    <Flex gap={0} borderWidth="1px" borderColor="border.default">
+    // On a phone the five views do not fit across; the strip scrolls sideways
+    // inside itself rather than pushing the whole page wider.
+    <Flex gap={0} borderWidth="1px" borderColor="border.default" maxW="100%" overflowX="auto">
       {ROUTES.map((route, index) => {
         const active = pathname === route.href;
         return (
@@ -80,6 +83,27 @@ function ThemeToggle() {
   );
 }
 
+/** A small text button, for the actions that sit beside a value. */
+function TextAction({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <chakra.button
+      type="button"
+      onClick={onClick}
+      fontFamily="mono"
+      fontSize="10.5px"
+      letterSpacing="0.08em"
+      textTransform="uppercase"
+      color="accent.solid"
+      flex="none"
+      cursor="pointer"
+      _hover={{ textDecoration: 'underline' }}
+      _focusVisible={{ outline: '2px solid', outlineColor: 'accent.solid', outlineOffset: '2px' }}
+    >
+      {label}
+    </chakra.button>
+  );
+}
+
 /** One cell of the status strip. */
 function Chip({
   label,
@@ -105,35 +129,29 @@ function Chip({
         <Mono fontSize="13px" fontWeight="500" lineHeight="1.3" truncate>
           {value}
         </Mono>
-        {action ? (
-          <chakra.button
-            type="button"
-            onClick={action.onClick}
-            fontFamily="mono"
-            fontSize="10.5px"
-            letterSpacing="0.08em"
-            textTransform="uppercase"
-            color="accent.solid"
-            flex="none"
-            cursor="pointer"
-            _hover={{ textDecoration: 'underline' }}
-          >
-            {action.label}
-          </chakra.button>
-        ) : null}
+        {action ? <TextAction label={action.label} onClick={action.onClick} /> : null}
       </Flex>
     </Box>
   );
 }
 
 /**
- * Where the game keeps the recipe book, for the one sentence that has to say
- * so. It is inside every install, under `CommunityResources/Docs`.
+ * Where the two files a visitor needs are, for the sentences that have to say
+ * so. Saves are where the game keeps them; the recipe book is inside every
+ * install, under `CommunityResources/Docs`.
  */
+const WHERE_SAVES_ARE = '%LOCALAPPDATA%\\FactoryGame\\Saved\\SaveGames';
 const WHERE_DOCS_IS =
-  'It is inside your Satisfactory install under CommunityResources/Docs — on Steam that is ' +
+  'inside your Satisfactory install under CommunityResources/Docs — on Steam that is ' +
   'steamapps/common/Satisfactory, on Epic the Satisfactory folder under Epic Games, and on ' +
-  'Linux ~/.steam/steam/steamapps/common/Satisfactory.';
+  'Linux ~/.steam/steam/steamapps/common/Satisfactory';
+
+interface Notice {
+  readonly label: string;
+  readonly text: string;
+  readonly tone: 'accent' | 'crit';
+  readonly action?: { label: string; onClick: () => void } | undefined;
+}
 
 export function Header() {
   const { snapshot, source, status, dispatch } = useBoard();
@@ -141,32 +159,35 @@ export function Header() {
   const dropFiles = useDropFiles();
   const filesRef = useRef<HTMLInputElement>(null);
   const bookRef = useRef<HTMLInputElement>(null);
+  /*
+   * The save the demo replaced, so the Demo button is a round trip on a hosted
+   * copy too. There the save the board opened on *is* the demo, so the way
+   * back used to be "drop your file again".
+   */
+  const stashed = useRef<{ snapshot: WorldSnapshot; source: SnapshotSource } | null>(null);
 
   /*
-   * Two different things that used to be one, and the conflation locked the
-   * page in the demo: the *baked* save can be the demo (no game installed),
-   * and the reader can *ask* for the demo. Only the second has a way back.
-   */
-  /*
-   * And a third thing the first two hid: on a build that baked the demo, a
-   * real save dropped on the page is not the demo — the e2e suite found every
-   * loaded save labelled "a demo base" on exactly the build a stranger gets.
+   * Three things that used to be one, and the conflations locked the page
+   * in the demo: the *baked* save can be the demo (no game installed), the
+   * reader can *ask* for the demo, and — on a build that baked the demo — a
+   * real save dropped on the page is not the demo, however the page opened.
    */
   const showingDemo = source?.kind === 'demo' || (source?.kind === 'default' && defaultIsDemo);
-  const canReturn = defaultSave !== null && !defaultIsDemo;
+  const canReturn = stashed.current !== null || (defaultSave !== null && !defaultIsDemo);
 
   /*
-   * And the same two questions about the recipe book, which is its own
-   * thing now: the build may have baked the demo book, and a real one may
-   * have been dropped on the page since.
+   * And the same questions about the recipe book, which is its own thing now:
+   * the build may have baked the demo book, and a real one may have been
+   * dropped on the page since.
    */
   const demoBook = book.source.kind === 'baked' && book.source.name === 'demo';
+  const recipeCount = useMemo(() => Object.keys(book.db.recipes).length, [book.db]);
   const bookLabel =
     book.source.kind === 'user'
-      ? `${book.source.name} · ${Object.keys(book.db.recipes).length}`
+      ? `${book.source.name} · ${recipeCount}`
       : demoBook
-        ? `demo · ${Object.keys(book.db.recipes).length}`
-        : `your install · ${Object.keys(book.db.recipes).length}`;
+        ? `demo · ${recipeCount}`
+        : `your install · ${recipeCount}`;
 
   /*
    * A real save read against a book that does not know its recipes looks
@@ -179,30 +200,35 @@ export function Header() {
   );
 
   /*
-   * Swapping the demo in and out is a dispatch, not a reload: it replaces the
-   * snapshot in memory and nothing on disk, so your own save is one click away
-   * again. That is also why it works on a built export, where there is no
-   * script to run.
+   * Swapping the demo in is a dispatch, not a reload: it replaces the
+   * snapshot in memory and nothing on disk, so what was there is one click
+   * away again. That is also why it works on a built export, where there is
+   * no script to run.
    */
   const showDemo = () => {
-    if (demoSave) {
-      dispatch({ type: 'loaded', snapshot: demoSave, source: { kind: 'demo', name: 'demo' } });
-    }
+    if (!demoSave) return;
+    if (snapshot && source && !showingDemo) stashed.current = { snapshot, source };
+    dispatch({ type: 'loaded', snapshot: demoSave, source: { kind: 'demo', name: 'demo' } });
   };
 
   /*
-   * The way back. Clearing from the demo would leave an empty page and a
-   * request to drop a file, when the save the board opened on is still sitting
-   * in the bundle — so where there is one, this button is a return ticket
-   * rather than a bin.
+   * The way back: the save the demo replaced, else the one the build baked in
+   * where that is not the demo itself. Clearing from the demo would otherwise
+   * leave an empty page and a request to drop a file, when the save is still
+   * in memory or in the bundle — so this is a return ticket, not a bin.
    */
   const restore = () => {
-    if (!defaultSave || defaultIsDemo) return dispatch({ type: 'clearSave' });
-    dispatch({
-      type: 'loaded',
-      snapshot: defaultSave.snapshot,
-      source: { kind: 'default', name: defaultSave.source },
-    });
+    const back =
+      stashed.current ??
+      (defaultSave && !defaultIsDemo
+        ? {
+            snapshot: defaultSave.snapshot,
+            source: { kind: 'default' as const, name: defaultSave.source },
+          }
+        : null);
+    stashed.current = null;
+    if (!back) return dispatch({ type: 'clearSave' });
+    dispatch({ type: 'loaded', snapshot: back.snapshot, source: back.source });
   };
 
   /*
@@ -212,13 +238,11 @@ export function Header() {
    * once they are on the screen, and the whole board is numbers. A demo
    * recipe book is the same kind of fact, and a book that cannot read the
    * save in front of it is the one thing a stranger has to be told first.
+   *
+   * One notice per fact, and the first visit to a hosted copy — demo base
+   * *and* demo book — gets one notice for both rather than two paragraphs.
    */
-  const notices: {
-    label: string;
-    text: string;
-    tone: 'accent' | 'crit';
-    action?: { label: string; onClick: () => void } | undefined;
-  }[] = [];
+  const notices: Notice[] = [];
   /*
    * A drop that failed, in the header rather than only in the drop zone: the
    * drop zone is not on screen once a save is loaded, and a second file that
@@ -232,21 +256,32 @@ export function Header() {
       action: { label: 'Dismiss', onClick: () => dispatch({ type: 'dismiss' }) },
     });
   }
-  if (showingDemo) {
-    notices.push({
-      label: 'Demo',
-      text:
-        'Every number on this page is from a base that does not exist — drop a .sav on the page' +
-        (canReturn ? ', or use the button above to go back to your own save,' : '') +
-        ' to see your own factory.',
-      tone: 'accent',
-    });
-  }
   if (book.status.kind === 'extracting') {
     notices.push({ label: 'Recipes', text: `Reading ${book.status.fileName}…`, tone: 'accent' });
   } else if (book.status.kind === 'failed') {
     notices.push({ label: 'Recipes', text: book.status.message, tone: 'crit' });
-  } else if (unknown.length > 0) {
+  }
+
+  if (showingDemo && demoBook) {
+    notices.push({
+      label: 'Demo',
+      text:
+        'This is a demo base with a demo recipe book. To see your own factory, drop your save ' +
+        `and your game’s Docs/en-US.json anywhere on this page: saves live in ${WHERE_SAVES_ARE}, ` +
+        `and the recipe book is ${WHERE_DOCS_IS}. Nothing leaves your browser.`,
+      tone: 'accent',
+    });
+  } else if (showingDemo) {
+    notices.push({
+      label: 'Demo',
+      text:
+        'Every number on this page is from a base that does not exist — drop a .sav anywhere on ' +
+        'the page' +
+        (canReturn ? ', or use the button above to go back to your own save,' : '') +
+        ' to see your own factory.',
+      tone: 'accent',
+    });
+  } else if (book.status.kind === 'idle' && unknown.length > 0) {
     notices.push({
       label: 'Recipes',
       text:
@@ -255,16 +290,25 @@ export function Header() {
         ' does not know' +
         (snapshot?.modded ? ' — a modded save always will, for the mod recipes' : '') +
         (demoBook
-          ? `. Drop your game's Docs/en-US.json on the page to read it properly. ${WHERE_DOCS_IS}`
+          ? `. Drop your game’s Docs/en-US.json anywhere on the page to read it properly; it is ${WHERE_DOCS_IS}.`
           : '. If the book is from another game version, drop the current Docs/en-US.json.'),
       tone: 'accent',
     });
-  } else if (demoBook) {
+  } else if (book.status.kind === 'idle' && demoBook) {
     notices.push({
       label: 'Recipes',
       text:
-        'The recipe book is a hand-written demo set. Drop your game’s Docs/en-US.json on the ' +
-        `page to use the real one, and it is remembered in this browser. ${WHERE_DOCS_IS}`,
+        'The recipe book is a hand-written demo set. Drop your game’s Docs/en-US.json anywhere ' +
+        `on the page to use the real one; it is ${WHERE_DOCS_IS}.`,
+      tone: 'accent',
+    });
+  }
+  if (book.source.kind === 'user' && !book.source.remembered) {
+    notices.push({
+      label: 'Recipes',
+      text:
+        `${book.source.name} is in use but could not be remembered — this browser is not ` +
+        'letting the page store anything, so it will be asked for again next visit.',
       tone: 'accent',
     });
   }
@@ -342,6 +386,7 @@ export function Header() {
           multiple
           hidden
           data-testid="file-input"
+          aria-label="Load a save or a recipe book"
           onChange={(event) => {
             if (event.target.files) void dropFiles(event.target.files);
             event.target.value = '';
@@ -353,6 +398,7 @@ export function Header() {
           accept=".json"
           hidden
           data-testid="book-input"
+          aria-label="Load a recipe book"
           onChange={(event) => {
             if (event.target.files) void dropFiles(event.target.files);
             event.target.value = '';
@@ -373,7 +419,7 @@ export function Header() {
           loading={status.kind === 'parsing'}
           loadingText="Parsing"
         >
-          {snapshot ? 'Load another' : 'Load save'}
+          {snapshot && !showingDemo ? 'Load another' : 'Load save'}
         </Button>
 
         {showingDemo || !demoSave ? null : (
@@ -429,24 +475,11 @@ export function Header() {
           <Label flex="none" color="fg">
             {notice.label}
           </Label>
-          <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted">
+          <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted" maxW="110ch">
             {notice.text}
           </Text>
           {notice.action ? (
-            <chakra.button
-              type="button"
-              onClick={notice.action.onClick}
-              fontFamily="mono"
-              fontSize="10.5px"
-              letterSpacing="0.08em"
-              textTransform="uppercase"
-              color="accent.solid"
-              flex="none"
-              cursor="pointer"
-              _hover={{ textDecoration: 'underline' }}
-            >
-              {notice.action.label}
-            </chakra.button>
+            <TextAction label={notice.action.label} onClick={notice.action.onClick} />
           ) : null}
         </Flex>
       ))}

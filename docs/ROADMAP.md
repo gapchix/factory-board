@@ -643,7 +643,10 @@ the failure copy now leads with.
 Next for it: the hosting itself — a container serving `apps/web/out`, a subdomain, a
 certificate, and a content type for the extensionless `/opengraph-image` and
 `/apple-icon` the export writes. Then a save larger than a megabyte through the reader,
-which none of the local corpus is.
+which none of the local corpus is. And build the export on Linux: a Windows build mis-names the
+segment prefetch files (Next joins a `path.relative` result that carries a backslash and
+converts only forward slashes), so every link prefetch 404s in the console. CI and any
+container build are fine; `scripts/serve-out.mjs` papers over it for local runs.
 
 ### C. Publish — the packages stand alone
 
@@ -685,7 +688,9 @@ All three are designed to be useful outside this app.
   hosted copy cannot. The File System Access API can hold a directory handle across visits
   in Chromium, which would make the hosted board follow a session the way `npm run dev`
   does. Until then, dropping the three slots at once is the answer.
-- **Pinch-zoom.** The map is wheel-only, so unusable on a tablet.
+- **Pinch-zoom, and a phone-width layout.** The map is wheel-only, so unusable on a tablet;
+  at 390 px the bottleneck rows are wider than the screen. The header already wraps and
+  the view strip scrolls, so the page opens and reads on a phone — it does not yet fit.
 
 ## Not planned
 

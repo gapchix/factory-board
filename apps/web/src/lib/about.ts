@@ -9,6 +9,9 @@ export const APP_VERSION: string = version;
 
 export const REPO_URL = 'https://github.com/gapchix/factory-board';
 
+/** GitHub accepts a few kilobytes of URL; the stack is trimmed to fit. */
+const MAX_MESSAGE_CHARS = 2000;
+
 /**
  * Where the hosted copy lives, for absolute URLs in metadata. Overridable at
  * build time so a fork or a staging copy does not advertise this one.
@@ -30,11 +33,17 @@ export function issueUrl(details: {
   readonly saveBuildVersion?: number | undefined;
 }): string {
   const agent = typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent;
+  /*
+   * A stack from a deep React tree can run past what a URL may carry, and
+   * the one link meant to work when everything else failed must not 414.
+   * Backticks go too, so the message cannot close the fence around it.
+   */
+  const message = details.message.replace(/`/g, "'").slice(0, MAX_MESSAGE_CHARS);
   const body = [
     '**What happened**',
     '',
     '```',
-    details.message,
+    message,
     '```',
     '',
     `- Factory Board v${APP_VERSION}`,

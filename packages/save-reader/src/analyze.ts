@@ -756,6 +756,8 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     circuits,
     phase,
     objectCount,
-    modded: header?.['isModdedSave'] === true,
+    // The parser reads this as an Int32 — 0 or 1, never a boolean — and the
+    // first version compared it to `true`, so every real save read unmodded.
+    modded: header?.['isModdedSave'] === true || (num(header?.['isModdedSave']) ?? 0) > 0,
   };
 }

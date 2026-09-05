@@ -497,6 +497,35 @@ machines · locked` — and is ordered cheapest first instead of by database ord
 
 ### Fixed
 
+- **The extractor's main-thread fallback imported the worker module**, whose top level set
+  `self.onmessage` — on the main thread, the window's — so any message to the page echoed
+  back to itself forever, and a cross-origin opener could drive extractions in the
+  visitor's tab. The extraction is a plain function in `lib/extract-docs.ts` now; the
+  worker imports it and nothing imports the worker.
+- **`snapshot.modded` was always false**: the save header stores the flag as an Int32 and
+  the reader compared it to `true`. Found by the adversarial review, not the test, which
+  had used a boolean fixture.
+- **A dropped file navigated the tab away** unless it landed on the drop zone, which is not
+  on screen once a save is loaded — every first visit, on a hosted copy. The window is the
+  drop target now (`DropAnywhere`), with an overlay while dragging, and the e2e suite drops
+  a real file on the body.
+- A slow restore from IndexedDB could revert a recipe book dropped moments earlier, and a
+  Forget during an extraction was undone when it finished: a generation counter on the
+  provider makes every result answer to the last user action.
+- One Worker per job, terminated after it, for both saves and books. A worker script that
+  failed to load or was killed by the browser used to leave the shared slot stuck for the
+  life of the tab, with every later book routed to the main thread.
+- The earlier saves of a multi-file drop were digested against the recipe book of the
+  moment they were parsed and never again. They travel with the board now and are
+  re-digested like the snapshot on screen when a book changes.
+- History's burn-down clamped a delivery past the quota to 100% while Progression withdrew
+  the quota; both go through `quotaFor` now.
+- Refusals for absurd sizes (a 250 MB save, a 100 MB recipe book), a prefilled bug report
+  that fits in a URL, a note when the book could not be remembered, a readable name for
+  lines the book does not know, and a way back to a dropped save after viewing the demo.
+- The view strip scrolls sideways on a phone instead of pushing the page wider.
+- The e2e static server stays inside the export, answers a malformed URL with 400 instead
+  of exiting, binds to localhost, and serves a Windows export's mis-named segment files.
 - The map's scene data did not list `ghosts` and `showPlan` as dependencies, so hiding the
   plan left the ghosts drawn; and the scene effect read the selected zone directly, which
   would have rebuilt the scene on every click had it been listed. Found by the new lint

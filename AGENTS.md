@@ -137,6 +137,12 @@ your own save and database into the export.
   `quotaFor` withdraws it and the page shows delivered amounts with no denominator,
   which is the honest fallback every caller already had.
   [ADR 35](docs/adr/0035-the-quotas-are-transcribed-then-checked.md)
+- **A worker module is never imported on the main thread.** Its top level assigns
+  `self.onmessage`, and on the main thread `self` is the window: the extractor's fallback
+  did exactly that and left a `message` handler on the page that echoed every message
+  back to itself, forever. The work lives in `lib/`, the worker imports it, and nothing
+  imports the worker. One Worker per job, terminated after it, so a worker that never
+  answers leaves nothing stuck. [ADR 36](docs/adr/0036-the-board-meets-a-strangers-save.md)
 - **A hosted build is built clean.** `sync-save.mjs` and `sync-game-data.mjs` bake whatever
   the machine has; `FACTORY_BOARD_DEMO=1` is what keeps the maintainer's session name out
   of the export. [ADR 36](docs/adr/0036-the-board-meets-a-strangers-save.md)

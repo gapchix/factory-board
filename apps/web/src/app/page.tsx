@@ -16,7 +16,15 @@ import {
 import { SaveDropzone } from '@/components/panels';
 import { Label, SectionHeading } from '@/components/primitives';
 import { diagnose, explain } from '@/lib/diagnose';
-import { buildingName, itemName, machineName, machineRank, playTime, rate } from '@/lib/format';
+import {
+  buildingName,
+  itemName,
+  machineName,
+  machineRank,
+  playTime,
+  rate,
+  recipeName,
+} from '@/lib/format';
 import { phaseLabel, quotaFor } from '@/lib/phases';
 import { useBoard } from '@/state/board';
 import { useGameData } from '@/state/game-data';
@@ -63,11 +71,7 @@ export default function OverviewPage() {
       }
     }
 
-    const named = (recipeId: string) => {
-      const recipe = db.recipes[recipeId];
-      const product = recipe?.outputs[0]?.item;
-      return product ? itemName(db, product) : (recipe?.name ?? recipeId);
-    };
+    const named = (recipeId: string) => recipeName(db, recipeId);
 
     /*
      * Uptime says how much; the machine's own buffers say why. A line at 67%
