@@ -1,15 +1,16 @@
 'use client';
 
-import { Box, Button, Flex, Text } from '@chakra-ui/react';
+import { Box, Button, chakra, Flex, Text } from '@chakra-ui/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { unknownLines } from '@/lib/coverage';
 import { defaultIsDemo, defaultSave, demoSave } from '@/lib/default-snapshot';
 import { playTime } from '@/lib/format';
-import { gameDatabase } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
-import { useSaveLoader } from '@/hooks/use-save-loader';
+import { useGameData } from '@/state/game-data';
+import { useDropFiles } from '@/hooks/use-drop-files';
 import { Label, Mono } from './primitives';
 
 const ROUTES = [
@@ -79,15 +80,68 @@ function ThemeToggle() {
   );
 }
 
+/** One cell of the status strip. */
+function Chip({
+  label,
+  value,
+  last = false,
+  action,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+  action?: { label: string; onClick: () => void } | undefined;
+}) {
+  return (
+    <Box
+      px={3}
+      py={1}
+      borderRightWidth={last ? '0' : '1px'}
+      borderColor="border.subtle"
+      maxW="200px"
+    >
+      <Label display="block">{label}</Label>
+      <Flex gap={2} align="baseline">
+        <Mono fontSize="13px" fontWeight="500" lineHeight="1.3" truncate>
+          {value}
+        </Mono>
+        {action ? (
+          <chakra.button
+            type="button"
+            onClick={action.onClick}
+            fontFamily="mono"
+            fontSize="10.5px"
+            letterSpacing="0.08em"
+            textTransform="uppercase"
+            color="accent.solid"
+            flex="none"
+            cursor="pointer"
+            _hover={{ textDecoration: 'underline' }}
+          >
+            {action.label}
+          </chakra.button>
+        ) : null}
+      </Flex>
+    </Box>
+  );
+}
+
+/**
+ * Where the game keeps the recipe book, for the one sentence that has to say
+ * so. It is inside every install, under `CommunityResources/Docs`.
+ */
+const WHERE_DOCS_IS =
+  'It is inside your Satisfactory install under CommunityResources/Docs — on Steam that is ' +
+  'steamapps/common/Satisfactory, on Epic the Satisfactory folder under Epic Games, and on ' +
+  'Linux ~/.steam/steam/steamapps/common/Satisfactory.';
+
 export function Header() {
   const { snapshot, source, status, dispatch } = useBoard();
-  const loadSave = useSaveLoader();
-  const inputRef = useRef<HTMLInputElement>(null);
-  /*
-   * A base that does not exist has to say so, everywhere, permanently. Numbers
-   * about a fictional factory are indistinguishable from numbers about a real
-   * one once they are on the screen, and the whole board is numbers.
-   */
+  const book = useGameData();
+  const dropFiles = useDropFiles();
+  const filesRef = useRef<HTMLInputElement>(null);
+  const bookRef = useRef<HTMLInputElement>(null);
+
   /*
    * Two different things that used to be one, and the conflation locked the
    * page in the demo: the *baked* save can be the demo (no game installed),
@@ -95,6 +149,29 @@ export function Header() {
    */
   const showingDemo = source?.kind === 'demo' || defaultIsDemo;
   const canReturn = defaultSave !== null && !defaultIsDemo;
+
+  /*
+   * And the same two questions about the recipe book, which is its own
+   * thing now: the build may have baked the demo book, and a real one may
+   * have been dropped on the page since.
+   */
+  const demoBook = book.source.kind === 'baked' && book.source.name === 'demo';
+  const bookLabel =
+    book.source.kind === 'user'
+      ? `${book.source.name} · ${Object.keys(book.db.recipes).length}`
+      : demoBook
+        ? `demo · ${Object.keys(book.db.recipes).length}`
+        : `your install · ${Object.keys(book.db.recipes).length}`;
+
+  /*
+   * A real save read against a book that does not know its recipes looks
+   * like a broken board: every line unexplained, class names for labels.
+   * This is the count that says the book is the problem, not the board.
+   */
+  const unknown = useMemo(
+    () => (showingDemo ? [] : unknownLines(book.db, snapshot)),
+    [book.db, showingDemo, snapshot],
+  );
 
   /*
    * Swapping the demo in and out is a dispatch, not a reload: it replaces the
@@ -122,6 +199,52 @@ export function Header() {
       source: { kind: 'default', name: defaultSave.source },
     });
   };
+
+  /*
+   * What the strip under the header has to say, if anything. A base that does
+   * not exist has to say so, everywhere, permanently: numbers about a
+   * fictional factory are indistinguishable from numbers about a real one
+   * once they are on the screen, and the whole board is numbers. A demo
+   * recipe book is the same kind of fact, and a book that cannot read the
+   * save in front of it is the one thing a stranger has to be told first.
+   */
+  const notices: { label: string; text: string; tone: 'accent' | 'crit' }[] = [];
+  if (showingDemo) {
+    notices.push({
+      label: 'Demo',
+      text:
+        'Every number on this page is from a base that does not exist — drop a .sav on the page' +
+        (canReturn ? ', or use the button above to go back to your own save,' : '') +
+        ' to see your own factory.',
+      tone: 'accent',
+    });
+  }
+  if (book.status.kind === 'extracting') {
+    notices.push({ label: 'Recipes', text: `Reading ${book.status.fileName}…`, tone: 'accent' });
+  } else if (book.status.kind === 'failed') {
+    notices.push({ label: 'Recipes', text: book.status.message, tone: 'crit' });
+  } else if (unknown.length > 0) {
+    notices.push({
+      label: 'Recipes',
+      text:
+        `This save runs ${unknown.length} line${unknown.length === 1 ? '' : 's'} the ` +
+        (demoBook ? 'demo recipe book' : 'loaded recipe book') +
+        ' does not know' +
+        (snapshot?.modded ? ' — a modded save always will, for the mod recipes' : '') +
+        (demoBook
+          ? `. Drop your game's Docs/en-US.json on the page to read it properly. ${WHERE_DOCS_IS}`
+          : '. If the book is from another game version, drop the current Docs/en-US.json.'),
+      tone: 'accent',
+    });
+  } else if (demoBook) {
+    notices.push({
+      label: 'Recipes',
+      text:
+        'The recipe book is a hand-written demo set. Drop your game’s Docs/en-US.json on the ' +
+        `page to use the real one, and it is remembered in this browser. ${WHERE_DOCS_IS}`,
+      tone: 'accent',
+    });
+  }
 
   return (
     <Box
@@ -156,45 +279,59 @@ export function Header() {
 
         <Box flex="1" />
 
-        {snapshot ? (
-          <Flex
-            borderWidth="1px"
-            borderColor={showingDemo ? 'accent.solid' : 'border.default'}
-            wrap="wrap"
-          >
-            {[
-              ['Session', snapshot.sessionName],
-              ['Played', playTime(snapshot.playDurationSeconds)],
-              [
-                showingDemo ? 'Showing' : source?.kind === 'default' ? 'Auto-loaded' : 'File',
-                showingDemo ? 'a demo base' : (source?.name ?? '—'),
-              ],
-            ].map(([label, value], index) => (
-              <Box
-                key={label}
-                px={3}
-                py={1}
-                borderRightWidth={index < 2 ? '1px' : '0'}
-                borderColor="border.subtle"
-                maxW="168px"
-              >
-                <Label display="block">{label}</Label>
-                <Mono fontSize="13px" fontWeight="500" lineHeight="1.3" truncate>
-                  {value}
-                </Mono>
-              </Box>
-            ))}
-          </Flex>
-        ) : null}
+        <Flex
+          borderWidth="1px"
+          borderColor={showingDemo || demoBook ? 'accent.solid' : 'border.default'}
+          wrap="wrap"
+          data-testid="status-strip"
+        >
+          {snapshot ? (
+            <>
+              <Chip
+                label="Session"
+                value={`${snapshot.sessionName}${snapshot.modded ? ' · modded' : ''}`}
+              />
+              <Chip label="Played" value={playTime(snapshot.playDurationSeconds)} />
+              <Chip
+                label={
+                  showingDemo ? 'Showing' : source?.kind === 'default' ? 'Auto-loaded' : 'File'
+                }
+                value={showingDemo ? 'a demo base' : (source?.name ?? '—')}
+              />
+            </>
+          ) : null}
+          <Chip
+            label="Recipes"
+            value={bookLabel}
+            last
+            action={
+              book.source.kind === 'user'
+                ? { label: 'Forget', onClick: () => void book.forget() }
+                : { label: 'Load yours', onClick: () => bookRef.current?.click() }
+            }
+          />
+        </Flex>
 
         <input
-          ref={inputRef}
+          ref={filesRef}
           type="file"
-          accept=".sav"
+          accept=".sav,.json"
+          multiple
           hidden
+          data-testid="file-input"
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void loadSave(file);
+            if (event.target.files) void dropFiles(event.target.files);
+            event.target.value = '';
+          }}
+        />
+        <input
+          ref={bookRef}
+          type="file"
+          accept=".json"
+          hidden
+          data-testid="book-input"
+          onChange={(event) => {
+            if (event.target.files) void dropFiles(event.target.files);
             event.target.value = '';
           }}
         />
@@ -209,7 +346,7 @@ export function Header() {
           letterSpacing="0.1em"
           textTransform="uppercase"
           _hover={{ filter: 'brightness(1.08)' }}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => filesRef.current?.click()}
           loading={status.kind === 'parsing'}
           loadingText="Parsing"
         >
@@ -253,41 +390,27 @@ export function Header() {
         <ThemeToggle />
       </Flex>
 
-      {showingDemo ? (
+      {notices.map((notice) => (
         <Flex
-          bg="accent.subtle"
+          key={notice.label + notice.text}
+          bg={notice.tone === 'crit' ? 'bg.muted' : 'accent.subtle'}
           borderTopWidth="1px"
-          borderColor="accent.solid"
+          borderColor={notice.tone === 'crit' ? 'status.crit' : 'accent.solid'}
           px={{ base: 4, md: 6 }}
           py={1.5}
           gap={3}
           align="baseline"
           wrap="wrap"
+          data-testid={`notice-${notice.label.toLowerCase()}`}
         >
           <Label flex="none" color="fg">
-            Demo
+            {notice.label}
           </Label>
           <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted">
-            Every number on this page is from a base that does not exist.{' '}
-            {/* And only claim the install is missing when it is: this banner sat
-                beside a button offering to go back to the real save it said
-                could not be found. */}
-            {gameDatabase.sourceBuildId === 0
-              ? 'No Satisfactory install was found, so the board is running on its own hand-written data'
-              : 'The recipes are your own install’s; the factory is not'}{' '}
-            — drop a{' '}
-            <Box as="span" fontFamily="mono">
-              .sav
-            </Box>{' '}
-            on the page{canReturn ? ', use the button above to go back to your own save,' : ''} or
-            run{' '}
-            <Box as="span" fontFamily="mono">
-              npm run extract
-            </Box>{' '}
-            with the game installed, to see your own factory.
+            {notice.text}
           </Text>
         </Flex>
-      ) : null}
+      ))}
     </Box>
   );
 }

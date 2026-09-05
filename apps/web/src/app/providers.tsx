@@ -7,6 +7,7 @@ import { useServerInsertedHTML } from 'next/navigation';
 import { ThemeProvider } from 'next-themes';
 import { useState, type ReactNode } from 'react';
 import { BoardProvider } from '@/state/board';
+import { GameDataProvider } from '@/state/game-data';
 import { system } from '@/theme/system';
 
 /**
@@ -38,7 +39,10 @@ export function Providers({ children }: { children: ReactNode }) {
     <EmotionRegistry>
       <ChakraProvider value={system}>
         <ThemeProvider attribute="class" disableTransitionOnChange>
-          <BoardProvider>{children}</BoardProvider>
+          {/* The board records history against the recipe book, so the book comes first. */}
+          <GameDataProvider>
+            <BoardProvider>{children}</BoardProvider>
+          </GameDataProvider>
         </ThemeProvider>
       </ChakraProvider>
     </EmotionRegistry>

@@ -18,8 +18,8 @@ import { Label, SectionHeading } from '@/components/primitives';
 import { diagnose, explain } from '@/lib/diagnose';
 import { buildingName, itemName, machineName, machineRank, playTime, rate } from '@/lib/format';
 import { phaseLabel, quotaFor } from '@/lib/phases';
-import { gameDatabase as db } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
+import { useGameData } from '@/state/game-data';
 
 /**
  * What each verdict is called on screen.
@@ -36,8 +36,9 @@ const VERDICT: Record<string, string> = {
 
 export default function OverviewPage() {
   const { snapshot, targets, recipeChoices } = useBoard();
+  const { db } = useGameData();
 
-  const plan = useMemo(() => solve(db, targets, { recipeChoices }), [targets, recipeChoices]);
+  const plan = useMemo(() => solve(db, targets, { recipeChoices }), [db, targets, recipeChoices]);
 
   const view = useMemo(() => {
     if (!snapshot) return null;
@@ -215,7 +216,7 @@ export default function OverviewPage() {
       idleMW,
       lineCount: lines.length,
     };
-  }, [snapshot, plan]);
+  }, [db, snapshot, plan]);
 
   if (!snapshot || !view) {
     return (

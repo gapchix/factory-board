@@ -20,16 +20,17 @@ import { buildOrder } from '@/lib/build-order';
 import { diagnose } from '@/lib/diagnose';
 import { powerForPlan } from '@/lib/power-plan';
 import { physics } from '@/lib/throughput';
-import { gameDatabase as db } from '@/lib/game-database';
 import { unlockState } from '@/lib/unlocks';
 import { planByZone } from '@/lib/zone-plan';
 import { buildZoneBoard } from '@/lib/zones';
 import { useBoard } from '@/state/board';
+import { useGameData } from '@/state/game-data';
 
 export default function PlanPage() {
   const { targets, recipeChoices, snapshot, zoneNames, zoneAssignments } = useBoard();
+  const { db } = useGameData();
 
-  const result = useMemo(() => solve(db, targets, { recipeChoices }), [targets, recipeChoices]);
+  const result = useMemo(() => solve(db, targets, { recipeChoices }), [db, targets, recipeChoices]);
 
   /*
    * What every other recipe in the book would do to this plan.
@@ -47,10 +48,10 @@ export default function PlanPage() {
       else byItem.set(swap.item, [swap]);
     }
     return byItem;
-  }, [targets, recipeChoices]);
+  }, [db, targets, recipeChoices]);
 
   /** What the save says you are able to build, and what stands in the way. */
-  const unlocks = useMemo(() => unlockState(db, snapshot), [snapshot]);
+  const unlocks = useMemo(() => unlockState(db, snapshot), [db, snapshot]);
 
   /** Where the plan says each line goes, for the cards to say so. */
   const zonesFor = useMemo(() => {
@@ -65,7 +66,7 @@ export default function PlanPage() {
       );
     }
     return named;
-  }, [snapshot, zoneNames, targets, recipeChoices, zoneAssignments]);
+  }, [db, snapshot, zoneNames, targets, recipeChoices, zoneAssignments]);
 
   /*
    * Why each line is slow in the world, so the board's instruction can be
@@ -76,7 +77,7 @@ export default function PlanPage() {
   const verdicts = useMemo(() => {
     if (!snapshot) return undefined;
     return new Map(diagnose(db, snapshot).map((line) => [line.recipe, line]));
-  }, [snapshot]);
+  }, [db, snapshot]);
 
   /*
    * What the factory will draw once this is built, and whether the generators
@@ -84,7 +85,7 @@ export default function PlanPage() {
    */
   const power = useMemo(
     () => (snapshot ? powerForPlan(db, result, snapshot) : null),
-    [snapshot, result],
+    [db, snapshot, result],
   );
 
   /*
@@ -94,7 +95,7 @@ export default function PlanPage() {
    */
   const limits = useMemo(
     () => (snapshot ? physics(db, result, snapshot) : null),
-    [snapshot, result],
+    [db, snapshot, result],
   );
 
   /*
@@ -104,7 +105,7 @@ export default function PlanPage() {
    */
   const order = useMemo(
     () => (snapshot ? buildOrder(db, result, snapshot) : []),
-    [snapshot, result],
+    [db, snapshot, result],
   );
 
   const built = useMemo(() => {
@@ -116,7 +117,7 @@ export default function PlanPage() {
       powerMW += line.count * (db.machines[line.machine]?.powerMW ?? 0);
     }
     return { machines, powerMW };
-  }, [snapshot]);
+  }, [db, snapshot]);
 
   return (
     <>

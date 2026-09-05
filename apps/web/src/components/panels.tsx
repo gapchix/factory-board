@@ -12,7 +12,8 @@ import type { Physics } from '@/lib/throughput';
 import { PHASES, PRESETS, phaseLabel, quotaFor } from '@/lib/phases';
 import { buildZoneBoard, zoneAt } from '@/lib/zones';
 import { useBoard } from '@/state/board';
-import { useSaveLoader } from '@/hooks/use-save-loader';
+import { useDropFiles } from '@/hooks/use-drop-files';
+import { megabytes } from '@/hooks/use-save-loader';
 import { Field, Label, Meter, Mono, NumTd, Panel, Select, Td, TableFrame, Th } from './primitives';
 
 /* -------------------------------------------------------------- phase plan */
@@ -472,14 +473,15 @@ export function PhysicsPanel({ db, view }: { db: GameDatabase; view: Physics }) 
 
 export function SaveDropzone() {
   const { status } = useBoard();
-  const loadSave = useSaveLoader();
+  const dropFiles = useDropFiles();
   const [hot, setHot] = useState(false);
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setHot(false);
-    const file = event.dataTransfer.files?.[0];
-    if (file) void loadSave(file);
+    // All of them: three autosave slots are a series, and a recipe book
+    // dropped alongside is read first.
+    if (event.dataTransfer.files.length > 0) void dropFiles(event.dataTransfer.files);
   };
 
   const failed = status.kind === 'failed';
@@ -511,15 +513,19 @@ export function SaveDropzone() {
         color={failed ? 'status.crit' : undefined}
       >
         {status.kind === 'parsing'
-          ? `Parsing ${status.fileName}…`
+          ? `Parsing ${status.fileName} (${megabytes(status.bytes)})…`
           : failed
             ? "That file couldn't be read"
             : 'Drop a .sav here'}
       </Heading>
-      <Text maxW="56ch" mx="auto" color="fg.muted" fontSize="14px">
-        {failed
-          ? `${status.message} Saves from Update 5 and older aren't supported — otherwise try a different autosave slot.`
-          : 'Parsed entirely in this browser tab; nothing is uploaded anywhere. Look in %LOCALAPPDATA%\\FactoryGame\\Saved\\SaveGames\\ — autosaves are usually freshest.'}
+      <Text maxW="60ch" mx="auto" color="fg.muted" fontSize="14px">
+        {status.kind === 'parsing'
+          ? 'A big save takes a moment. Nothing is uploaded; it is read in this tab.'
+          : failed
+            ? status.message
+            : 'Parsed entirely in this browser tab; nothing is uploaded anywhere. Saves live in ' +
+              '%LOCALAPPDATA%\\FactoryGame\\Saved\\SaveGames\\ — drop the three autosaves together ' +
+              'and the history fills in. Your game’s Docs/en-US.json can be dropped here too.'}
       </Text>
     </Box>
   );

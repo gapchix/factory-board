@@ -8,11 +8,11 @@ import { SaveDropzone } from '@/components/panels';
 import { Field, Label, Mono, SectionHeading } from '@/components/primitives';
 import { rate, itemName } from '@/lib/format';
 import { placeGhosts, type GhostSite } from '@/lib/ghosts';
-import { gameDatabase as db } from '@/lib/game-database';
 import { solve } from '@factory-board/planner';
 import { planByZone, type ZonePlanEntry } from '@/lib/zone-plan';
 import { buildZoneBoard, slugify, withZoneName, zoneBySlug, type ZoneView } from '@/lib/zones';
 import { useBoard } from '@/state/board';
+import { useGameData } from '@/state/game-data';
 
 /*
  * The map brings a WebGL renderer with it, which has no business in the bundle
@@ -268,6 +268,7 @@ function ZoneCard({
 
 export default function BasePage() {
   const { snapshot, targets, recipeChoices, zoneAssignments, zoneNames, dispatch } = useBoard();
+  const { db } = useGameData();
 
   /*
    * The URL holds the focused zone, by name rather than by number: zone ids are
@@ -301,7 +302,7 @@ export default function BasePage() {
 
   const board = useMemo(
     () => (snapshot ? buildZoneBoard(db, snapshot, zoneNames) : null),
-    [snapshot, zoneNames],
+    [db, snapshot, zoneNames],
   );
 
   /*
@@ -331,12 +332,12 @@ export default function BasePage() {
       board.zones.map((zone) => ({ id: zone.id, name: zone.name, bounds: zone.bounds })),
       missing,
     ).sites;
-  }, [snapshot, targets, recipeChoices, zoneAssignments, board]);
+  }, [db, snapshot, targets, recipeChoices, zoneAssignments, board]);
 
   const plan = useMemo(
     () =>
       board ? planByZone(db, targets, recipeChoices, zoneAssignments, board.zones) : undefined,
-    [board, targets, recipeChoices, zoneAssignments],
+    [db, board, targets, recipeChoices, zoneAssignments],
   );
 
   const selectedZone = zoneBySlug(board?.zones ?? [], zoneSlug);

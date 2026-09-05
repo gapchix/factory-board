@@ -13,15 +13,18 @@ import {
   type ReactNode,
 } from 'react';
 import { defaultSave } from '@/lib/default-snapshot';
-import { gameDatabase } from '@/lib/game-database';
 import { digestOf } from '@/lib/history';
 import { recordPoint } from '@/lib/history-store';
 import { loadPlan, savePlan } from '@/lib/plan-storage';
 import { loadZoneNames, saveZoneNames } from '@/lib/zone-storage';
 import type { ZoneName, ZonePoint } from '@/lib/zones';
+import { useGameData } from '@/state/game-data';
 
 export type LoadStatus =
-  { kind: 'idle' } | { kind: 'parsing'; fileName: string } | { kind: 'failed'; message: string };
+  | { kind: 'idle' }
+  /** `bytes` is what is being read, so a big save can say it will take a moment. */
+  | { kind: 'parsing'; fileName: string; bytes: number }
+  | { kind: 'failed'; message: string };
 
 /** Where the loaded snapshot came from, so the UI can say so. */
 export interface SnapshotSource {
@@ -62,7 +65,7 @@ type Action =
       zoneAssignments: Record<string, ZonePoint>;
       zoneNames: ZoneName[];
     }
-  | { type: 'parsing'; fileName: string }
+  | { type: 'parsing'; fileName: string; bytes: number }
   | { type: 'loaded'; snapshot: WorldSnapshot; source: SnapshotSource }
   | { type: 'failed'; message: string }
   | { type: 'clearSave' };
@@ -137,7 +140,10 @@ function reducer(state: BoardState, action: Action): BoardState {
         zoneNames: action.zoneNames,
       };
     case 'parsing':
-      return { ...state, status: { kind: 'parsing', fileName: action.fileName } };
+      return {
+        ...state,
+        status: { kind: 'parsing', fileName: action.fileName, bytes: action.bytes },
+      };
     case 'loaded':
       return {
         ...state,
@@ -163,6 +169,10 @@ const BoardContext = createContext<BoardContextValue | null>(null);
 
 export function BoardProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  // The recipe book the history is digested against. It can change under the
+  // board when one is dropped on the page; a digest is re-recorded then, which
+  // overwrites the same point with better numbers.
+  const { db } = useGameData();
   /**
    * Whether what was in storage has been read back yet.
    *
@@ -229,8 +239,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     if (!state.snapshot || !state.source) return;
-    void recordPoint(digestOf(gameDatabase, state.snapshot, state.source.name));
-  }, [state.snapshot, state.source]);
+    void recordPoint(digestOf(db, state.snapshot, state.source.name));
+  }, [db, state.snapshot, state.source]);
 
   /*
    * And the saves that were already on disk when the page opened. Three
@@ -242,9 +252,9 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!defaultSave) return;
     for (const seed of defaultSave.earlier) {
-      void recordPoint(digestOf(gameDatabase, seed.snapshot, seed.source));
+      void recordPoint(digestOf(db, seed.snapshot, seed.source));
     }
-  }, []);
+  }, [db]);
 
   const addTarget = useCallback((item: string, ratePerMinute: number) => {
     dispatch({ type: 'addTarget', item, ratePerMinute });

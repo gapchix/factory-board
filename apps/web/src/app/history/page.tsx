@@ -6,10 +6,10 @@ import { MeterRow, StatRow, StatTile, TimeChart, uptimeTone } from '@/components
 import { SaveDropzone } from '@/components/panels';
 import { Label, Mono, SectionHeading, Select } from '@/components/primitives';
 import { playTime, rate, signed } from '@/lib/format';
-import { gameDatabase as db } from '@/lib/game-database';
 import { changesBetween, digestOf, phaseProgress, type HistoryPoint } from '@/lib/history';
 import { forgetSession, isAvailable, pointsFor, sessions } from '@/lib/history-store';
 import { useBoard } from '@/state/board';
+import { useGameData } from '@/state/game-data';
 
 /** How a change reads, and how loudly. */
 const CHANGE = {
@@ -45,6 +45,7 @@ const pct = (value: number) => `${Math.round(value * 100)}%`;
 
 export default function HistoryPage() {
   const { snapshot, source } = useBoard();
+  const { db } = useGameData();
   const [stored, setStored] = useState<HistoryPoint[] | null>(null);
   const [known, setKnown] = useState<{ session: string; points: number }[]>([]);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -62,7 +63,7 @@ export default function HistoryPage() {
 
   const current = useMemo(
     () => (snapshot && source ? digestOf(db, snapshot, source.name) : null),
-    [snapshot, source],
+    [db, snapshot, source],
   );
   const showing = session ?? current?.session ?? known[0]?.session ?? null;
 
@@ -117,9 +118,9 @@ export default function HistoryPage() {
 
   const changes = useMemo(
     () => (before && after ? changesBetween(db, before, after) : null),
-    [before, after],
+    [db, before, after],
   );
-  const phase = useMemo(() => phaseProgress(db, points), [points]);
+  const phase = useMemo(() => phaseProgress(db, points), [db, points]);
 
   const series = (pick: (point: HistoryPoint) => number | null) =>
     points
@@ -193,9 +194,11 @@ export default function HistoryPage() {
       {points.length < 2 ? (
         <Box bg="bg.surface" borderWidth="1px" borderColor="border.default" px={5} py={4} mb={6}>
           <Text fontSize="14px" color="fg.muted" maxW="72ch">
-            One save recorded so far. Every autosave from here is kept — <Mono>npm run dev</Mono>{' '}
-            watches the save folder, so leaving this open while you play fills the charts on its
-            own.
+            One save recorded so far. Drop a newer autosave to add a point — several at once are all
+            kept, so the three autosave slots dropped together draw a session.
+            {process.env.NODE_ENV === 'development'
+              ? ' The dev server also records every autosave while you play.'
+              : ''}
           </Text>
         </Box>
       ) : null}

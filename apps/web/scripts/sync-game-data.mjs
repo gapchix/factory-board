@@ -3,10 +3,15 @@
  * Copies the extracted game database into the app so the bundler can inline it.
  *
  * The database is generated from the developer's own Satisfactory install and is
- * never committed (see docs/adr/0003), so this fails loudly with instructions
- * rather than letting the build die on a missing import.
+ * never committed (see docs/adr/0003). Where there is none, the built-in demo
+ * goes in instead (docs/adr/0029).
+ *
+ * What is written is an envelope, `{ source, database }`, because the page has
+ * to be able to say which of the two it is holding and the database itself
+ * cannot: the demo says `sourceBuildId: 0`, and so does a real extract from an
+ * Epic install, or from a browser (docs/adr/0034).
  */
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,14 +24,16 @@ const target = resolve(here, '../src/generated/game-database.json');
  *
  * Without this the demo can only be seen by *not having the game*, which makes
  * it unreachable for exactly the people who maintain it — a demo nobody on the
- * project can look at is one that quietly rots.
+ * project can look at is one that quietly rots. It is also what a hosted build
+ * is made with: a plain build bakes the maintainer's own save and database.
  */
 const forced = process.env.FACTORY_BOARD_DEMO === '1';
 
 mkdirSync(dirname(target), { recursive: true });
 
 if (existsSync(source) && !forced) {
-  copyFileSync(source, target);
+  const database = JSON.parse(readFileSync(source, 'utf8'));
+  writeFileSync(target, JSON.stringify({ source: 'extracted', database }));
   console.log('game database synced');
 } else {
   /*
@@ -37,11 +44,12 @@ if (existsSync(source) && !forced) {
    * than extracted, so nothing of Coffee Stain's is redistributed.
    */
   const { demoDatabase } = await import('@factory-board/game-data');
-  writeFileSync(target, JSON.stringify(demoDatabase));
+  writeFileSync(target, JSON.stringify({ source: 'demo', database: demoDatabase }));
   console.log(
     forced
       ? 'game database: the built-in demo, because FACTORY_BOARD_DEMO=1'
       : 'game database: none found, using the built-in demo\n' +
-          '  Run `npm run extract` with Satisfactory installed to use your own.',
+          '  Run `npm run extract` with Satisfactory installed to use your own,\n' +
+          '  or drop your Docs/en-US.json on the page once it is open.',
   );
 }

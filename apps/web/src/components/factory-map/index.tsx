@@ -190,6 +190,15 @@ export default function FactoryMap({
   const [chain, setChain] = useState<Chain | null>(null);
   /** The scene is rebuilt when the theme changes, and has to be told again. */
   const chainRef = useRef<Chain | null>(null);
+  /*
+   * The selection, for the moment a scene comes up. Read through a ref rather
+   * than listed as a dependency, because a click on a zone must not rebuild
+   * the whole scene — the effect below re-highlights on selection alone.
+   */
+  const selectedRef = useRef<string | null>(selectedZoneId);
+  useEffect(() => {
+    selectedRef.current = selectedZoneId;
+  }, [selectedZoneId]);
   chainRef.current = chain;
 
   /* ------------------------------------------------------------- the data */
@@ -376,7 +385,7 @@ export default function FactoryMap({
           .map((path) => ({ kind: path.kind, points: path.points, building: path.building })),
       ],
     };
-  }, [db, snapshot, zones]);
+  }, [db, ghosts, showPlan, snapshot, zones]);
 
   /*
    * Opens on the factory rather than on the world. A single miner 700 m out
@@ -506,7 +515,7 @@ export default function FactoryMap({
         setShown({ scale: home.scale, home: home.scale });
       }
       scene.update(cameraRef.current, width, height);
-      scene.highlight(null, selectedZoneId);
+      scene.highlight(null, selectedRef.current);
       scene.spotlight(chainRef.current?.members ?? null);
       setStatus('drawn');
 

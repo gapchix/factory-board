@@ -5,11 +5,12 @@ import { useMemo } from 'react';
 import { ChartFrame, MeterRow } from '@/components/charts';
 import { Progress, SaveDropzone } from '@/components/panels';
 import { SectionHeading } from '@/components/primitives';
-import { gameDatabase as db } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
+import { useGameData } from '@/state/game-data';
 
 export default function ProgressPage() {
   const { snapshot } = useBoard();
+  const { db } = useGameData();
 
   const tiers = useMemo(() => {
     if (!snapshot) return [];
@@ -22,7 +23,7 @@ export default function ProgressPage() {
       byTier.set(milestone.tier, row);
     }
     return [...byTier.entries()].sort((a, b) => a[0] - b[0]);
-  }, [snapshot]);
+  }, [db, snapshot]);
 
   if (!snapshot) {
     return (
