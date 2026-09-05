@@ -605,6 +605,46 @@ the last save, drawn on the map" is **closed rather than pending** — the histo
 carry no coordinates on purpose ([ADR 16](adr/0016-history-keeps-a-digest.md)), which is what
 makes them a kilobyte instead of forty.
 
+### K. A stranger opens it · shipped
+
+Everything before this was built for one reader on one machine. The hosted copy is for
+everyone else, and what they needed was found by asking what the first minute would look
+like for someone who does not own a terminal
+([ADR 34](adr/0034-the-recipe-book-can-arrive-at-runtime.md),
+[ADR 35](adr/0035-the-quotas-are-transcribed-then-checked.md),
+[ADR 36](adr/0036-the-board-meets-a-strangers-save.md)):
+
+    Recipes   demo · 15   LOAD YOURS          Session  polska   Played  8h 26m   File  1111.sav
+    ─────────────────────────────────────────────────────────────────────────────────────────
+    RECIPES   This save runs 12 lines the demo recipe book does not know — drop your game's
+              Docs/en-US.json on the page to read it properly. It is inside your Satisfactory
+              install under CommunityResources/Docs …
+
+**The recipe book is state.** A `Docs.json` dropped on the page is extracted in a Worker
+by the same code as the CLI, validated, remembered in IndexedDB, and read by every view
+through a hook. A hosted copy serves the demo, which is ours, and every visitor brings
+their own book, which is theirs — neither ADR 1 nor ADR 3 had to move. The banner counts
+the lines a save runs that the book does not know, which is the one thing a stranger has
+to be told first, and reads zero once the two match.
+
+**The elevator's quotas go to Phase 5**, scaled by the multiplier a save was started
+with, and are withdrawn when a save has delivered past them — because Phase 2 turned out
+to be 1,000 / 1,000 / 100, not the 500 / 500 / 100 the board had shown for a week, and
+the guard is what makes a wiki transcription safe to show.
+
+**And it fails somewhere better than nowhere.** Error boundaries with a prefilled bug
+report, failures that name the file and its size and the three usual reasons, drops that
+take every autosave at once, a modded flag, a favicon, a preview card, a footer, and a
+Playwright suite that opens the export CI just built. `scripts/check-saves.mjs` reads a
+folder of saves and prints what the reader made of each; nine local saves across three
+game builds read in under 100 ms, and two Update 3 saves were refused with the sentence
+the failure copy now leads with.
+
+Next for it: the hosting itself — a container serving `apps/web/out`, a subdomain, a
+certificate, and a content type for the extensionless `/opengraph-image` and
+`/apple-icon` the export writes. Then a save larger than a megabyte through the reader,
+which none of the local corpus is.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.
@@ -615,8 +655,9 @@ All three are designed to be useful outside this app.
 
 ### Housekeeping, folded into whatever goes next
 
-- Playwright E2E covering load → solve → compare
-- Favicon and app icons
+- ~~Playwright E2E~~ — done 2026-09-05 as a smoke suite on the built export; solve → compare
+  in a browser is still unit-tested only. See K above.
+- ~~Favicon and app icons~~ — done 2026-09-05, with a preview card. See K above.
 - ~~Alternate-recipe picker: show what a swap costs in machines and power~~ — done
   2026-08-29, and it grew a second half nobody had asked for: which of them you have
   actually unlocked. See G above.
@@ -640,7 +681,15 @@ All three are designed to be useful outside this app.
   production lines of two different worlds reports every line as added and removed. Switching
   between sessions, which is the useful half, already worked.
 
+- **Following autosaves in the browser.** The dev server watches the save folder; a
+  hosted copy cannot. The File System Access API can hold a directory handle across visits
+  in Chromium, which would make the hosted board follow a session the way `npm run dev`
+  does. Until then, dropping the three slots at once is the answer.
+- **Pinch-zoom.** The map is wheel-only, so unusable on a tablet.
+
 ## Not planned
 
-Save editing, an interactive map replacing SCIM, accounts, or a hosted backend. See
+Save editing, an interactive map replacing SCIM, accounts, or a hosted backend. A hosted
+_copy_ of the static export is planned and is not a backend: it serves files, and every
+save and every recipe book stays in the visitor's browser. See
 [SPEC.md](SPEC.md#non-goals).

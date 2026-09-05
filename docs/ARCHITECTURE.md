@@ -2,9 +2,11 @@
 
 ## Shape
 
-A client-side SPA over three dependency-light packages. No server, no database, no
-network calls at runtime. Two data sources, both resolved **before** the browser is
-involved — one at build time, one in the page itself.
+A client-side SPA over four dependency-light packages. No server, no database, no
+network calls at runtime. Two data sources, each with a build-time path and a runtime
+path: the recipe database is baked in and can be replaced by a `Docs.json` dropped on
+the page; the save is baked in where one exists and replaced by a `.sav` dropped on the
+page. Nothing the page reads ever leaves the browser.
 
 ```
 Satisfactory install                     Your save file
@@ -36,6 +38,24 @@ Satisfactory install                     Your save file
           Overview · Planner · Progression
 ```
 
+And the runtime path for the database, which is what makes a hosted copy — built with
+the demo, on a machine without the game — work for anyone
+([ADR 34](adr/0034-the-recipe-book-can-arrive-at-runtime.md)):
+
+```
+  a dropped Docs/en-US.json
+        │
+        ▼
+  extract-docs.worker  ──  @factory-board/game-data/browser
+  ├─ decodeDocs (BOM-sniffed, TextDecoder)
+  ├─ extractDatabase
+  └─ parseGameDatabase
+        │
+        ▼
+  IndexedDB  factory-board-game-data  ──▶  GameDataProvider  ──▶  useGameData().db
+  (parsed again on the way out)              (opens on the baked book)
+```
+
 ## Dependency direction
 
 `planner` owns the domain vocabulary and depends on nothing. `game-data` and
@@ -58,14 +78,15 @@ Each is independently useful, and independently publishable:
   production-flow layering, choosing what a map should frame and spacing markers along a
   polyline — with no idea what a Satisfactory is.
 
-### Two entry points for `game-data`
+### Three entry points for `game-data`
 
-`game-data` exposes two:
+`game-data` exposes three:
 
-| Entry      | Contains                                | For         |
-| ---------- | --------------------------------------- | ----------- |
-| `.`        | extractor, install locator, CLI, schema | Node        |
-| `./schema` | Zod schema and `parseGameDatabase` only | the browser |
+| Entry       | Contains                                                   | For                     |
+| ----------- | ---------------------------------------------------------- | ----------------------- |
+| `.`         | extractor, install locator, CLI, schema, demo              | Node                    |
+| `./schema`  | Zod schema and `parseGameDatabase` only                    | the browser, validating |
+| `./browser` | `decodeDocs`, `extractDatabase`, `parseGameDatabase`, demo | the browser, extracting |
 
 The split is not cosmetic. The install locator imports `node:fs`, and a single entry
 point drags that into the client bundle — Turbopack fails the build outright with
@@ -81,15 +102,20 @@ server at runtime.
 apps/web/src/
 ├── app/
 │   ├── layout.tsx          Providers + Header + page container
-│   ├── providers.tsx       Emotion registry → Chakra → theme → BoardProvider
+│   ├── providers.tsx       Emotion registry → Chakra → theme → GameDataProvider → BoardProvider
 │   ├── page.tsx            Overview
 │   ├── base/page.tsx       Base — map and zones
 │   ├── plan/page.tsx       Planner
 │   ├── history/page.tsx    History — the session over time
-│   └── progress/page.tsx   Progression
+│   ├── progress/page.tsx   Progression
+│   ├── error.tsx           what a view shows when it throws; global-error.tsx for the layout
+│   └── icon.svg, apple-icon.tsx, opengraph-image.tsx, robots.ts — the page's face, built once
 ├── state/board.tsx         targets, recipe choices, zones, snapshot — Context + useReducer
-├── hooks/use-save-loader   file → Worker → snapshot, with a main-thread fallback
-├── workers/parse-save      the only place the parser runs in the browser
+├── state/game-data.tsx     the recipe book the page runs on: baked, or dropped and remembered
+├── hooks/use-save-loader   files → Worker → snapshots; newest to the board, the rest to history
+├── hooks/use-drop-files    .json to the book, .sav to the loader, anything else refused
+├── workers/parse-save      the only place the save parser runs in the browser
+├── workers/extract-docs    the only place the extractor runs in the browser
 ├── components/
 │   ├── primitives.tsx      Label, Panel, table parts, form controls
 │   ├── charts.tsx          StatTile, BarRow, MeterRow, ChartFrame
@@ -113,6 +139,10 @@ apps/web/src/
 │   ├── throughput.ts       what the belts can carry and the mine can give
 │   ├── build-order.ts      which of the missing machines is worth placing first
 │   ├── history-store.ts    every save kept, in IndexedDB
+│   ├── game-data-store.ts  the dropped recipe book kept, in its own IndexedDB database
+│   ├── coverage.ts         the lines a save runs that the book does not know
+│   ├── phases.ts           the elevator's quotas, scaled by the save and checked against it
+│   ├── about.ts            version, source URL, site URL, and the prefilled bug report
 │   └── …                   game database, default snapshot, plan storage, formatting
 └── generated/              build artefacts; gitignored
 ```
@@ -121,6 +151,12 @@ apps/web/src/
 what the player has said (`targets`, `recipeChoices`, `zoneAssignments`, `zoneNames`) plus
 the loaded `snapshot`; everything else on screen is derived by `solve()` and
 `buildZoneBoard()` inside a `useMemo`. See [ADR 0007](adr/0007-no-state-library.md).
+
+Above it sits `GameDataProvider`, holding the database every derivation reads. It is
+state rather than a module constant because a `Docs.json` can replace it at any moment
+([ADR 34](adr/0034-the-recipe-book-can-arrive-at-runtime.md)), which is also why every
+`useMemo` lists `db`: `react-hooks/exhaustive-deps` is on, and a memo that forgot it kept
+solving against the old book.
 
 **Parsing** happens in a Web Worker so a large save cannot freeze the page, with a
 main-thread fallback when a Worker cannot be constructed.
@@ -141,7 +177,14 @@ and inlined:
 
 Both fall back to the built-in demo rather than failing when there is no install and no
 save, which is what lets the app run — and CI build it — on a machine that has never had
-Satisfactory on it ([ADR 29](adr/0029-the-board-ships-a-base-of-its-own.md)).
+Satisfactory on it ([ADR 29](adr/0029-the-board-ships-a-base-of-its-own.md)). The
+database goes in wrapped, `{ source: 'extracted' | 'demo', database }`, because the page
+has to say which it is holding and the database cannot — `sourceBuildId` is 0 for the
+demo, for an Epic install, and for a browser extract alike.
+
+`FACTORY_BOARD_DEMO=1` makes both scripts bake the demo whatever the machine has. That is
+how a hosted copy is built: a plain build on the maintainer's machine would put their own
+session name and play time into the export.
 
 `npm run dev` goes through `scripts/dev.mjs`, which watches the save _directory_ — the
 game writes a new file and swaps it, so a watch bound to the original file is dropped
@@ -150,10 +193,11 @@ several events. See [ADR 0005](adr/0005-build-time-save-loading.md).
 
 ## Type safety at the boundaries
 
-Five things cross a boundary and are therefore parsed, not cast: the generated game
+Six things cross a boundary and are therefore parsed, not cast: the generated game
 database, the generated default snapshot, the plan in `localStorage`, the zone names
-beside it, and the history kept in IndexedDB — which outlives releases, so a point
-written last month is a stranger to the code reading it.
+beside it, the history kept in IndexedDB — which outlives releases, so a point written
+last month is a stranger to the code reading it — and the recipe book kept beside it,
+which an older extractor may have written and which is dropped rather than trusted.
 
 Two compile-time assertions keep the game database's Zod schema and the domain type in
 step:
@@ -198,11 +242,11 @@ stylistic:
 
 ## Testing strategy
 
-| Layer                          | Tool                              | What it proves                                                    |
-| ------------------------------ | --------------------------------- | ----------------------------------------------------------------- |
-| Solver, extractor, save reader | Vitest, hand-written fixtures     | The rules hold, including the ones that bit us before             |
-| Extracted database             | Vitest, skipped without real data | The extractor produces _correct_ data, not merely well-typed data |
-| The app                        | Playwright                        | A real browser can load a real save and render the board          |
+| Layer                          | Tool                              | What it proves                                                                                                                                          |
+| ------------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Solver, extractor, save reader | Vitest, hand-written fixtures     | The rules hold, including the ones that bit us before                                                                                                   |
+| Extracted database             | Vitest, skipped without real data | The extractor produces _correct_ data, not merely well-typed data                                                                                       |
+| The app                        | Playwright, on the built export   | A stranger's first minute: every view opens, a dropped book is read and remembered, bad files are refused politely; `E2E_SAVE` adds a real save locally |
 
 Fixtures use genuine Satisfactory rates (a Constructor makes 15 Iron Rod/min), so
 assertions check the maths against the game rather than against themselves.
@@ -220,38 +264,41 @@ the Phase 2 plan, in a memo that only re-runs when the plan changes.
 
 Recorded in full under [adr/](adr).
 
-| Decision                                                                                     | Why                                                                                                                  |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| [Client-side only](adr/0001-client-side-only.md)                                             | Saves are personal; a server adds risk and cost for no gain                                                          |
-| [TypeScript 6, not 7](adr/0002-typescript-6-not-7.md)                                        | `typescript-eslint` caps at `<6.1.0`; type-aware linting is worth more than the version number                       |
-| [Don't commit game data](adr/0003-do-not-commit-game-data.md)                                | It is Coffee Stain's content, and extraction gives version-exact data anyway                                         |
-| [Raw resources terminate the solve](adr/0004-raw-resources-terminate-the-solve.md)           | Otherwise the solver mines SAM to make iron                                                                          |
-| [Build-time save loading](adr/0005-build-time-save-loading.md)                               | A static page cannot read a path from an env var — the browser has no disk                                           |
-| [No charting library](adr/0006-no-charting-library.md)                                       | Every figure is a magnitude or a ratio; a library would be weight without benefit                                    |
-| [No state library](adr/0007-no-state-library.md)                                             | A handful of fields of state, everything else derived                                                                |
-| [Machines anchor zones](adr/0008-machines-anchor-zones.md)                                   | Clustering belts welds the whole base into one blob                                                                  |
-| [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)                       | _Superseded._ Magnifying enlarges the picture; redrawing reveals what would not fit                                  |
-| [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md)           | Framing the zones cropped a coal generator six metres past the edge                                                  |
-| [Reach is bought with buildings](adr/0011-reach-is-bought-with-buildings.md)                 | A flat allowance let one water extractor buy 28% of the frame's width                                                |
-| [The canvas takes the shape of the base](adr/0012-the-canvas-takes-the-shape-of-the-base.md) | _Superseded._ A portrait base on a landscape sheet drew as a ribbon using 30% of the width                           |
-| [Zones are clustered in passes](adr/0013-zones-are-clustered-in-passes.md)                   | Letting generators anchor zones alongside machines welded two factory cells into one                                 |
-| [A reference to a zone is a point](adr/0014-a-zone-reference-is-a-point.md)                  | Zone ids are positional and names derived; a coordinate survives the next autosave                                   |
-| [Runs are joined, fittings are drawn](adr/0015-runs-are-joined-fittings-are-drawn.md)        | Reaching across the gaps bought one join in a hundred; the thing in the gap says more                                |
-| [History keeps a digest](adr/0016-history-keeps-a-digest.md)                                 | A snapshot is 40 KB of mostly placements; a session's history is a kilobyte a save                                   |
-| [A second map, on a canvas](adr/0017-a-second-map-on-a-canvas.md)                            | PixiJS over WebGL, theme colours read as numbers, hit-testing a rotated rectangle is ours                            |
-| [The save says what feeds what](adr/0018-the-save-says-what-feeds-what.md)                   | Every connection is declared from both ends; guessing from geometry was worth one join in a hundred                  |
-| [A name per block, not per machine](adr/0019-a-name-per-block-not-per-machine.md)            | Colour is spent on health; what a machine makes arrives as type, once per block                                      |
-| [Outposts go in the margin](adr/0020-outposts-go-in-the-margin.md)                           | _Superseded._ Rotation was measured at 13.6% of area and declined; the rail lifted scale 2.53 → 5.22                 |
-| [One map, not two](adr/0021-one-map-not-two.md)                                              | Every feature after ADR 17 landed on the factory map only; the schematic had stopped being a view                    |
-| [Signposts at the camera](adr/0022-signposts-are-worked-out-at-the-camera.md)                | A pointer that goes stale is worse than none; and the frame is bought with buildings, the leash is not               |
-| [A caption is placed, not hung](adr/0023-a-caption-is-placed-not-hung.md)                    | A fixed offset has no second answer; rings of candidates took 19 crowded names to 22 clear ones                      |
-| [The buffers say why](adr/0024-the-buffers-say-why.md)                                       | Uptime has two causes wanting opposite fixes; "starving" was wrong about the two largest lines                       |
-| [The save says what you can build](adr/0030-the-save-says-what-you-can-build.md)             | 110 alternates offered and none of them unlocked; a swap is priced against the whole plan, never its own line        |
-| [The board ships a base of its own](adr/0029-the-board-ships-a-base-of-its-own.md)           | ADR 3 kept the data out and quietly kept everyone else out too; the demo is ours, so CI can build the app at last    |
-| [The Planner plans against the world](adr/0028-the-planner-plans-against-the-world.md)       | It told you to build more of a line that was already backed up; stock, power and order all read from the save        |
-| [The plan stands on the ground](adr/0027-the-plan-stands-on-the-ground.md)                   | Ghosts go where the recipe already lives, facing as its neighbours do; the homeless are reported                     |
-| [The plan writes itself](adr/0026-the-plan-writes-itself.md)                                 | A blank page is a reason not to start; the save already says what the elevator is short of                           |
-| [A grid is checked first](adr/0025-a-grid-is-checked-before-a-buffer.md)                     | A dead grid looks exactly like starvation; real draw was 188 MW, not the 125 MW totalled from the DB                 |
-| [Power is an input like ore](adr/0031-power-is-an-input-like-ore.md)                         | Every generator declares zero draw, so the extractor dropped them all; a plan's 344 MW is 69 Coal/min of its own     |
-| [The map names its landmarks](adr/0033-the-map-names-its-landmarks.md)                       | The biggest building on the base had no caption; a box is named by what is in it, and the warehouse gets a place     |
-| [A rate has to travel](adr/0032-a-rate-has-to-travel.md)                                     | 176/min over a Mk.1 belt and 300 ore from two Mk.1 miners; flow is forced-only, and the nearest-belt guess was wrong |
+| Decision                                                                                        | Why                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [Client-side only](adr/0001-client-side-only.md)                                                | Saves are personal; a server adds risk and cost for no gain                                                                         |
+| [TypeScript 6, not 7](adr/0002-typescript-6-not-7.md)                                           | `typescript-eslint` caps at `<6.1.0`; type-aware linting is worth more than the version number                                      |
+| [Don't commit game data](adr/0003-do-not-commit-game-data.md)                                   | It is Coffee Stain's content, and extraction gives version-exact data anyway                                                        |
+| [Raw resources terminate the solve](adr/0004-raw-resources-terminate-the-solve.md)              | Otherwise the solver mines SAM to make iron                                                                                         |
+| [Build-time save loading](adr/0005-build-time-save-loading.md)                                  | A static page cannot read a path from an env var — the browser has no disk                                                          |
+| [No charting library](adr/0006-no-charting-library.md)                                          | Every figure is a magnitude or a ratio; a library would be weight without benefit                                                   |
+| [No state library](adr/0007-no-state-library.md)                                                | A handful of fields of state, everything else derived                                                                               |
+| [Machines anchor zones](adr/0008-machines-anchor-zones.md)                                      | Clustering belts welds the whole base into one blob                                                                                 |
+| [The map redraws at the view](adr/0009-the-map-redraws-at-the-view.md)                          | _Superseded._ Magnifying enlarges the picture; redrawing reveals what would not fit                                                 |
+| [The frame reaches for its content](adr/0010-the-frame-reaches-for-its-content.md)              | Framing the zones cropped a coal generator six metres past the edge                                                                 |
+| [Reach is bought with buildings](adr/0011-reach-is-bought-with-buildings.md)                    | A flat allowance let one water extractor buy 28% of the frame's width                                                               |
+| [The canvas takes the shape of the base](adr/0012-the-canvas-takes-the-shape-of-the-base.md)    | _Superseded._ A portrait base on a landscape sheet drew as a ribbon using 30% of the width                                          |
+| [Zones are clustered in passes](adr/0013-zones-are-clustered-in-passes.md)                      | Letting generators anchor zones alongside machines welded two factory cells into one                                                |
+| [A reference to a zone is a point](adr/0014-a-zone-reference-is-a-point.md)                     | Zone ids are positional and names derived; a coordinate survives the next autosave                                                  |
+| [Runs are joined, fittings are drawn](adr/0015-runs-are-joined-fittings-are-drawn.md)           | Reaching across the gaps bought one join in a hundred; the thing in the gap says more                                               |
+| [History keeps a digest](adr/0016-history-keeps-a-digest.md)                                    | A snapshot is 40 KB of mostly placements; a session's history is a kilobyte a save                                                  |
+| [A second map, on a canvas](adr/0017-a-second-map-on-a-canvas.md)                               | PixiJS over WebGL, theme colours read as numbers, hit-testing a rotated rectangle is ours                                           |
+| [The save says what feeds what](adr/0018-the-save-says-what-feeds-what.md)                      | Every connection is declared from both ends; guessing from geometry was worth one join in a hundred                                 |
+| [A name per block, not per machine](adr/0019-a-name-per-block-not-per-machine.md)               | Colour is spent on health; what a machine makes arrives as type, once per block                                                     |
+| [Outposts go in the margin](adr/0020-outposts-go-in-the-margin.md)                              | _Superseded._ Rotation was measured at 13.6% of area and declined; the rail lifted scale 2.53 → 5.22                                |
+| [One map, not two](adr/0021-one-map-not-two.md)                                                 | Every feature after ADR 17 landed on the factory map only; the schematic had stopped being a view                                   |
+| [Signposts at the camera](adr/0022-signposts-are-worked-out-at-the-camera.md)                   | A pointer that goes stale is worse than none; and the frame is bought with buildings, the leash is not                              |
+| [A caption is placed, not hung](adr/0023-a-caption-is-placed-not-hung.md)                       | A fixed offset has no second answer; rings of candidates took 19 crowded names to 22 clear ones                                     |
+| [The buffers say why](adr/0024-the-buffers-say-why.md)                                          | Uptime has two causes wanting opposite fixes; "starving" was wrong about the two largest lines                                      |
+| [The save says what you can build](adr/0030-the-save-says-what-you-can-build.md)                | 110 alternates offered and none of them unlocked; a swap is priced against the whole plan, never its own line                       |
+| [The board ships a base of its own](adr/0029-the-board-ships-a-base-of-its-own.md)              | ADR 3 kept the data out and quietly kept everyone else out too; the demo is ours, so CI can build the app at last                   |
+| [The Planner plans against the world](adr/0028-the-planner-plans-against-the-world.md)          | It told you to build more of a line that was already backed up; stock, power and order all read from the save                       |
+| [The plan stands on the ground](adr/0027-the-plan-stands-on-the-ground.md)                      | Ghosts go where the recipe already lives, facing as its neighbours do; the homeless are reported                                    |
+| [The plan writes itself](adr/0026-the-plan-writes-itself.md)                                    | A blank page is a reason not to start; the save already says what the elevator is short of                                          |
+| [A grid is checked first](adr/0025-a-grid-is-checked-before-a-buffer.md)                        | A dead grid looks exactly like starvation; real draw was 188 MW, not the 125 MW totalled from the DB                                |
+| [Power is an input like ore](adr/0031-power-is-an-input-like-ore.md)                            | Every generator declares zero draw, so the extractor dropped them all; a plan's 344 MW is 69 Coal/min of its own                    |
+| [The map names its landmarks](adr/0033-the-map-names-its-landmarks.md)                          | The biggest building on the base had no caption; a box is named by what is in it, and the warehouse gets a place                    |
+| [A rate has to travel](adr/0032-a-rate-has-to-travel.md)                                        | 176/min over a Mk.1 belt and 300 ore from two Mk.1 miners; flow is forced-only, and the nearest-belt guess was wrong                |
+| [The recipe book can arrive at runtime](adr/0034-the-recipe-book-can-arrive-at-runtime.md)      | A hosted copy serves the demo; the visitor's own `Docs.json` is extracted in a Worker and remembered, so ADR 1 and ADR 3 both stand |
+| [The quotas are transcribed, then checked](adr/0035-the-quotas-are-transcribed-then-checked.md) | Phases 1–5 from the wiki, scaled by the save's multiplier, withdrawn when a save has delivered past them; Phase 2 was wrong by half |
+| [The board meets a stranger's save](adr/0036-the-board-meets-a-strangers-save.md)               | Error boundaries, failures that name the file, multi-file drops, a face, and a browser suite on the export CI just built            |

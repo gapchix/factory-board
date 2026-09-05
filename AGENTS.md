@@ -17,13 +17,19 @@ no server, no database, no runtime network calls.
 
 ```bash
 npm install
-npm run extract                     # needs Satisfactory installed
+npm run extract                     # optional: needs Satisfactory installed
 npm run typecheck && npm run lint && npm test
+npm run test:e2e                    # builds the demo export if there is none, then opens it
 ```
 
 `npm run extract` writes `packages/game-data/generated/`, which is **gitignored on
 purpose** ([ADR 0003](docs/adr/0003-do-not-commit-game-data.md)). Without it the
-integration tests skip and the web app refuses to build with instructions.
+integration tests skip and the app runs on the hand-written demo
+([ADR 29](docs/adr/0029-the-board-ships-a-base-of-its-own.md)) — and a `Docs.json`
+dropped on the page replaces either ([ADR 34](docs/adr/0034-the-recipe-book-can-arrive-at-runtime.md)).
+
+A hosted copy is built with `FACTORY_BOARD_DEMO=1 npm run build`; a plain build bakes
+your own save and database into the export.
 
 ## Invariants — each one exists because breaking it produced a wrong answer
 
@@ -116,6 +122,24 @@ integration tests skip and the web app refuses to build with instructions.
   impossible. [ADR 30](docs/adr/0030-the-save-says-what-you-can-build.md)
 - **A swap is priced against the whole plan.** Changing one recipe moves everything upstream
   of it, so pricing the line that changed reports the wrong number in the wrong direction.
+- **The recipe book is state, not a constant.** It can be replaced by a file dropped on
+  the page, so every consumer reads it through `useGameData()` and lists it as a hook
+  dependency — `react-hooks/exhaustive-deps` is on to say so. A memo that read the
+  module constant kept solving against the old book after a new one arrived.
+  [ADR 34](docs/adr/0034-the-recipe-book-can-arrive-at-runtime.md)
+- **`sourceBuildId: 0` does not mean "the demo".** An Epic install and a browser extract
+  say 0 too. Which book the page holds is the provider's `source`, read from the sync
+  script's envelope, never inferred from the database.
+- **A stored database is parsed on the way out.** The IndexedDB record outlives releases;
+  one an older extractor wrote is removed and the file asked for again, not trusted.
+- **A quota the save has already exceeded is not a quota.** The elevator's numbers are
+  transcribed, and a transcription the world has delivered past is wrong for that world —
+  `quotaFor` withdraws it and the page shows delivered amounts with no denominator,
+  which is the honest fallback every caller already had.
+  [ADR 35](docs/adr/0035-the-quotas-are-transcribed-then-checked.md)
+- **A hosted build is built clean.** `sync-save.mjs` and `sync-game-data.mjs` bake whatever
+  the machine has; `FACTORY_BOARD_DEMO=1` is what keeps the maintainer's session name out
+  of the export. [ADR 36](docs/adr/0036-the-board-meets-a-strangers-save.md)
 - **Domain rules get a test.** Changing one means changing the test that pins it, and
   saying why.
 

@@ -8,6 +8,30 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Bring your own recipe book.** A `Docs/en-US.json` dropped on the page is extracted in a
+  Web Worker by the same code as the CLI, validated, remembered in IndexedDB and read by
+  every view; the header names the book in a `Recipes` chip with _Load yours_ / _Forget_,
+  and the banner counts the lines a save runs that the book does not know
+  ([ADR 34](docs/adr/0034-the-recipe-book-can-arrive-at-runtime.md)).
+- `@factory-board/game-data/browser` — the extraction half of the package without
+  `node:fs`; `decodeDocs` sniffs the byte-order mark and reads UTF-16LE or UTF-8.
+- Space Elevator quotas for Phases 3, 4 and 5, scaled by the save's cost multiplier
+  (`phase.costMultiplier`, from the game state's `mSpacePartsCostMultiplier`), and
+  withdrawn when a save has delivered past them
+  ([ADR 35](docs/adr/0035-the-quotas-are-transcribed-then-checked.md)).
+- `snapshot.modded`, from the save header, shown on the session chip and in the coverage
+  notice.
+- Error boundaries for the page and the layout, with a prefilled GitHub issue link that
+  never includes the save ([ADR 36](docs/adr/0036-the-board-meets-a-strangers-save.md)).
+- Drops take several files: a recipe book first, then every save, the newest becoming the
+  board and the rest the history. The header picker accepts `.sav,.json`, several at once.
+- A favicon, an Apple icon and a preview card generated at build, `metadataBase` with
+  `NEXT_PUBLIC_SITE_URL`, `robots.txt`, and a footer with the version, licence and source.
+- Playwright smoke suite on the built export, run in CI after the build; `E2E_SAVE` and
+  `E2E_OLD_SAVE` exercise a real save and a too-old one locally.
+- `scripts/check-saves.mjs` — every save in a folder through the reader, as a table.
+- `eslint-plugin-react-hooks` with `rules-of-hooks` and `exhaustive-deps`.
+
 - `@factory-board/planner` — production solver with machine counts, power, raw inputs,
   production balance and structured warnings.
 - `@factory-board/game-data` — `Docs.json` extractor, Zod-validated database and the
@@ -270,6 +294,19 @@ machines · locked` — and is ordered cheapest first instead of by database ord
 
 ### Changed
 
+- **Phase 2 is 1,000 Smart Plating, 1,000 Versatile Framework, 100 Automated Wiring**, not
+  500 / 500 / 100 — the pre-1.0 numbers. The plan the board writes on the reference save
+  doubles accordingly ([ADR 35](docs/adr/0035-the-quotas-are-transcribed-then-checked.md)).
+- `sync-game-data.mjs` writes an envelope `{ source, database }`; the page reads which
+  book was baked from it, never from `sourceBuildId`.
+- Every page reads the database through `useGameData()`; the module constant is gone.
+- Save failures name the file and its size, lead with the parser's own message, and are
+  shown in the header as well as the drop zone, with a _Dismiss_.
+- The banner and the History view no longer mention `npm`; they say where `Docs.json`
+  lives on Steam, Epic and Linux, and to drop a newer autosave.
+- README: status line, a "bring your own recipe book" section, and how to build a copy
+  for hosting without baking your own save into it.
+
 - **Map captions appear when there is room rather than at a fixed zoom.** Machine names
   used to be held back until 320% because four smelters in a row drew "Iron Ingot" four
   times on top of itself; named once per block, a caption needs only 22 px of block on
@@ -459,6 +496,11 @@ machines · locked` — and is ordered cheapest first instead of by database ord
   never named.
 
 ### Fixed
+
+- The map's scene data did not list `ghosts` and `showPlan` as dependencies, so hiding the
+  plan left the ghosts drawn; and the scene effect read the selected zone directly, which
+  would have rebuilt the scene on every click had it been listed. Found by the new lint
+  rule; the selection now goes through a ref.
 
 - **Foundations were never drawn first.** The floor is sorted to the back of the scene by
   matching a building against `Foundation|Wall|Ramp|…`, and it was matched against the

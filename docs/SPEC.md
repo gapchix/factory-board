@@ -60,6 +60,26 @@ something to show:
 [ADR 0005](adr/0005-build-time-save-loading.md). During `npm run dev` the save folder is
 watched, so the dashboard follows autosaves as you play.
 
+Several saves dropped at once are all read: the newest by the session's own clock becomes
+the board, the rest go into the history. That is how a copy without the dev server's
+watcher gets a series instead of a point.
+
+## Opening the recipe book
+
+The database a save is read against has three sources, in order of precedence:
+
+1. A `Docs/en-US.json` dropped on the page — extracted in a Web Worker by the same code
+   as the CLI, validated, and remembered in this browser's IndexedDB
+   ([ADR 34](adr/0034-the-recipe-book-can-arrive-at-runtime.md)). _Forget_ in the header
+   goes back to (2).
+2. The database baked in at build: the one `npm run extract` wrote where the game is
+   installed, else the hand-written demo.
+
+The page always says which it is holding, in a `Recipes` chip, and counts the lines the
+loaded save runs that the book does not know. A real save against the demo book reads as
+a base where nothing can be explained; the count is what says the book is the problem.
+On a modded save it is never zero, and the notice says why.
+
 ## Non-goals
 
 - **Not a save editor.** Read-only, always. Nothing this tool does can corrupt a save.
@@ -215,6 +235,15 @@ What a **placed extractor** is producing is a different question, and the save d
 it: the miner's output buffer is locked to the ore it stands on, and reports it even when
 a belt has drained the last stack. Generators name their fuel outright. Neither says
 anything about the node underneath, or about the ones nobody has built on.
+
+The **Space Elevator's quotas** are in neither source: `Docs.json` describes the elevator
+as a building, and the save records what has been paid towards the current phase, never
+the total. They are transcribed from the wiki at the default cost multiplier, scaled by
+the save's own `mSpacePartsCostMultiplier` (written only when it is not 1), and
+**withdrawn when a save has delivered more of a part than the quota says** — a
+transcription the world has exceeded is wrong for that world, and the honest fallback is
+delivered amounts with no denominator
+([ADR 35](adr/0035-the-quotas-are-transcribed-then-checked.md)).
 
 ## Verification
 
