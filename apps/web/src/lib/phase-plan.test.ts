@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { duration, planForPhase } from './phase-plan';
 
 /**
- * Phase 2's real quotas — 500, 500 and 100 — because the whole point of this
- * file is that the numbers it proposes are the game's own.
+ * Phase 2's real quotas — 1,000, 1,000 and 100 at the default multiplier —
+ * because the whole point of this file is that the numbers it proposes are the
+ * game's own.
  */
 const db: GameDatabase = {
   sourceBuildId: 0,
@@ -54,6 +55,8 @@ const snapshot = (
   delivered: Record<string, number>,
   stored: Record<string, number> = {},
   lines: WorldSnapshot['lines'] = {},
+  target = 'GP_Project_Assembly_Phase_2',
+  costMultiplier = 1,
 ): WorldSnapshot => ({
   sessionName: 'polska',
   playDurationSeconds: 0,
@@ -67,18 +70,19 @@ const snapshot = (
   links: [],
   milestones: [],
   circuits: [],
-  phase: { current: null, target: 'GP_Project_Assembly_Phase_2', delivered },
+  phase: { current: null, target, delivered, costMultiplier },
   objectCount: 0,
+  modded: false,
 });
 
 describe('planForPhase', () => {
   it('plans what is left, not what the quota says', () => {
     // The static preset set 5 : 5 : 1 whether you had delivered none of it or
     // all but the last twenty. This is the difference.
-    const plan = planForPhase(db, snapshot({ Desc_SpaceElevatorPart_1_C: 480 }));
+    const plan = planForPhase(db, snapshot({ Desc_SpaceElevatorPart_1_C: 980 }));
 
     const smart = plan?.parts.find((part) => part.item === 'Desc_SpaceElevatorPart_1_C');
-    expect(smart).toMatchObject({ required: 500, delivered: 480, toMake: 20 });
+    expect(smart).toMatchObject({ required: 1000, delivered: 980, toMake: 20 });
   });
 
   it('does not ask you to build what is already built', () => {
@@ -88,15 +92,14 @@ describe('planForPhase', () => {
     const plan = planForPhase(db, snapshot({}, { Desc_SpaceElevatorPart_1_C: 34 }));
 
     const smart = plan?.parts.find((part) => part.item === 'Desc_SpaceElevatorPart_1_C');
-    expect(smart).toMatchObject({ stored: 34, toMake: 466 });
+    expect(smart).toMatchObject({ stored: 34, toMake: 966 });
   });
 
   it('lands every part at the same moment', () => {
     /*
      * A phase is delivered when its *last* part arrives, so finishing one of
      * three early buys nothing. Rates are scaled to whichever has furthest to
-     * go — 500, 500 and 100 gives 5 : 5 : 1, which is the ratio the hand-written
-     * preset used and the reason it looked right on a fresh phase.
+     * go — 1,000, 1,000 and 100 gives 5 : 5 : 1 over 200 minutes.
      */
     const plan = planForPhase(db, snapshot({}));
 
@@ -105,11 +108,36 @@ describe('planForPhase', () => {
       { item: 'Desc_SpaceElevatorPart_2_C', ratePerMinute: 5 },
       { item: 'Desc_SpaceElevatorPart_3_C', ratePerMinute: 1 },
     ]);
-    expect(plan?.minutes).toBe(100);
+    expect(plan?.minutes).toBe(200);
+  });
+
+  it('scales the quota by the multiplier the world was started with', () => {
+    const plan = planForPhase(db, snapshot({}, {}, {}, 'GP_Project_Assembly_Phase_2', 2));
+
+    const smart = plan?.parts.find((part) => part.item === 'Desc_SpaceElevatorPart_1_C');
+    expect(smart).toMatchObject({ required: 2000, toMake: 2000 });
+  });
+
+  it('plans a later phase from the same table', () => {
+    const plan = planForPhase(db, snapshot({}, {}, {}, 'GP_Project_Assembly_Phase_3'));
+
+    expect(plan?.label).toBe('Phase 3');
+    expect(plan?.parts.map((part) => [part.item, part.required])).toEqual([
+      ['Desc_SpaceElevatorPart_2_C', 2500],
+      ['Desc_SpaceElevatorPart_4_C', 500],
+      ['Desc_SpaceElevatorPart_5_C', 100],
+    ]);
+  });
+
+  it('withdraws rather than guesses when the save has delivered past the quota', () => {
+    // A quota this world has exceeded is wrong for this world.
+    const plan = planForPhase(db, snapshot({ Desc_SpaceElevatorPart_3_C: 101 }));
+
+    expect(plan).toBeNull();
   });
 
   it('proposes whole units a minute', () => {
-    // 466 over 100 minutes is 4.66/min, which is a true number and a useless
+    // 966 over 200 minutes is 4.83/min, which is a true number and a useless
     // instruction.
     const plan = planForPhase(db, snapshot({}, { Desc_SpaceElevatorPart_1_C: 34 }));
 
@@ -146,8 +174,8 @@ describe('planForPhase', () => {
     const plan = planForPhase(
       db,
       snapshot({
-        Desc_SpaceElevatorPart_1_C: 500,
-        Desc_SpaceElevatorPart_2_C: 500,
+        Desc_SpaceElevatorPart_1_C: 1000,
+        Desc_SpaceElevatorPart_2_C: 1000,
         Desc_SpaceElevatorPart_3_C: 100,
       }),
     );
@@ -159,7 +187,7 @@ describe('planForPhase', () => {
   it('says nothing at all about a phase it has no quotas for', () => {
     // Quotas are transcribed, not extracted. Inventing a denominator would be
     // worse than showing none.
-    const unknown = { ...snapshot({}), phase: { current: null, target: 'Phase_9', delivered: {} } };
+    const unknown = snapshot({}, {}, {}, 'Phase_9');
 
     expect(planForPhase(db, unknown)).toBeNull();
     expect(planForPhase(db, { ...snapshot({}), phase: null })).toBeNull();

@@ -98,6 +98,7 @@ const world = (placements: BuildingPlacement[], uptime: number | null = null): W
   stored: {},
   circuits: [],
   objectCount: placements.length,
+  modded: false,
 });
 
 describe('buildZoneBoard · what a zone is called', () => {

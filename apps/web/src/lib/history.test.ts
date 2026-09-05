@@ -83,6 +83,7 @@ const world = (over: Partial<WorldSnapshot> = {}): WorldSnapshot => ({
   stored: {},
   circuits: [],
   objectCount: 0,
+  modded: false,
   ...over,
 });
 
@@ -100,6 +101,7 @@ const point = (over: Partial<HistoryPoint> = {}): HistoryPoint => ({
   milestones: 0,
   phase: null,
   delivered: {},
+  costMultiplier: 1,
   lines: {},
   ...over,
 });
@@ -268,29 +270,42 @@ describe('phaseProgress', () => {
     });
 
   it('counts the share across everything the phase asks for', () => {
-    const progress = phaseProgress(db, [delivering(0, 0), delivering(3600, 275)]);
-    // 275 of 1100 parts in total.
+    const progress = phaseProgress(db, [delivering(0, 0), delivering(3600, 525)]);
+    // 525 of 2,100 parts in total.
     expect(progress?.label).toBe('Phase 2');
     expect(progress?.share).toBeCloseTo(0.25, 6);
     expect(progress?.items[0]).toEqual({
       item: 'Desc_SpaceElevatorPart_1_C',
       name: 'Smart Plating',
-      delivered: 275,
-      required: 500,
+      delivered: 525,
+      required: 1000,
     });
   });
 
   it('projects the rest at the rate of the window', () => {
     // A quarter delivered in an hour: three hours to go.
-    const progress = phaseProgress(db, [delivering(0, 0), delivering(3600, 275)]);
+    const progress = phaseProgress(db, [delivering(0, 0), delivering(3600, 525)]);
     expect(progress?.secondsLeft).toBe(10800);
   });
 
   // A projection built on no deliveries is worse than no projection.
   it('says nothing about a rate when nothing has been delivered', () => {
     const progress = phaseProgress(db, [delivering(0, 100), delivering(3600, 100)]);
-    expect(progress?.share).toBeCloseTo(100 / 1100, 6);
+    expect(progress?.share).toBeCloseTo(100 / 2100, 6);
     expect(progress?.secondsLeft).toBeNull();
+  });
+
+  it('scales the quota by the multiplier the world was started with', () => {
+    const doubled = (playSeconds: number, plating: number): HistoryPoint =>
+      point({
+        playSeconds,
+        phase: 'GP_Project_Assembly_Phase_2',
+        delivered: { Desc_SpaceElevatorPart_1_C: plating },
+        costMultiplier: 2,
+      });
+    const progress = phaseProgress(db, [doubled(0, 0), doubled(3600, 1050)]);
+    expect(progress?.items[0]?.required).toBe(2000);
+    expect(progress?.share).toBeCloseTo(0.25, 6);
   });
 
   it('measures the rate within the phase only, never across the reset', () => {
@@ -299,7 +314,7 @@ describe('phaseProgress', () => {
       phase: 'GP_Project_Assembly_Phase_1',
       delivered: { Desc_SpaceElevatorPart_1_C: 50 },
     });
-    const progress = phaseProgress(db, [earlier, delivering(3600, 0), delivering(7200, 275)]);
+    const progress = phaseProgress(db, [earlier, delivering(3600, 0), delivering(7200, 525)]);
     expect(progress?.secondsLeft).toBe(10800);
   });
 

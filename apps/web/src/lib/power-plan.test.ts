@@ -92,6 +92,7 @@ const world = (
     circuits,
     phase: null,
     objectCount: 0,
+    modded: false,
   }) as unknown as WorldSnapshot;
 
 describe('powerForPlan', () => {

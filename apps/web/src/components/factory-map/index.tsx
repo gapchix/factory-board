@@ -8,7 +8,7 @@ import { Application } from 'pixi.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { traceChain, type Chain, type ChainStep } from '@/lib/chain';
 import { diagnose, explain } from '@/lib/diagnose';
-import { PHASES } from '@/lib/phases';
+import { quotaFor } from '@/lib/phases';
 import type { GhostSite } from '@/lib/ghosts';
 import { buildingName, itemName } from '@/lib/format';
 import type { ZoneView } from '@/lib/zones';
@@ -209,7 +209,7 @@ export default function FactoryMap({
      * about, and the map had it as an unlabelled grey slab. Named now like
      * every other landmark; this is what it has to add beyond its name.
      */
-    const phase = snapshot.phase?.target ? PHASES[snapshot.phase.target] : undefined;
+    const phase = quotaFor(snapshot.phase);
     const elevator = (machine: string): string | undefined => {
       if (machine !== 'SpaceElevator' || !phase) return undefined;
       const short = Object.entries(phase.requires)

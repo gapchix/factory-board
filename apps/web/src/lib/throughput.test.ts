@@ -63,6 +63,7 @@ const world = (placements: Node[], links: [number, number][]): WorldSnapshot =>
     saveBuildVersion: 0,
     savedAt: null,
     objectCount: 0,
+    modded: false,
   }) as unknown as WorldSnapshot;
 
 const solved = (rate: number, raw: Record<string, number> = {}): SolveResult =>

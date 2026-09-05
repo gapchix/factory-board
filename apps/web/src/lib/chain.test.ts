@@ -88,6 +88,7 @@ const world = (placements: BuildingPlacement[], links: BuildingLink[]): WorldSna
   stored: {},
   circuits: [],
   objectCount: placements.length,
+  modded: false,
 });
 
 /** miner ▸ belt ▸ smelter ▸ belt ▸ constructor — the shape of a real line. */

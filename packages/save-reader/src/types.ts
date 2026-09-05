@@ -187,6 +187,18 @@ export interface PhaseProgress {
   readonly target: string | null;
   /** Items already delivered towards `target`. */
   readonly delivered: Readonly<Record<ItemId, number>>;
+  /**
+   * What this world multiplies the Space Elevator's quotas by.
+   *
+   * A new game can be started with the deliverable cost anywhere from a
+   * quarter to a hundred times the default, and the choice is fixed for the
+   * life of the save. The game keeps it on the game state as
+   * `mSpacePartsCostMultiplier`, and only writes it when it is not the
+   * default — so most saves say nothing, and nothing means 1. The quotas
+   * themselves are not in the file at all
+   * ([ADR 35](../../../docs/adr/0035-the-quotas-are-transcribed-then-checked.md)).
+   */
+  readonly costMultiplier: number;
 }
 
 /** Everything the board needs from a save file, and nothing else. */
@@ -239,4 +251,13 @@ export interface WorldSnapshot {
   readonly phase: PhaseProgress | null;
   /** Total placed objects the parser returned, for sanity-checking a load. */
   readonly objectCount: number;
+  /**
+   * Whether the save was written with mods loaded, from the header.
+   *
+   * A modded world is full of buildings and recipes no `Docs.json` names, so
+   * it reads as a base with more unnamed boxes and more lines the board cannot
+   * explain. That is a property of the save, not a fault in the reading, and
+   * the page should be able to say so rather than look broken.
+   */
+  readonly modded: boolean;
 }

@@ -18,10 +18,28 @@ export interface DocsGroup {
   readonly Classes: readonly DocsClass[];
 }
 
-/** Decode the UTF-16LE document and strip the byte-order mark. */
-export function decodeDocs(buffer: Uint8Array): DocsGroup[] {
-  const text = Buffer.from(buffer).toString('utf16le').replace(/^﻿/, '');
-  const parsed: unknown = JSON.parse(text);
+/**
+ * Decode the document and strip the byte-order mark.
+ *
+ * The game writes UTF-16LE with a BOM, and that is what the first version of
+ * this read, unconditionally, through `Buffer` — which meant the extractor
+ * could only ever run in Node. It runs in a browser tab now
+ * ([ADR 34](../../../docs/adr/0034-the-recipe-book-can-arrive-at-runtime.md)),
+ * so the encoding is read off the first bytes instead of assumed: `FF FE` is
+ * UTF-16LE, `EF BB BF` is UTF-8 with a mark, and anything else is taken as
+ * UTF-8, which is what a copy re-saved by an editor or a community tool tends
+ * to be. `TextDecoder` is standard in both runtimes.
+ */
+export function decodeDocs(bytes: Uint8Array | ArrayBuffer): DocsGroup[] {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const utf16 = view.length >= 2 && view[0] === 0xff && view[1] === 0xfe;
+  const text = new TextDecoder(utf16 ? 'utf-16le' : 'utf-8').decode(view).replace(/^﻿/, '');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('That file is not JSON. Docs.json lives in CommunityResources/Docs.');
+  }
   if (!Array.isArray(parsed)) {
     throw new Error('Docs.json did not contain the expected array of native classes.');
   }

@@ -357,6 +357,8 @@ function readPhase(properties: Record<string, unknown> | undefined): PhaseProgre
     current: current || null,
     target: target || null,
     delivered,
+    // The multiplier lives on a different object; joined once both are read.
+    costMultiplier: 1,
   };
 }
 
@@ -375,6 +377,12 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
   const paths: BuildingPath[] = [];
   const milestones: string[] = [];
   let phase: PhaseProgress | null = null;
+  /*
+   * The Space Elevator cost multiplier a new game was started with. It is a
+   * property of the game state, not of the phase manager, and the game only
+   * writes it when it is not 1 — so absence is the default, not a gap.
+   */
+  let costMultiplier = 1;
   let objectCount = 0;
 
   /*
@@ -576,8 +584,16 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
       if (/GamePhaseManager/.test(typePath)) {
         phase = readPhase(properties);
       }
+
+      if (/BP_GameState/.test(typePath)) {
+        const multiplier = num(propValue(properties, 'mSpacePartsCostMultiplier'));
+        if (multiplier !== undefined && multiplier > 0) costMultiplier = multiplier;
+      }
     }
   }
+
+  // The two halves of the phase may arrive in either order.
+  if (phase) phase = { ...phase, costMultiplier };
 
   /*
    * The routes learn which building drew them, so a map can light up the exact
@@ -740,5 +756,6 @@ export function analyzeSave(save: RawSave): WorldSnapshot {
     circuits,
     phase,
     objectCount,
+    modded: header?.['isModdedSave'] === true,
   };
 }

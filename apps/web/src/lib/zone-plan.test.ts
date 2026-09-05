@@ -71,6 +71,7 @@ const world = (placements: BuildingPlacement[]): WorldSnapshot => ({
   stored: {},
   circuits: [],
   objectCount: placements.length,
+  modded: false,
 });
 
 /** Two cells far enough apart to be two zones: smelters here, constructors there. */

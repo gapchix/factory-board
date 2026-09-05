@@ -17,7 +17,7 @@ import { SaveDropzone } from '@/components/panels';
 import { Label, SectionHeading } from '@/components/primitives';
 import { diagnose, explain } from '@/lib/diagnose';
 import { buildingName, itemName, machineName, machineRank, playTime, rate } from '@/lib/format';
-import { PHASES } from '@/lib/phases';
+import { phaseLabel, quotaFor } from '@/lib/phases';
 import { gameDatabase as db } from '@/lib/game-database';
 import { useBoard } from '@/state/board';
 
@@ -112,7 +112,7 @@ export default function OverviewPage() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8);
 
-    const phaseDef = snapshot.phase?.target ? PHASES[snapshot.phase.target] : undefined;
+    const quota = quotaFor(snapshot.phase);
 
     /*
      * Parts the elevator wants that are sitting in a container instead. The
@@ -120,7 +120,7 @@ export default function OverviewPage() {
      * reference save 34 Smart Plating were built and 0 delivered, which reads
      * as "nothing made yet" until you see the stock.
      */
-    const undelivered = Object.entries(phaseDef?.requires ?? {})
+    const undelivered = Object.entries(quota?.requires ?? {})
       .map(([item]) => ({ item, held: snapshot.stored[item] ?? 0 }))
       .filter((row) => row.held > 0);
 
@@ -202,7 +202,7 @@ export default function OverviewPage() {
       countByMachine: [...countByMachine.entries()].sort((a, b) => b[1] - a[1]),
       progress,
       infrastructure,
-      phaseDef,
+      quota,
       grids,
       stored,
       storedTotal,
@@ -478,18 +478,18 @@ export default function OverviewPage() {
         <Box mt={9}>
           <SectionHeading
             title="Space Elevator"
-            note={view.phaseDef?.label ?? snapshot.phase.target.replace(/GP_Project_Assembly_/, '')}
+            note={view.quota?.label ?? phaseLabel(snapshot.phase.target) ?? snapshot.phase.target}
           />
           <ChartFrame title="Delivery" note="parts sent to the elevator">
-            {(view.phaseDef
-              ? Object.entries(view.phaseDef.requires)
+            {(view.quota
+              ? Object.entries(view.quota.requires)
               : Object.entries(snapshot.phase.delivered)
             ).map(([item, required]) => (
               <MeterRow
                 key={item}
                 name={itemName(db, item)}
                 value={snapshot.phase?.delivered[item] ?? 0}
-                target={view.phaseDef ? required : (snapshot.phase?.delivered[item] ?? 0)}
+                target={view.quota ? required : (snapshot.phase?.delivered[item] ?? 0)}
               />
             ))}
           </ChartFrame>

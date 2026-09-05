@@ -9,7 +9,7 @@ import { duration, planForPhase } from '@/lib/phase-plan';
 import type { BuildStep } from '@/lib/build-order';
 import type { PlanPower } from '@/lib/power-plan';
 import type { Physics } from '@/lib/throughput';
-import { PHASES, PRESETS } from '@/lib/phases';
+import { PHASES, PRESETS, phaseLabel, quotaFor } from '@/lib/phases';
 import { buildZoneBoard, zoneAt } from '@/lib/zones';
 import { useBoard } from '@/state/board';
 import { useSaveLoader } from '@/hooks/use-save-loader';
@@ -964,7 +964,13 @@ export function Progress({ db, snapshot }: { db: GameDatabase; snapshot: WorldSn
     (a, b) => a.tier - b.tier || a.name.localeCompare(b.name),
   );
   const phase = snapshot.phase;
-  const definition = phase?.target ? PHASES[phase.target] : undefined;
+  /*
+   * Two different reasons for having no denominator, and the footnote should
+   * say which: a phase nobody transcribed, or a transcription this save has
+   * already delivered past — which means the quota is wrong for this world.
+   */
+  const transcribed = phase?.target ? PHASES[phase.target] !== undefined : false;
+  const definition = quotaFor(phase);
   const quotaItems = definition
     ? Object.keys(definition.requires)
     : Object.keys(phase?.delivered ?? {});
@@ -982,7 +988,8 @@ export function Progress({ db, snapshot }: { db: GameDatabase; snapshot: WorldSn
             letterSpacing="0.02em"
             mb={2.5}
           >
-            Space Elevator · {definition?.label ?? phase.target.replace(/GP_Project_Assembly_/, '')}
+            Space Elevator · {definition?.label ?? phaseLabel(phase.target)}
+            {phase.costMultiplier !== 1 ? ` · ×${phase.costMultiplier} cost` : ''}
           </Heading>
           {quotaItems.length === 0 ? (
             <Text color="fg.subtle" fontSize="14px">
@@ -1017,7 +1024,9 @@ export function Progress({ db, snapshot }: { db: GameDatabase; snapshot: WorldSn
           )}
           {!definition ? (
             <Text fontSize="13px" color="fg.subtle" mt={1}>
-              The quota for this phase isn&apos;t bundled — showing delivered amounts only.
+              {transcribed
+                ? 'This save has delivered more of a part than the transcribed quota, so the quota is wrong for this world — showing delivered amounts only.'
+                : 'The quota for this phase isn’t transcribed — showing delivered amounts only.'}
             </Text>
           ) : null}
         </Panel>

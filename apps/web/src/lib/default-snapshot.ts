@@ -80,9 +80,13 @@ const snapshotSchema = z.object({
       current: z.string().nullable(),
       target: z.string().nullable(),
       delivered: z.record(z.string(), z.number()),
+      // Absent on a snapshot written before the reader learned it; 1 is the
+      // game's own default.
+      costMultiplier: z.number().positive().default(1),
     })
     .nullable(),
   objectCount: z.number().int().nonnegative(),
+  modded: z.boolean().default(false),
 });
 
 /*
@@ -140,6 +144,7 @@ const earlierSchema = z.object({
         current: z.string().nullable(),
         target: z.string().nullable(),
         delivered: z.record(z.string(), z.number()),
+        costMultiplier: z.number().positive().default(1),
       })
       .nullable(),
     placements: z.array(

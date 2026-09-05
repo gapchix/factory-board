@@ -170,6 +170,30 @@ describe('analyzeSave', () => {
     expect(snapshot.phase?.current).toBe('GP_Project_Assembly_Phase_0');
     expect(snapshot.phase?.target).toBe('GP_Project_Assembly_Phase_1');
     expect(snapshot.phase?.delivered['Desc_SpaceElevatorPart_1_C']).toBe(24);
+    // Nothing said about the multiplier is the default, not a gap.
+    expect(snapshot.phase?.costMultiplier).toBe(1);
+  });
+
+  it('reads the Space Elevator cost multiplier off the game state, whichever comes first', () => {
+    const manager: RawSaveObject = {
+      typePath: '/Game/FactoryGame/GamePhases/BP_GamePhaseManager.BP_GamePhaseManager_C',
+      properties: {
+        mTargetGamePhase: objectProp(
+          '/Game/FactoryGame/GamePhases/GP_Project_Assembly_Phase_2.GP_Project_Assembly_Phase_2',
+        ),
+      },
+    };
+    const state: RawSaveObject = {
+      typePath: '/Game/FactoryGame/-Shared/Blueprint/BP_GameState.BP_GameState_C',
+      properties: { mSpacePartsCostMultiplier: floatProp(2.5) },
+    };
+    expect(analyzeSave(save([manager, state])).phase?.costMultiplier).toBe(2.5);
+    expect(analyzeSave(save([state, manager])).phase?.costMultiplier).toBe(2.5);
+  });
+
+  it('says whether the save was written with mods loaded', () => {
+    expect(analyzeSave(save([])).modded).toBe(false);
+    expect(analyzeSave(save([], { isModdedSave: true })).modded).toBe(true);
   });
 
   it('ignores properties that have gone missing rather than throwing', () => {

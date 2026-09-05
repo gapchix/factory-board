@@ -1,7 +1,7 @@
 import type { GameDatabase, ItemId, ProductionTarget } from '@factory-board/planner';
 import type { WorldSnapshot } from '@factory-board/save-reader';
 import { itemName } from './format';
-import { PHASES } from './phases';
+import { quotaFor } from './phases';
 
 /**
  * The plan the save has already written for you.
@@ -70,13 +70,13 @@ function producedPerMinute(db: GameDatabase, snapshot: WorldSnapshot, item: Item
 /**
  * What the Space Elevator is waiting for, and the plan that would feed it.
  *
- * Null when the save is on no phase, or on one whose quotas have not been
- * transcribed — [phases.ts](./phases.ts) lists only what has been verified, and
- * inventing a denominator would be worse than showing none.
+ * Null when the save is on no phase, on one whose quotas have not been
+ * transcribed, or on one the save has already delivered past — see
+ * [phases.ts](./phases.ts); inventing a denominator would be worse than
+ * showing none.
  */
 export function planForPhase(db: GameDatabase, snapshot: WorldSnapshot): PhasePlan | null {
-  const target = snapshot.phase?.target;
-  const definition = target ? PHASES[target] : undefined;
+  const definition = quotaFor(snapshot.phase);
   if (!definition) return null;
 
   const parts: PhasePart[] = Object.entries(definition.requires).map(([item, required]) => {

@@ -55,6 +55,7 @@ const pointSchema = z.object({
   milestones: z.number().catch(0),
   phase: z.string().nullable().catch(null),
   delivered: z.record(z.string(), z.number()).catch({}),
+  costMultiplier: z.number().positive().catch(1),
   lines: z.record(z.string(), lineSchema).catch({}),
 });
 

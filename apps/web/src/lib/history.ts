@@ -1,7 +1,7 @@
 import type { GameDatabase } from '@factory-board/planner';
 import type { ActualLine, BuildingRole } from '@factory-board/save-reader';
 import { itemName } from './format';
-import { PHASES } from './phases';
+import { PHASES, requiredFor } from './phases';
 
 /**
  * A save, reduced to what a session's history needs.
@@ -36,6 +36,8 @@ export interface HistoryPoint {
   readonly milestones: number;
   readonly phase: string | null;
   readonly delivered: Readonly<Record<string, number>>;
+  /** The world's Space Elevator cost multiplier; the quotas scale by it. */
+  readonly costMultiplier: number;
   readonly lines: Readonly<Record<string, LineState>>;
 }
 
@@ -56,6 +58,8 @@ export interface DigestSource {
   readonly phase: {
     readonly target: string | null;
     readonly delivered: Readonly<Record<string, number>>;
+    /** Optional so a seed written by an older sync script still reads; 1 is the game's default. */
+    readonly costMultiplier?: number | undefined;
   } | null;
   /** Only the role is read: extractors and generators are counted, and the length taken. */
   readonly placements: readonly { readonly role?: BuildingRole | undefined }[];
@@ -99,6 +103,7 @@ export function digestOf(db: GameDatabase, snapshot: DigestSource, source: strin
     milestones: snapshot.milestones.length,
     phase: snapshot.phase?.target ?? null,
     delivered: snapshot.phase?.delivered ?? {},
+    costMultiplier: snapshot.phase?.costMultiplier ?? 1,
     lines,
   };
 }
@@ -228,7 +233,7 @@ export interface PhaseProgress {
 
 /** Share of a phase delivered at that point, counting every item it asks for. */
 function shareOf(point: HistoryPoint, phase: string): number {
-  const required = PHASES[phase]?.requires;
+  const required = requiredFor(phase, point.costMultiplier);
   if (!required) return 0;
   let delivered = 0;
   let total = 0;
@@ -254,9 +259,10 @@ export function phaseProgress(
   const latest = points[points.length - 1];
   if (!latest?.phase) return null;
   const definition = PHASES[latest.phase];
-  if (!definition) return null;
+  const requires = requiredFor(latest.phase, latest.costMultiplier);
+  if (!definition || !requires) return null;
 
-  const items = Object.entries(definition.requires).map(([item, required]) => ({
+  const items = Object.entries(requires).map(([item, required]) => ({
     item,
     name: itemName(db, item),
     delivered: Math.min(latest.delivered[item] ?? 0, required),

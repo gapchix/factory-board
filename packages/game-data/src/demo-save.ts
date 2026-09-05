@@ -411,7 +411,9 @@ export function demoSnapshot(db: GameDatabase = demoDatabase): DemoSnapshot {
       current: 'GP_Project_Assembly_Phase_1',
       target: 'GP_Project_Assembly_Phase_1',
       delivered: { Desc_SpaceElevatorPart_1_C: 18 },
+      costMultiplier: 1,
     },
     objectCount: placements.length + paths.length,
+    modded: false,
   };
 }
