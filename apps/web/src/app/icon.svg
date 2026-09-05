@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Factory Board: the rust square the header's accent is drawn from, and a block F. -->
+  <rect width="64" height="64" fill="#D95A18"/>
+  <path fill="#FFFFFF" d="M18 14h30v9H28v8h17v9H28v10H18z"/>
+</svg>

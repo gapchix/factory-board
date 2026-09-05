@@ -12,3 +12,8 @@ playwright-report/
 # Game data is extracted from YOUR OWN Satisfactory install at build time.
 # It is Coffee Stain's content, so it is never committed here.
 packages/game-data/generated/
+
+# Playwright output
+test-results/
+playwright-report/
+.playwright-mcp/

@@ -224,10 +224,9 @@ export default function OverviewPage() {
         <SectionHeading title="Overview" note="no save loaded" />
         <SaveDropzone />
         <Text color="fg.muted" fontSize="14px" mt={4} maxW="68ch">
-          Point <Box as="code">SATISFACTORY_SAVE</Box> at a file in{' '}
-          <Box as="code">apps/web/.env.local</Box> and it opens here automatically — and stays
-          current, because <Box as="code">npm run dev</Box> re-reads it every time the game
-          autosaves.
+          {process.env.NODE_ENV === 'development'
+            ? 'Point SATISFACTORY_SAVE at a file in apps/web/.env.local and it opens here automatically, and stays current: the dev server re-reads it every time the game autosaves.'
+            : 'Drop a save above and every view fills in. Nothing leaves this tab.'}
         </Text>
       </>
     );

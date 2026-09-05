@@ -35,3 +35,14 @@ jobs:
       # And it builds. A static export that only ever built on the maintainer's
       # own machine is one nobody else can be sure still works.
       - run: npm run build
+      # And a browser can open it: the page a stranger lands on renders, reads
+      # a recipe book, and fails politely on a file that is not one. The
+      # export just built is what gets served (docs/adr/0036).
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-node${{ matrix.node }}
+          path: test-results/
+          retention-days: 7

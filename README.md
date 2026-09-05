@@ -9,8 +9,9 @@ both, and puts them side by side: **plan vs. actual**, per production line.
 Drop a `.sav` in and it tells you which lines are starving, how far off your plan you are,
 and what to build next. Your save is parsed in the browser and never leaves your machine.
 
-> **Status:** early. The planner, extractor and save reader are done and tested; the web
-> app is in progress. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status:** usable. Five views, a demo base for anyone without the game, and a recipe
+> book you can bring from your own install — in the browser, no setup. What is next is in
+> [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Quick start
 
@@ -42,7 +43,24 @@ SATISFACTORY_DIR="D:/Games/Satisfactory" npm run extract
 ```
 
 The app then opens your most recent save on its own. You can also drop a `.sav` on the
-page at any time, including over the demo.
+page at any time, including over the demo — or several autosaves at once, and the
+History view fills in.
+
+## Bring your own recipe book — no install, no setup
+
+You do not need `npm run extract`, or even this repository, to see your own factory: the
+same extraction runs in the browser. Drop your game's `Docs/en-US.json` on the page and
+it becomes the recipe book, exact for your game version, and is remembered in that
+browser. It lives inside every Satisfactory install:
+
+| Where | Path                                                                |
+| ----- | ------------------------------------------------------------------- |
+| Steam | `steamapps/common/Satisfactory/CommunityResources/Docs/en-US.json`  |
+| Epic  | `Epic Games/Satisfactory/CommunityResources/Docs/en-US.json`        |
+| Linux | `~/.steam/steam/steamapps/common/Satisfactory/CommunityResources/…` |
+
+Nothing is uploaded either way. The file is read in a Web Worker in your tab, and the
+230 KB result is kept in IndexedDB ([ADR 34](docs/adr/0034-the-recipe-book-can-arrive-at-runtime.md)).
 
 ## Open your save automatically
 
@@ -70,6 +88,21 @@ the bundle. The page itself never touches your disk — it cannot, and shouldn't
 | **Planner**     | The plan as a flow diagram, then the board of lines, inputs and surplus. Every alternate recipe priced against the whole plan in machines, power and ore — ranked, and split by what your save has actually unlocked. Power per grid, what to build where one would go over, the fuel a minute it all costs, and whether the belts and the mine can carry what it asks for |
 | **History**     | Every autosave kept, so the session draws itself: what changed since the last save, machines, power and uptime over time, and a phase burn-down                                                                                                                                                                                                                            |
 | **Progression** | Milestone research by tier and Space Elevator delivery                                                                                                                                                                                                                                                                                                                     |
+
+## Hosting a copy
+
+The app is a static export: `apps/web/out` after a build, served by anything that serves
+files. **Build it with the demo**, or the export carries _your_ save and _your_ extracted
+database:
+
+```bash
+FACTORY_BOARD_DEMO=1 npm run build     # bakes the demo base and the demo recipe book
+```
+
+A plain `npm run build` on a machine with the game bakes whatever `npm run dev` would
+show you — your session name and play time included. Set `NEXT_PUBLIC_SITE_URL` to the
+address the copy will live at, so links and previews point there. Visitors bring their
+own save and their own recipe book, and neither leaves their browser.
 
 ## Why extract instead of ship the data?
 

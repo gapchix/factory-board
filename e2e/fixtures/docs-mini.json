@@ -1,0 +1,64 @@
+[
+  {
+    "NativeClass": "Class'/Script/FactoryGame.FGResourceDescriptor'",
+    "Classes": [{ "ClassName": "Desc_OreIron_C", "mDisplayName": "Iron Ore", "mForm": "RF_SOLID" }]
+  },
+  {
+    "NativeClass": "Class'/Script/FactoryGame.FGItemDescriptor'",
+    "Classes": [
+      { "ClassName": "Desc_IronIngot_C", "mDisplayName": "Iron Ingot", "mForm": "RF_SOLID" },
+      { "ClassName": "Desc_IronPlate_C", "mDisplayName": "Iron Plate", "mForm": "RF_SOLID" }
+    ]
+  },
+  {
+    "NativeClass": "Class'/Script/FactoryGame.FGBuildableManufacturer'",
+    "Classes": [
+      {
+        "ClassName": "Build_SmelterMk1_C",
+        "mDisplayName": "Smelter",
+        "mPowerConsumption": "4.000000",
+        "mClearanceData": "((ClearanceBox=(Min=(X=-250.000000,Y=-450.000000,Z=0.000000),Max=(X=250.000000,Y=450.000000,Z=900.000000))))"
+      },
+      {
+        "ClassName": "Build_ConstructorMk1_C",
+        "mDisplayName": "Constructor",
+        "mPowerConsumption": "4.000000",
+        "mClearanceData": "((ClearanceBox=(Min=(X=-400.000000,Y=-500.000000,Z=0.000000),Max=(X=400.000000,Y=500.000000,Z=800.000000))))"
+      }
+    ]
+  },
+  {
+    "NativeClass": "Class'/Script/FactoryGame.FGRecipe'",
+    "Classes": [
+      {
+        "ClassName": "Recipe_IngotIron_C",
+        "mDisplayName": "Iron Ingot",
+        "mManufactoringDuration": "2.000000",
+        "mIngredients": "((ItemClass=\"/Script/Engine.BlueprintGeneratedClass'/Game/FactoryGame/Resource/RawResources/OreIron/Desc_OreIron.Desc_OreIron_C'\",Amount=1))",
+        "mProduct": "((ItemClass=\"/Script/Engine.BlueprintGeneratedClass'/Game/FactoryGame/Resource/Parts/IronIngot/Desc_IronIngot.Desc_IronIngot_C'\",Amount=1))",
+        "mProducedIn": "(\"/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C\")"
+      },
+      {
+        "ClassName": "Recipe_IronPlate_C",
+        "mDisplayName": "Iron Plate",
+        "mManufactoringDuration": "6.000000",
+        "mIngredients": "((ItemClass=\"/Script/Engine.BlueprintGeneratedClass'/Game/FactoryGame/Resource/Parts/IronIngot/Desc_IronIngot.Desc_IronIngot_C'\",Amount=3))",
+        "mProduct": "((ItemClass=\"/Script/Engine.BlueprintGeneratedClass'/Game/FactoryGame/Resource/Parts/IronPlate/Desc_IronPlate.Desc_IronPlate_C'\",Amount=2))",
+        "mProducedIn": "(\"/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C\")"
+      }
+    ]
+  },
+  {
+    "NativeClass": "Class'/Script/FactoryGame.FGSchematic'",
+    "Classes": [
+      {
+        "ClassName": "Schematic_1-1_C",
+        "mDisplayName": "Iron Basics",
+        "mType": "EST_Milestone",
+        "mTechTier": 1,
+        "mCost": "((ItemClass=\"/Script/Engine.BlueprintGeneratedClass'/Game/FactoryGame/Resource/RawResources/OreIron/Desc_OreIron.Desc_OreIron_C'\",Amount=10))",
+        "mUnlocks": "Recipe_IngotIron_C Recipe_IronPlate_C"
+      }
+    ]
+  }
+]

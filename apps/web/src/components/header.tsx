@@ -98,7 +98,7 @@ function Chip({
       py={1}
       borderRightWidth={last ? '0' : '1px'}
       borderColor="border.subtle"
-      maxW="200px"
+      maxW="240px"
     >
       <Label display="block">{label}</Label>
       <Flex gap={2} align="baseline">
@@ -147,7 +147,12 @@ export function Header() {
    * page in the demo: the *baked* save can be the demo (no game installed),
    * and the reader can *ask* for the demo. Only the second has a way back.
    */
-  const showingDemo = source?.kind === 'demo' || defaultIsDemo;
+  /*
+   * And a third thing the first two hid: on a build that baked the demo, a
+   * real save dropped on the page is not the demo — the e2e suite found every
+   * loaded save labelled "a demo base" on exactly the build a stranger gets.
+   */
+  const showingDemo = source?.kind === 'demo' || (source?.kind === 'default' && defaultIsDemo);
   const canReturn = defaultSave !== null && !defaultIsDemo;
 
   /*
@@ -208,7 +213,25 @@ export function Header() {
    * recipe book is the same kind of fact, and a book that cannot read the
    * save in front of it is the one thing a stranger has to be told first.
    */
-  const notices: { label: string; text: string; tone: 'accent' | 'crit' }[] = [];
+  const notices: {
+    label: string;
+    text: string;
+    tone: 'accent' | 'crit';
+    action?: { label: string; onClick: () => void } | undefined;
+  }[] = [];
+  /*
+   * A drop that failed, in the header rather than only in the drop zone: the
+   * drop zone is not on screen once a save is loaded, and a second file that
+   * would not read used to fail in silence.
+   */
+  if (status.kind === 'failed') {
+    notices.push({
+      label: 'Save',
+      text: status.message,
+      tone: 'crit',
+      action: { label: 'Dismiss', onClick: () => dispatch({ type: 'dismiss' }) },
+    });
+  }
   if (showingDemo) {
     notices.push({
       label: 'Demo',
@@ -409,6 +432,22 @@ export function Header() {
           <Text fontSize="12.5px" lineHeight="1.5" color="fg.muted">
             {notice.text}
           </Text>
+          {notice.action ? (
+            <chakra.button
+              type="button"
+              onClick={notice.action.onClick}
+              fontFamily="mono"
+              fontSize="10.5px"
+              letterSpacing="0.08em"
+              textTransform="uppercase"
+              color="accent.solid"
+              flex="none"
+              cursor="pointer"
+              _hover={{ textDecoration: 'underline' }}
+            >
+              {notice.action.label}
+            </chakra.button>
+          ) : null}
         </Flex>
       ))}
     </Box>

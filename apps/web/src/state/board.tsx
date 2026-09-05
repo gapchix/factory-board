@@ -68,6 +68,8 @@ type Action =
   | { type: 'parsing'; fileName: string; bytes: number }
   | { type: 'loaded'; snapshot: WorldSnapshot; source: SnapshotSource }
   | { type: 'failed'; message: string }
+  /** The reader has read the failure; the save that loaded before it stays. */
+  | { type: 'dismiss' }
   | { type: 'clearSave' };
 
 const initialState: BoardState = {
@@ -153,6 +155,8 @@ function reducer(state: BoardState, action: Action): BoardState {
       };
     case 'failed':
       return { ...state, status: { kind: 'failed', message: action.message } };
+    case 'dismiss':
+      return state.status.kind === 'failed' ? { ...state, status: { kind: 'idle' } } : state;
     case 'clearSave':
       return { ...state, snapshot: null, source: null, status: { kind: 'idle' } };
     default:
