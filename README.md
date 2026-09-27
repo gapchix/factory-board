@@ -9,9 +9,11 @@ both, and puts them side by side: **plan vs. actual**, per production line.
 Drop a `.sav` in and it tells you which lines are starving, how far off your plan you are,
 and what to build next. Your save is parsed in the browser and never leaves your machine.
 
-> **Status:** usable. Five views, a demo base for anyone without the game, and a recipe
-> book you can bring from your own install — in the browser, no setup. What is next is in
-> [docs/ROADMAP.md](docs/ROADMAP.md).
+**Try it: [factory-board.gapchix.io](https://factory-board.gapchix.io)** — drop your save on
+the page. Saves are in `%LOCALAPPDATA%\FactoryGame\Saved\SaveGames`.
+
+> **Status:** usable. Five views, a demo base for anyone without the game, and the top of the
+> page says what to fix first. What is next is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Quick start
 

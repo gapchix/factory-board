@@ -8,6 +8,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Fix these first.** The Overview opens with up to three problems, one per cause, each
+  with what the save shows and what to try: the next carrier tier of the same kind, the
+  line that makes a missing ingredient, the box already holding it, or the megawatts a
+  grid is short. The bottleneck list shows the same fix per line.
+- **Copy for Reddit / Discord**: the same problems as Markdown, session name only on request,
+  with a select-and-copy fallback when the clipboard is refused.
+- On the demo, a card with the saves folder and a copy button.
+- The hosted copy at [factory-board.gapchix.io](https://factory-board.gapchix.io): a real
+  recipe book baked from outside the repository
+  ([ADR 38](docs/adr/0038-the-hosted-copy-ships-a-recipe-book.md)), an anonymous visit
+  counter ([ADR 37](docs/adr/0037-the-hosted-copy-counts-visits.md)), a CSP that allows
+  nothing else, and `deploy/` to build and serve it.
+
 - **Bring your own recipe book.** A `Docs/en-US.json` dropped on the page is extracted in a
   Web Worker by the same code as the CLI, validated, remembered in IndexedDB and read by
   every view; the header names the book in a `Recipes` chip with _Load yours_ / _Forget_,
