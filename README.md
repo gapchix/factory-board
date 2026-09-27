@@ -102,11 +102,23 @@ FACTORY_BOARD_DEMO=1 npm run build     # bakes the demo base and the demo recipe
 A plain `npm run build` on a machine with the game bakes whatever `npm run dev` would
 show you — your session name and play time included. Set `NEXT_PUBLIC_SITE_URL` to the
 address the copy will live at, so links and previews point there. Visitors bring their
-own save and their own recipe book, and neither leaves their browser.
+own save, and it never leaves their browser.
+
+The deployed copy at factory-board.gapchix.io adds two things:
+
+- **A real recipe book**, from `FACTORY_BOARD_BOOK=/path/to/game-database.json`, so a
+  visitor only has to drop their save. The file is an extract kept on the server, never
+  in this repository ([ADR 38](docs/adr/0038-the-hosted-copy-ships-a-recipe-book.md)).
+- **A visit counter**, with `FACTORY_BOARD_UMAMI_ID`: page views, and whether a save was
+  dropped, failed to read (with a one-word reason), a recipe book was loaded, the demo was
+  opened or the diagnosis was copied. No file names, no session names, nothing from the
+  save ([ADR 37](docs/adr/0037-the-hosted-copy-counts-visits.md)).
+- **A donate link**, with `FACTORY_BOARD_DONATE_URL`, in the footer. Nothing is behind it.
 
 ## Why extract instead of ship the data?
 
-The recipe database is Coffee Stain's content, so it is **not committed to this repo**.
+The recipe database is Coffee Stain's content, so it is **not committed to this repo**
+(the hosted copy ships one from outside it, see above).
 Every install already contains a machine-readable dump of it at
 `CommunityResources/Docs/en-US.json`, and the extractor reads that.
 

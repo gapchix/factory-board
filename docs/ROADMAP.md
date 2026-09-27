@@ -648,6 +648,35 @@ segment prefetch files (Next joins a `path.relative` result that carries a backs
 converts only forward slashes), so every link prefetch 404s in the console. CI and any
 container build are fine; `scripts/serve-out.mjs` papers over it for local runs.
 
+### L. What to fix first · built, launch pending
+
+Office hours on 2026-09-27 turned "wrap it up" into a launch: the niche is all free tools
+and nothing outside the maintainer said anyone wanted this, so the hosted copy goes up
+as a demand test and is judged on whether strangers drop their saves, not on money.
+Everything here serves the first minute of a stranger arriving from one Reddit post:
+
+- **Fix these first**: the top of the Overview names up to three problems, **one per
+  cause**, each with what the save shows and what to try. A full belt gets the next tier
+  of the same kind; a starving line gets the line that makes what it lacks, or the box
+  already holding it.
+- **Copy for Reddit / Discord**: the same rows as Markdown, session name only if asked.
+- **What is wrong with your base?** On the demo, a card with the save path and a copy
+  button, because finding the file is the hard part.
+- **A real recipe book on the hosted copy** ([ADR 38](adr/0038-the-hosted-copy-ships-a-recipe-book.md))
+  and **a visit counter** ([ADR 37](adr/0037-the-hosted-copy-counts-visits.md)).
+- The Overview no longer scrolls sideways at 390 px.
+
+The gate, seven days after the post and with at least 500 desktop visitors: keep building
+if 15% of them drop a save, fix the reader first if 20% of attempts fail, otherwise park
+it and leave it up.
+
+Next for it: deploy, then the post. After that, only if the gate says continue:
+
+- **Follow a starving line to its root.** When the line making X is itself starving on Y,
+  the fix should name Y's line, not "build more X". `lib/chain.ts` already walks recipe
+  chains; cycles, several producers and storage in between are the hard part.
+- An image share card, for Discord where Markdown tables do not render.
+
 ### C. Publish — the packages stand alone
 
 All three are designed to be useful outside this app.

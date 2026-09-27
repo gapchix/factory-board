@@ -1,6 +1,7 @@
 # 3. The game database is generated, never committed
 
-**Status:** accepted · 2026-08-24
+**Status:** accepted · 2026-08-24. For the hosted build only, superseded by
+[ADR 38](0038-the-hosted-copy-ships-a-recipe-book.md): the repository is unchanged.
 
 ## Context
 

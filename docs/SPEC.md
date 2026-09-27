@@ -88,6 +88,8 @@ On a modded save it is never zero, and the notice says why.
   built, from the save's own placements — which turned out to be most of what the board is
   ([ADR 21](adr/0021-one-map-not-two.md)).
 - **Not a server.** No accounts, no upload, no database. See [ADR 0001](adr/0001-client-side-only.md).
+  The hosted copy counts visits and five kinds of event with a self-hosted counter, and
+  sends nothing read from a save ([ADR 37](adr/0037-the-hosted-copy-counts-visits.md)).
 - **Not an optimiser.** It solves the plan you specify; it does not search for a better one.
 
 ## Domain rules

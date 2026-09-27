@@ -1,7 +1,8 @@
 # Working on Factory Board
 
 Plan a Satisfactory factory, then check it against a real save file. Client-side only —
-no server, no database, no runtime network calls.
+no server, no database, no runtime network calls except the hosted copy's visit counter
+([ADR 37](docs/adr/0037-the-hosted-copy-counts-visits.md)).
 
 ## Orientation
 
@@ -29,7 +30,10 @@ integration tests skip and the app runs on the hand-written demo
 dropped on the page replaces either ([ADR 34](docs/adr/0034-the-recipe-book-can-arrive-at-runtime.md)).
 
 A hosted copy is built with `FACTORY_BOARD_DEMO=1 npm run build`; a plain build bakes
-your own save and database into the export.
+your own save and database into the export. The deployed copy also sets
+`FACTORY_BOARD_BOOK` (a real recipe book, kept outside the repo,
+[ADR 38](docs/adr/0038-the-hosted-copy-ships-a-recipe-book.md)) and
+`FACTORY_BOARD_UMAMI_ID`.
 
 ## Invariants — each one exists because breaking it produced a wrong answer
 
@@ -146,6 +150,18 @@ your own save and database into the export.
 - **A hosted build is built clean.** `sync-save.mjs` and `sync-game-data.mjs` bake whatever
   the machine has; `FACTORY_BOARD_DEMO=1` is what keeps the maintainer's session name out
   of the export. [ADR 36](docs/adr/0036-the-board-meets-a-strangers-save.md)
+- **A fix is advice, and only follows from the reading.** `explain` says what the save
+  shows; `fixFor` says what to try, and never more than the reading established. A full
+  carrier is answered with a tier **of the same kind**: a faster belt does not fix a full
+  lift, and pipe m³ are not items. A tier nobody has built is offered with that said,
+  because the save records unlocked recipes, not unlocked buildings.
+- **The top of the Overview, the bottleneck list and the shared text read one list.**
+  `topProblems` groups slow lines by cause (one overloaded grid is one problem, not
+  three rows), and `problemRows` is what both the page and the clipboard print.
+- **Only `lib/track` talks to the counter, and it cannot throw.** Five event names and
+  four failure reasons, fixed by a type; nothing read from a save goes out. It runs
+  inside drop handlers, and an ad blocker removing the script must not fail a drop.
+  [ADR 37](docs/adr/0037-the-hosted-copy-counts-visits.md)
 - **Domain rules get a test.** Changing one means changing the test that pins it, and
   saying why.
 
