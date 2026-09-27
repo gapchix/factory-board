@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/out
+**/dist
+**/*.tsbuildinfo
+.git
+test-results
+playwright-report
+.playwright-mcp
+# Regenerated inside the build: the demo save, and the book from the secret.
+apps/web/src/generated
+# Never in the image: whatever this machine extracted from its own install.
+packages/game-data/generated
+.env*

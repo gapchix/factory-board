@@ -1,0 +1,28 @@
+# The hosted copy on the shared VPS. From the repository root:
+#
+#   FACTORY_BOARD_UMAMI_ID=<id> docker compose -f deploy/compose.yml up -d --build
+#
+# Listens on 127.0.0.1:3002 only; the host's nginx vhost (deploy/vhost.conf)
+# serves it on the subdomain with a certificate.
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        FACTORY_BOARD_UMAMI_ID: ${FACTORY_BOARD_UMAMI_ID:-}
+        FACTORY_BOARD_DONATE_URL: ${FACTORY_BOARD_DONATE_URL:-}
+      secrets:
+        - book
+    container_name: factory-board
+    ports:
+      - '127.0.0.1:3002:80'
+    mem_limit: 64m
+    restart: unless-stopped
+
+secrets:
+  book:
+    # An extract from a machine with the game, copied here once and never
+    # committed (ADR 38). Re-copy after a game patch.
+    file: ${FACTORY_BOARD_BOOK:-/var/www/factory-board/book/game-database.json}
