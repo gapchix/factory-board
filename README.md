@@ -168,5 +168,6 @@ each is separately publishable.
 
 ## Licence
 
-MIT. Satisfactory is a trademark of Coffee Stain Studios; this project is unaffiliated,
-and ships none of the game's content.
+MIT. Satisfactory is a trademark of Coffee Stain Studios; this project is unaffiliated.
+This repository contains none of the game's content; the hosted copy serves recipe data
+extracted from the game's own `Docs.json` ([ADR 38](docs/adr/0038-the-hosted-copy-ships-a-recipe-book.md)).
