@@ -9,6 +9,9 @@ export const APP_VERSION: string = version;
 
 export const REPO_URL = 'https://github.com/gapchix/factory-board';
 
+/** Where Steam and Epic both keep saves, in the form Explorer's address bar takes. */
+export const WHERE_SAVES_ARE = '%LOCALAPPDATA%\\FactoryGame\\Saved\\SaveGames';
+
 /** GitHub accepts a few kilobytes of URL; the stack is trimmed to fit. */
 const MAX_MESSAGE_CHARS = 2000;
 

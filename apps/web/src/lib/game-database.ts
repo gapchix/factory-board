@@ -18,11 +18,15 @@ import raw from '@/generated/game-database.json';
  * Nothing outside the provider should read this directly.
  */
 const envelopeSchema = z.object({
-  source: z.enum(['extracted', 'demo']),
+  source: z.enum(['extracted', 'hosted', 'demo']),
   database: z.unknown(),
 });
 
-/** Which of the two the sync script put in: the maintainer's extract, or the demo. */
+/**
+ * Which one the sync script put in: the maintainer's extract, the book a hosted
+ * build ships ([ADR 38](../../../../docs/adr/0038-the-hosted-copy-ships-a-recipe-book.md)),
+ * or the demo.
+ */
 export type BakedSource = z.infer<typeof envelopeSchema>['source'];
 
 const envelope = envelopeSchema.parse(raw as unknown);

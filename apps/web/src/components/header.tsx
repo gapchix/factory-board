@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { WHERE_SAVES_ARE } from '@/lib/about';
 import { unknownLines } from '@/lib/coverage';
-import { defaultIsDemo, defaultSave, demoSave } from '@/lib/default-snapshot';
+import { defaultIsDemo, defaultSave, demoSave, isDemo } from '@/lib/default-snapshot';
 import { playTime } from '@/lib/format';
+import { track } from '@/lib/track';
 import { useBoard, type SnapshotSource } from '@/state/board';
 import { useGameData } from '@/state/game-data';
 import { useDropFiles } from '@/hooks/use-drop-files';
@@ -140,7 +142,6 @@ function Chip({
  * so. Saves are where the game keeps them; the recipe book is inside every
  * install, under `CommunityResources/Docs`.
  */
-const WHERE_SAVES_ARE = '%LOCALAPPDATA%\\FactoryGame\\Saved\\SaveGames';
 const WHERE_DOCS_IS =
   'inside your Satisfactory install under CommunityResources/Docs — on Steam that is ' +
   'steamapps/common/Satisfactory, on Epic the Satisfactory folder under Epic Games, and on ' +
@@ -172,7 +173,7 @@ export function Header() {
    * reader can *ask* for the demo, and — on a build that baked the demo — a
    * real save dropped on the page is not the demo, however the page opened.
    */
-  const showingDemo = source?.kind === 'demo' || (source?.kind === 'default' && defaultIsDemo);
+  const showingDemo = isDemo(source);
   const canReturn = stashed.current !== null || (defaultSave !== null && !defaultIsDemo);
 
   /*
@@ -187,7 +188,9 @@ export function Header() {
       ? `${book.source.name} · ${recipeCount}`
       : demoBook
         ? `demo · ${recipeCount}`
-        : `your install · ${recipeCount}`;
+        : book.source.name === 'hosted'
+          ? `game build ${book.db.sourceBuildId} · ${recipeCount}`
+          : `your install · ${recipeCount}`;
 
   /*
    * A real save read against a book that does not know its recipes looks
@@ -209,6 +212,7 @@ export function Header() {
     if (!demoSave) return;
     if (snapshot && source && !showingDemo) stashed.current = { snapshot, source };
     dispatch({ type: 'loaded', snapshot: demoSave, source: { kind: 'demo', name: 'demo' } });
+    track('demo_opened');
   };
 
   /*

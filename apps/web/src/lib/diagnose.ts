@@ -117,6 +117,12 @@ export interface LineDiagnosis {
   readonly power: PowerFault | null;
   /** Set only when a full belt is the stated reason a line is backed up. */
   readonly carrier: CarrierLimit | null;
+  /**
+   * The recipe book has no entry for this line's recipe, so its buffers could
+   * not be read against anything. Always `unexplained` — and the one case
+   * where the fix is a better book rather than anything in the world.
+   */
+  readonly unknownRecipe: boolean;
 }
 
 /**
@@ -185,6 +191,7 @@ export function diagnoseLine(
     backlog: null,
     power: null,
     carrier: null,
+    unknownRecipe: false,
   } as const;
   if (uptime === null) return { ...base, verdict: 'unmeasured' };
   if (uptime >= RUNNING) return { ...base, verdict: 'running' };
@@ -199,7 +206,7 @@ export function diagnoseLine(
   if (fault) return { ...base, verdict: 'unpowered', power: fault };
 
   const known = db.recipes[recipe];
-  if (!known) return { ...base, verdict: 'unexplained' };
+  if (!known) return { ...base, verdict: 'unexplained', unknownRecipe: true };
 
   /* Backed up first: a full output explains a slow machine on its own, and a
    * machine that cannot put anything down stops drawing its inputs, so its
@@ -366,8 +373,173 @@ export function explain(diagnosis: LineDiagnosis): string | null {
         : short;
     }
     case 'unexplained':
-      return 'Powered, fed and not backed up, yet still slow.';
+      return diagnosis.unknownRecipe
+        ? 'The recipe book does not know this recipe, so its buffers cannot be read.'
+        : 'Powered, fed and not backed up, yet still slow.';
     default:
       return null;
   }
+}
+
+/**
+ * What the fix for a line's problem could be based on: the book, and what the world has.
+ *
+ * `built` is carrier tiers standing somewhere in the world. A save records
+ * which *recipes* are unlocked (ADR 30) but not which *buildings*, so a tier
+ * nobody has built is offered with that said, rather than called locked or
+ * available.
+ */
+export interface FixContext {
+  readonly db: GameDatabase;
+  readonly built: ReadonlySet<MachineId>;
+  /** The recipes running in this save that make each item. */
+  readonly makers: ReadonlyMap<ItemId, readonly RecipeId[]>;
+}
+
+export function fixContext(db: GameDatabase, snapshot: WorldSnapshot): FixContext {
+  const built = new Set<MachineId>();
+  for (const machine of Object.keys(snapshot.buildings)) {
+    if (db.carriers[machine]) built.add(machine);
+  }
+  const makers = new Map<ItemId, RecipeId[]>();
+  for (const recipe of Object.keys(snapshot.lines)) {
+    for (const port of db.recipes[recipe]?.outputs ?? []) {
+      const list = makers.get(port.item);
+      if (list) list.push(recipe);
+      else makers.set(port.item, [recipe]);
+    }
+  }
+  return { db, built, makers };
+}
+
+const CARRIER_NOUN = { belt: 'belt', lift: 'lift', pipe: 'pipeline' } as const;
+
+/**
+ * One line saying what to do about a problem, or null when there is nothing to fix.
+ *
+ * `explain` says what is wrong, and this says what to try, and the two are kept
+ * apart because the second is advice and the first is a reading. So each rule
+ * only suggests what the diagnosis has already established. A full belt gets a
+ * tier that carries the rate, **of the same kind**, because a full lift is not
+ * fixed by a faster belt and a pipe's m³ are not items. A starving line gets
+ * the line that makes what it is short of, never "build more" for something
+ * already sitting in a box.
+ */
+export function fixFor(diagnosis: LineDiagnosis, context: FixContext): string | null {
+  const { db, built, makers } = context;
+  const { shortage, backlog, power, carrier } = diagnosis;
+  switch (diagnosis.verdict) {
+    case 'unpowered':
+      if (!power) return null;
+      return power.kind === 'unwired'
+        ? 'Connect these machines to a power grid.'
+        : `Add at least ${Math.ceil(power.demandMW - power.capacityMW)} MW to grid ${power.circuit}, or refuel the generators it already has.`;
+    case 'blocked': {
+      if (!backlog) return null;
+      if (!carrier) {
+        return `Give the ${backlog.name} somewhere to go: a line that uses it, a container or an AWESOME Sink.`;
+      }
+      const current = db.carriers[carrier.carrier];
+      if (!current) return 'Give the output a second route.';
+      const unit = current.kind === 'pipe' ? ' m³/min' : '/min';
+      const next = Object.values(db.carriers)
+        .filter((tier) => tier.kind === current.kind)
+        .filter(
+          (tier) =>
+            tier.ratePerMinute > carrier.capacityPerMinute &&
+            tier.ratePerMinute >= carrier.carryingPerMinute,
+        )
+        /* Two tiers can share a rate (a Pipeline and a Clean Pipeline), and
+         * the one already standing is the one to name. */
+        .sort(
+          (a, b) =>
+            a.ratePerMinute - b.ratePerMinute || Number(built.has(b.id)) - Number(built.has(a.id)),
+        )[0];
+      if (!next) {
+        return `No single ${CARRIER_NOUN[current.kind]} carries ${Math.round(carrier.carryingPerMinute)}${unit}: split the output onto a second one.`;
+      }
+      return (
+        `Upgrade it to ${next.name} (${next.ratePerMinute}${unit}).` +
+        (built.has(next.id) ? '' : ' You have not built one yet, so it may still need unlocking.')
+      );
+    }
+    case 'starving': {
+      if (!shortage) return null;
+      if (shortage.stored >= shortage.perBatch) {
+        return `Feed it from the container holding ${shortage.name}.`;
+      }
+      if (db.items[shortage.item]?.isRaw) {
+        return `Bring in more ${shortage.name}: another miner, a better node, or a faster belt from the ones you have.`;
+      }
+      const others = (makers.get(shortage.item) ?? []).filter(
+        (recipe) => recipe !== diagnosis.recipe,
+      );
+      if (others.length === 0) {
+        return `Nothing in this base makes ${shortage.name}. Build a line for it.`;
+      }
+      const names = others.map((recipe) => db.recipes[recipe]?.name ?? recipe).join(', ');
+      return `Get more ${shortage.name} here: build more ${names}, or check its belt reaches this line.`;
+    }
+    case 'unexplained':
+      return diagnosis.unknownRecipe
+        ? "Drop your game's Docs.json on the page so this line can be read."
+        : 'Check these machines in the game. From here they look powered, fed and clear.';
+    default:
+      return null;
+  }
+}
+
+/** Slow lines sharing one cause, to be fixed once. */
+export interface Problem {
+  /** What they share: a grid, a missing item, an unknown recipe, or only the line itself. */
+  readonly key: string;
+  /** The slowest of them, whose reading and fix speak for the group. */
+  readonly worst: LineDiagnosis;
+  readonly lines: readonly LineDiagnosis[];
+}
+
+/**
+ * What a line's problem comes down to, so lines with one cause are one problem.
+ *
+ * Every line on an overloaded grid reads as unpowered, and listed one per line
+ * the worst three of a browning-out base are the same sentence three times,
+ * while the second and third problems never make the list. A full belt stays
+ * per line: two lines capped by Mk.2 belts are two belts to replace.
+ */
+function causeOf(diagnosis: LineDiagnosis): string {
+  const { verdict, power, shortage } = diagnosis;
+  if (verdict === 'unpowered' && power) {
+    return power.kind === 'unwired' ? 'unwired' : `grid:${power.circuit}`;
+  }
+  if (verdict === 'starving' && shortage) return `short:${shortage.item}`;
+  if (verdict === 'unexplained' && diagnosis.unknownRecipe) return 'book';
+  return `line:${diagnosis.recipe}`;
+}
+
+/**
+ * The few things most worth fixing, for the top of the page and for sharing.
+ *
+ * Slow lines only, since a running or unmeasured line has nothing to fix. Grouped by
+ * cause, then ranked by the slowest line in each group, and by how many lines it
+ * holds up when two are equally slow. It ranks by uptime and by nothing
+ * cleverer: a weighting of what each line is worth would be an opinion, and
+ * the bottleneck list below it already reads worst first.
+ */
+export function topProblems(diagnoses: readonly LineDiagnosis[], limit = 3): Problem[] {
+  const groups = new Map<string, LineDiagnosis[]>();
+  for (const diagnosis of diagnoses) {
+    if (diagnosis.verdict === 'running' || diagnosis.verdict === 'unmeasured') continue;
+    const key = causeOf(diagnosis);
+    const group = groups.get(key);
+    if (group) group.push(diagnosis);
+    else groups.set(key, [diagnosis]);
+  }
+  const slowest = (lines: readonly LineDiagnosis[]) =>
+    lines.reduce((worst, line) => ((line.uptime ?? 1) < (worst.uptime ?? 1) ? line : worst));
+  return [...groups.entries()]
+    .map(([key, lines]) => ({ key, worst: slowest(lines), lines }))
+    .sort(
+      (a, b) => (a.worst.uptime ?? 1) - (b.worst.uptime ?? 1) || b.lines.length - a.lines.length,
+    )
+    .slice(0, limit);
 }

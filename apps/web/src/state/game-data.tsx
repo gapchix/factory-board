@@ -19,6 +19,7 @@ import {
 } from '@/lib/game-data-store';
 import type { ExtractResponse } from '@/lib/extract-docs';
 import { megabytes } from '@/lib/format';
+import { track } from '@/lib/track';
 
 /**
  * Where the recipe book the page is running on came from.
@@ -197,6 +198,7 @@ export function GameDataProvider({ children }: { children: ReactNode }) {
       setDb(response.database);
       setSource({ kind: 'user', name: record.name, savedAt: record.savedAt, remembered });
       setStatus({ kind: 'idle' });
+      track('book_loaded');
       return response.database;
     } catch (error) {
       if (mine === generation.current) {

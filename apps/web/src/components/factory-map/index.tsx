@@ -5,6 +5,12 @@ import { frameContent, joinRuns } from '@factory-board/layout';
 import type { GameDatabase } from '@factory-board/planner';
 import type { WorldSnapshot } from '@factory-board/save-reader';
 import { Application } from 'pixi.js';
+/*
+ * Pixi compiles its shader glue with `new Function` unless this is loaded,
+ * and the hosted copy's Content-Security-Policy forbids eval: without it the
+ * map fails to start there and nowhere else (ADR 37).
+ */
+import 'pixi.js/unsafe-eval';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { traceChain, type Chain, type ChainStep } from '@/lib/chain';
 import { diagnose, explain } from '@/lib/diagnose';

@@ -219,3 +219,14 @@ export const demoSave: WorldSnapshot | null = readDemo();
  * could be called anything, "demo" included.
  */
 export const defaultIsDemo: boolean = defaultSave?.source === 'demo';
+
+/**
+ * Whether the base on screen is the demo, from where it came from.
+ *
+ * Three ways in: the reader asked for it, or the build baked it and it is
+ * still the one showing. A real save dropped on a demo build is not the demo,
+ * however the page opened.
+ */
+export function isDemo(source: { readonly kind: string } | null | undefined): boolean {
+  return source?.kind === 'demo' || (source?.kind === 'default' && defaultIsDemo);
+}

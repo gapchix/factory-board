@@ -15,7 +15,10 @@ import {
 } from '@/components/charts';
 import { SaveDropzone } from '@/components/panels';
 import { Label, SectionHeading } from '@/components/primitives';
-import { diagnose, explain } from '@/lib/diagnose';
+import { TopProblems, YourSave } from '@/components/top-problems';
+import { isDemo } from '@/lib/default-snapshot';
+import { diagnose, explain, fixContext, fixFor, topProblems } from '@/lib/diagnose';
+import { problemRows } from '@/lib/share';
 import {
   buildingName,
   itemName,
@@ -43,7 +46,7 @@ const VERDICT: Record<string, string> = {
 };
 
 export default function OverviewPage() {
-  const { snapshot, targets, recipeChoices } = useBoard();
+  const { snapshot, source, targets, recipeChoices } = useBoard();
   const { db } = useGameData();
 
   const plan = useMemo(() => solve(db, targets, { recipeChoices }), [db, targets, recipeChoices]);
@@ -78,7 +81,15 @@ export default function OverviewPage() {
      * with a full output buffer is backed up, not starving, and the two want
      * opposite fixes — see `lib/diagnose`.
      */
-    const verdicts = new Map(diagnose(db, snapshot).map((line) => [line.recipe, line]));
+    const diagnoses = diagnose(db, snapshot);
+    const verdicts = new Map(diagnoses.map((line) => [line.recipe, line]));
+    /*
+     * One reading, three readers: the list below, the short answer at the top
+     * and the text copied out of it all come from `diagnoses`, so a Reddit
+     * paste cannot say something the page does not.
+     */
+    const context = fixContext(db, snapshot);
+    const problems = problemRows(topProblems(diagnoses), db, context);
     const bottlenecks = lines
       .filter((line) => line.uptime !== null)
       .sort((a, b) => (a.uptime ?? 1) - (b.uptime ?? 1))
@@ -89,6 +100,7 @@ export default function OverviewPage() {
           name: named(line.recipe),
           verdict: verdict?.verdict ?? 'unmeasured',
           why: verdict ? explain(verdict) : null,
+          fix: verdict ? fixFor(verdict, context) : null,
         };
       });
 
@@ -201,6 +213,7 @@ export default function OverviewPage() {
       powerMW,
       avgUptime: uptimeWeight > 0 ? uptimeWeighted / uptimeWeight : null,
       bottlenecks,
+      problems,
       starved,
       blocked,
       powerByMachine: [...powerByMachine.entries()].sort((a, b) => b[1] - a[1]),
@@ -245,6 +258,19 @@ export default function OverviewPage() {
       <SectionHeading
         title="Overview"
         note={`${snapshot.sessionName} · ${playTime(snapshot.playDurationSeconds)} played`}
+      />
+
+      {isDemo(source) ? <YourSave /> : null}
+
+      <TopProblems
+        rows={view.problems}
+        power={{
+          demandMW: view.demandMW,
+          capacityMW: view.capacityMW,
+          grids: view.grids.length,
+          overloaded: view.overloaded,
+        }}
+        sessionName={snapshot.sessionName}
       />
 
       <StatRow>
@@ -320,14 +346,26 @@ export default function OverviewPage() {
                  * on the light surface and text needs 4.5:1. The bar above
                  * carries the state; this says what it means.
                  */
-                <Flex gap={2} mt={1} mb={1.5} ml="192px" align="baseline" wrap="wrap">
-                  <Label flex="none" color="fg">
-                    {VERDICT[line.verdict] ?? line.verdict}
-                  </Label>
-                  <Text fontSize="12.5px" lineHeight="1.45" color="fg.muted">
-                    {line.why}
-                  </Text>
-                </Flex>
+                <Box mt={1} mb={1.5} ml={{ base: 0, md: '192px' }}>
+                  <Flex gap={2} align="baseline" wrap="wrap">
+                    <Label flex="none" color="fg">
+                      {VERDICT[line.verdict] ?? line.verdict}
+                    </Label>
+                    <Text fontSize="12.5px" lineHeight="1.45" color="fg.muted">
+                      {line.why}
+                    </Text>
+                  </Flex>
+                  {line.fix ? (
+                    <Flex gap={2} align="baseline" wrap="wrap">
+                      <Label flex="none" color="fg">
+                        Try
+                      </Label>
+                      <Text fontSize="12.5px" lineHeight="1.45" color="fg.muted">
+                        {line.fix}
+                      </Text>
+                    </Flex>
+                  ) : null}
+                </Box>
               ) : null}
             </Box>
           ))}
@@ -452,7 +490,13 @@ export default function OverviewPage() {
                   nameWidth="150px"
                 />
                 {row.wantedBy || row.pilingFrom ? (
-                  <Text fontSize="12px" lineHeight="1.4" color="fg.muted" ml="162px" mb={1}>
+                  <Text
+                    fontSize="12px"
+                    lineHeight="1.4"
+                    color="fg.muted"
+                    ml={{ base: 0, md: '162px' }}
+                    mb={1}
+                  >
                     {row.wantedBy
                       ? `${row.wantedBy} is starving for these.`
                       : `${row.pilingFrom} cannot shift any more.`}{' '}

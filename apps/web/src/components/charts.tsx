@@ -138,11 +138,24 @@ export function BarRow({
 }) {
   return (
     <Flex align="center" gap={3} title={title ?? `${name}: ${display}`}>
-      <Text w={nameWidth} flex="none" fontSize="13.5px" lineHeight="1.3" truncate title={name}>
+      <Text
+        w={{ base: '38%', md: nameWidth }}
+        flex="none"
+        fontSize="13.5px"
+        lineHeight="1.3"
+        truncate
+        title={name}
+      >
         {name}
       </Text>
       <Bar fraction={max > 0 ? value / max : 0} tone={tone} />
-      <Mono fontSize="12px" w="92px" textAlign="end" color="fg.muted" flex="none">
+      <Mono
+        fontSize="12px"
+        w={{ base: '64px', md: '92px' }}
+        textAlign="end"
+        color="fg.muted"
+        flex="none"
+      >
         {display}
       </Mono>
     </Flex>
@@ -170,11 +183,24 @@ export function MeterRow({
   const tone: Tone = fraction >= 1 ? 'ok' : fraction > 0 ? 'accent' : 'muted';
   return (
     <Flex align="center" gap={3} title={`${name}: ${value} of ${target}${unit ? ` ${unit}` : ''}`}>
-      <Text w={nameWidth} flex="none" fontSize="13.5px" lineHeight="1.3" truncate title={name}>
+      <Text
+        w={{ base: '38%', md: nameWidth }}
+        flex="none"
+        fontSize="13.5px"
+        lineHeight="1.3"
+        truncate
+        title={name}
+      >
         {name}
       </Text>
       <Bar fraction={fraction} tone={tone} />
-      <Mono fontSize="12px" w="92px" textAlign="end" color="fg.muted" flex="none">
+      <Mono
+        fontSize="12px"
+        w={{ base: '64px', md: '92px' }}
+        textAlign="end"
+        color="fg.muted"
+        flex="none"
+      >
         {value} / {target}
       </Mono>
     </Flex>
@@ -204,7 +230,7 @@ export function ChartFrame({
         >
           {title}
         </Text>
-        {note ? <Label>{note}</Label> : null}
+        {note ? <Label overflowWrap="anywhere">{note}</Label> : null}
       </Flex>
       {empty ? (
         <Text color="fg.subtle" fontSize="14px">

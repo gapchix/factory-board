@@ -1,7 +1,15 @@
 import type { GameDatabase } from '@factory-board/planner';
-import type { BuildingPlacement } from '@factory-board/save-reader';
+import type { BuildingPlacement, WorldSnapshot } from '@factory-board/save-reader';
 import { describe, expect, it } from 'vitest';
-import { diagnoseLine, explain } from './diagnose';
+import {
+  diagnose,
+  diagnoseLine,
+  explain,
+  type FixContext,
+  fixFor,
+  type LineDiagnosis,
+  topProblems,
+} from './diagnose';
 
 /**
  * Real recipes at real rates, because the point of this file is that the maths
@@ -345,5 +353,384 @@ describe('diagnoseLine · what is already in a box', () => {
     });
 
     expect(explain(line)).toContain('1,000 sitting in a container');
+  });
+});
+
+const emptySnapshot: WorldSnapshot = {
+  sessionName: 'test',
+  playDurationSeconds: 0,
+  saveBuildVersion: 0,
+  savedAt: null,
+  lines: {},
+  buildings: {},
+  stored: {},
+  placements: [],
+  paths: [],
+  links: [],
+  milestones: [],
+  circuits: [],
+  phase: null,
+  objectCount: 0,
+  modded: false,
+};
+
+/**
+ * The carrier ladder at the game's own rates: belts and lifts 60 → 1,200, the
+ * pipelines 300 and 600 m³/min. Kinds are mixed on purpose, so a rule that
+ * forgot to stay within one would reach for a belt to fix a lift.
+ */
+const carrier = (id: string, kind: 'belt' | 'lift' | 'pipe', ratePerMinute: number, name: string) =>
+  [id, { id, name, kind, ratePerMinute }] as const;
+const withCarriers: GameDatabase = {
+  ...db,
+  carriers: Object.fromEntries([
+    carrier('ConveyorBeltMk1', 'belt', 60, 'Conveyor Belt Mk.1'),
+    carrier('ConveyorBeltMk2', 'belt', 120, 'Conveyor Belt Mk.2'),
+    carrier('ConveyorBeltMk3', 'belt', 270, 'Conveyor Belt Mk.3'),
+    carrier('ConveyorBeltMk4', 'belt', 480, 'Conveyor Belt Mk.4'),
+    carrier('ConveyorBeltMk5', 'belt', 780, 'Conveyor Belt Mk.5'),
+    carrier('ConveyorBeltMk6', 'belt', 1200, 'Conveyor Belt Mk.6'),
+    carrier('ConveyorLiftMk1', 'lift', 60, 'Conveyor Lift Mk.1'),
+    carrier('ConveyorLiftMk2', 'lift', 120, 'Conveyor Lift Mk.2'),
+    carrier('ConveyorLiftMk3', 'lift', 270, 'Conveyor Lift Mk.3'),
+    carrier('Pipeline', 'pipe', 300, 'Pipeline Mk.1'),
+    carrier('PipelineMK2', 'pipe', 600, 'Pipeline Mk.2'),
+    carrier('PipelineMK2_NoIndicator', 'pipe', 600, 'Clean Pipeline Mk.2'),
+  ]),
+};
+
+const context = (
+  overrides: Partial<{ built: string[]; makers: Record<string, string[]> }> = {},
+): FixContext => ({
+  db: withCarriers,
+  built: new Set(overrides.built ?? ['ConveyorBeltMk1', 'ConveyorBeltMk2']),
+  makers: new Map(Object.entries(overrides.makers ?? {})),
+});
+
+const backedUpOn = (id: string, capacityPerMinute: number, carryingPerMinute: number) =>
+  diagnoseLine(
+    withCarriers,
+    'r-iron-rod',
+    0.5,
+    [machine({ 'iron-ingot': 50 }, { 'iron-rod': 90 })],
+    {},
+    [],
+    { carrier: id, name: id, capacityPerMinute, carryingPerMinute },
+  );
+
+describe('fixFor · a full carrier', () => {
+  it('names the next belt that carries the rate', () => {
+    const fix = fixFor(
+      backedUpOn('ConveyorBeltMk2', 120, 180),
+      context({ built: ['ConveyorBeltMk3'] }),
+    );
+
+    expect(fix).toBe('Upgrade it to Conveyor Belt Mk.3 (270/min).');
+  });
+
+  it('skips a tier that would still be full', () => {
+    const fix = fixFor(
+      backedUpOn('ConveyorBeltMk2', 120, 300),
+      context({ built: ['ConveyorBeltMk4'] }),
+    );
+
+    expect(fix).toBe('Upgrade it to Conveyor Belt Mk.4 (480/min).');
+  });
+
+  it('says when nobody has built that tier yet, rather than calling it locked', () => {
+    const fix = fixFor(backedUpOn('ConveyorBeltMk2', 120, 180), context());
+
+    expect(fix).toBe(
+      'Upgrade it to Conveyor Belt Mk.3 (270/min). You have not built one yet, so it may still need unlocking.',
+    );
+  });
+
+  it('keeps a lift a lift', () => {
+    const fix = fixFor(
+      backedUpOn('ConveyorLiftMk2', 120, 200),
+      context({ built: ['ConveyorLiftMk3'] }),
+    );
+
+    expect(fix).toBe('Upgrade it to Conveyor Lift Mk.3 (270/min).');
+  });
+
+  it('keeps a pipe a pipe, in m³', () => {
+    const fix = fixFor(backedUpOn('Pipeline', 300, 450), context({ built: ['PipelineMK2'] }));
+
+    expect(fix).toBe('Upgrade it to Pipeline Mk.2 (600 m³/min).');
+  });
+
+  it('names the variant already built when two share a rate', () => {
+    const fix = fixFor(
+      backedUpOn('Pipeline', 300, 450),
+      context({ built: ['PipelineMK2_NoIndicator'] }),
+    );
+
+    expect(fix).toBe('Upgrade it to Clean Pipeline Mk.2 (600 m³/min).');
+  });
+
+  it('splits when no tier of its kind is enough', () => {
+    const lift = fixFor(backedUpOn('ConveyorLiftMk3', 270, 400), context());
+    const belt = fixFor(backedUpOn('ConveyorBeltMk6', 1200, 1500), context());
+
+    expect(lift).toBe('No single lift carries 400/min: split the output onto a second one.');
+    expect(belt).toBe('No single belt carries 1500/min: split the output onto a second one.');
+  });
+
+  it('does not guess a tier for a carrier the book does not know', () => {
+    const fix = fixFor(backedUpOn('ConveyorBeltMk9', 2000, 2400), context());
+
+    expect(fix).toBe('Give the output a second route.');
+  });
+
+  it('points somewhere to send it when no belt is to blame', () => {
+    const line = diagnoseLine(withCarriers, 'r-iron-rod', 0.3, [machine({}, { 'iron-rod': 90 })]);
+
+    expect(fixFor(line, context())).toBe(
+      'Give the Iron Rod somewhere to go: a line that uses it, a container or an AWESOME Sink.',
+    );
+  });
+});
+
+describe('fixFor · a short ingredient', () => {
+  it('names the line that makes it', () => {
+    const line = diagnoseLine(withCarriers, 'r-rotor', 0.6, [
+      machine({ 'iron-rod': 200, screw: 25 }, {}),
+    ]);
+
+    expect(fixFor(line, context({ makers: { screw: ['r-screw'] } }))).toBe(
+      'Get more Screw here: build more Screw, or check its belt reaches this line.',
+    );
+  });
+
+  it('says when nothing in the base makes it', () => {
+    const line = diagnoseLine(withCarriers, 'r-rotor', 0.6, [
+      machine({ 'iron-rod': 200, screw: 25 }, {}),
+    ]);
+
+    expect(fixFor(line, context())).toBe('Nothing in this base makes Screw. Build a line for it.');
+  });
+
+  it('does not count the starving line as its own supplier', () => {
+    const line = diagnoseLine(withCarriers, 'r-rotor', 0.6, [
+      machine({ 'iron-rod': 200, screw: 25 }, {}),
+    ]);
+
+    expect(fixFor(line, context({ makers: { screw: ['r-rotor'] } }))).toBe(
+      'Nothing in this base makes Screw. Build a line for it.',
+    );
+  });
+
+  it('sends you to the box rather than to build more', () => {
+    const line = diagnoseLine(
+      withCarriers,
+      'r-rotor',
+      0.6,
+      [machine({ 'iron-rod': 200, screw: 25 }, {})],
+      { screw: 800 },
+    );
+
+    expect(fixFor(line, context({ makers: { screw: ['r-screw'] } }))).toBe(
+      'Feed it from the container holding Screw.',
+    );
+  });
+
+  it('asks for more extraction for something that comes out of the ground', () => {
+    const ore: GameDatabase = {
+      ...withCarriers,
+      recipes: {
+        ...withCarriers.recipes,
+        'r-iron-ingot': {
+          id: 'r-iron-ingot',
+          name: 'Iron Ingot',
+          durationSeconds: 2,
+          machine: 'constructor',
+          inputs: [{ item: 'iron-ore', amount: 1 }],
+          outputs: [{ item: 'iron-ingot', amount: 1 }],
+          isAlternate: false,
+        },
+      },
+    };
+    const line = diagnoseLine(ore, 'r-iron-ingot', 0.4, [machine({ 'iron-ore': 0 }, {})]);
+
+    expect(fixFor(line, { ...context(), db: ore })).toBe(
+      'Bring in more Iron Ore: another miner, a better node, or a faster belt from the ones you have.',
+    );
+  });
+});
+
+describe('fixFor · power and the rest', () => {
+  const onGrid = (circuit: number | undefined) => ({
+    ...machine({ 'iron-ingot': 0 }, {}),
+    circuit,
+  });
+  const grid = (id: number, demandMW: number, capacityMW: number) => ({
+    id,
+    members: [],
+    demandMW,
+    capacityMW,
+  });
+
+  it('says how much power is missing, rounded up', () => {
+    const line = diagnoseLine(withCarriers, 'r-iron-rod', 0.2, [onGrid(3)], {}, [
+      grid(3, 140.2, 100),
+    ]);
+
+    expect(fixFor(line, context())).toBe(
+      'Add at least 41 MW to grid 3, or refuel the generators it already has.',
+    );
+  });
+
+  it('wires an unwired line', () => {
+    const line = diagnoseLine(withCarriers, 'r-iron-rod', 0, [onGrid(undefined)], {}, [
+      grid(1, 10, 50),
+    ]);
+
+    expect(fixFor(line, context())).toBe('Connect these machines to a power grid.');
+  });
+
+  it('asks for the book when the recipe is unknown', () => {
+    const line = diagnoseLine(withCarriers, 'r-mystery', 0.5, [machine({}, {})]);
+
+    expect(explain(line)).toBe(
+      'The recipe book does not know this recipe, so its buffers cannot be read.',
+    );
+    expect(fixFor(line, context())).toBe(
+      "Drop your game's Docs.json on the page so this line can be read.",
+    );
+  });
+
+  it('sends you to look when nothing it can read explains it', () => {
+    const line = diagnoseLine(withCarriers, 'r-iron-rod', 0.4, [
+      machine({ 'iron-ingot': 100 }, {}),
+    ]);
+
+    expect(fixFor(line, context())).toBe(
+      'Check these machines in the game. From here they look powered, fed and clear.',
+    );
+  });
+
+  it('has nothing to fix on a line that is running or unmeasured', () => {
+    expect(
+      fixFor(diagnoseLine(withCarriers, 'r-screw', 1, [machine({}, {})]), context()),
+    ).toBeNull();
+    expect(
+      fixFor(diagnoseLine(withCarriers, 'r-screw', null, [machine({}, {})]), context()),
+    ).toBeNull();
+  });
+});
+
+describe('topProblems', () => {
+  const at = (
+    recipe: string,
+    uptime: number | null,
+    extra: Partial<LineDiagnosis> = {},
+  ): LineDiagnosis => ({
+    recipe,
+    verdict: 'blocked',
+    uptime,
+    machines: 1,
+    shortage: null,
+    backlog: null,
+    power: null,
+    carrier: null,
+    unknownRecipe: false,
+    ...extra,
+  });
+  const overloaded = (circuit: number) => ({
+    verdict: 'unpowered' as const,
+    power: { kind: 'overloaded' as const, circuit, demandMW: 140, capacityMW: 100 },
+  });
+
+  it('leaves out lines with nothing to fix', () => {
+    const top = topProblems([
+      at('a', 0.99, { verdict: 'running' }),
+      at('b', null, { verdict: 'unmeasured' }),
+      at('c', 0.5),
+    ]);
+
+    expect(top.map((problem) => problem.worst.recipe)).toEqual(['c']);
+  });
+
+  it('is empty for a base that is keeping up', () => {
+    expect(topProblems([at('a', 0.98, { verdict: 'running' })])).toEqual([]);
+  });
+
+  it('makes one problem of every line on one overloaded grid', () => {
+    const top = topProblems([
+      at('a', 0.1, overloaded(3)),
+      at('b', 0.2, overloaded(3)),
+      at('c', 0.3, overloaded(3)),
+      at('d', 0.4),
+      at('e', 0.5),
+    ]);
+
+    expect(top.map((problem) => problem.key)).toEqual(['grid:3', 'line:d', 'line:e']);
+    expect(top[0]?.lines).toHaveLength(3);
+    expect(top[0]?.worst.recipe).toBe('a');
+  });
+
+  it('keeps two grids apart', () => {
+    const top = topProblems([at('a', 0.1, overloaded(1)), at('b', 0.2, overloaded(2))]);
+
+    expect(top.map((problem) => problem.key)).toEqual(['grid:1', 'grid:2']);
+  });
+
+  it('groups lines short of the same thing', () => {
+    const short = {
+      verdict: 'starving' as const,
+      shortage: { item: 'screw', name: 'Screw', held: 0, perBatch: 25, batches: 0, stored: 0 },
+    };
+    const top = topProblems([at('rotor', 0.3, short), at('plate', 0.4, short)]);
+
+    expect(top).toHaveLength(1);
+    expect(top[0]?.key).toBe('short:screw');
+  });
+
+  it('makes one problem of every line the book does not know', () => {
+    const unknown = { verdict: 'unexplained' as const, unknownRecipe: true };
+    const top = topProblems([at('x', 0.4, unknown), at('y', 0.5, unknown), at('z', 0.6, unknown)]);
+
+    expect(top).toHaveLength(1);
+    expect(top[0]?.key).toBe('book');
+    expect(top[0]?.lines).toHaveLength(3);
+  });
+
+  it('ranks by the slowest line, then by how many a problem holds up', () => {
+    const top = topProblems([
+      at('solo', 0.3),
+      at('a', 0.3, overloaded(1)),
+      at('b', 0.6, overloaded(1)),
+    ]);
+
+    expect(top.map((problem) => problem.key)).toEqual(['grid:1', 'line:solo']);
+  });
+
+  it('stops at three', () => {
+    const top = topProblems(['a', 'b', 'c', 'd', 'e'].map((recipe, i) => at(recipe, i / 10)));
+
+    expect(top.map((problem) => problem.worst.recipe)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('reads the same list the bottleneck panel does', () => {
+    const lines = diagnose(withCarriers, {
+      ...emptySnapshot,
+      lines: {
+        'r-iron-rod': {
+          recipe: 'r-iron-rod',
+          machine: 'constructor',
+          count: 1,
+          uptime: 0.3,
+          clock: 1,
+        },
+        'r-screw': { recipe: 'r-screw', machine: 'constructor', count: 1, uptime: 1, clock: 1 },
+      },
+      placements: [{ ...machine({}, { 'iron-rod': 90 }), recipe: 'r-iron-rod' }],
+    });
+    const top = topProblems(lines);
+
+    expect(top.map((problem) => problem.worst)).toEqual(
+      lines.filter((line) => line.verdict !== 'running' && line.verdict !== 'unmeasured'),
+    );
   });
 });

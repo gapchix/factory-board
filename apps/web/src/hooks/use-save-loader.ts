@@ -4,6 +4,7 @@ import type { WorldSnapshot } from '@factory-board/save-reader';
 import { useCallback } from 'react';
 import { megabytes } from '@/lib/format';
 import { toDigestSource } from '@/lib/history';
+import { failureReason, track, trackSaveFailed } from '@/lib/track';
 import { useBoard } from '@/state/board';
 import type { ParseResponse } from '@/workers/parse-save.worker';
 
@@ -115,6 +116,7 @@ export function useSaveLoader() {
       if (files.length === 0) return;
       const tooBig = files.find((file) => file.size > MAX_SAVE_BYTES);
       if (tooBig) {
+        trackSaveFailed('size');
         dispatch({
           type: 'failed',
           message:
@@ -137,6 +139,7 @@ export function useSaveLoader() {
         try {
           read.push({ file, snapshot: await parse(file) });
         } catch (error) {
+          trackSaveFailed(failureReason(error instanceof Error ? error.message : String(error)));
           failures.push(explainFailure(file, error));
         }
       }
@@ -151,6 +154,7 @@ export function useSaveLoader() {
        * by; the wall clock is what a person recognises a save by, and files
        * copied about keep neither reliably.
        */
+      track('save_dropped');
       read.sort((a, b) => b.snapshot.playDurationSeconds - a.snapshot.playDurationSeconds);
       const [newest, ...earlier] = read;
       dispatch({

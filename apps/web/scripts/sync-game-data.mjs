@@ -29,9 +29,28 @@ const target = resolve(here, '../src/generated/game-database.json');
  */
 const forced = process.env.FACTORY_BOARD_DEMO === '1';
 
+/**
+ * The recipe book a hosted build ships, from a file outside the repository.
+ *
+ * A hosted copy opens on the demo base, and without a real book every save a
+ * stranger drops reads as lines nobody can explain until they find and drop a
+ * second file. So the hosted build is given an extract, copied onto the server
+ * once and never committed: ADR 3 still holds for the repository, and ADR 38
+ * says why the hosted copy is the exception.
+ */
+const hostedBook = process.env.FACTORY_BOARD_BOOK;
+
 mkdirSync(dirname(target), { recursive: true });
 
-if (existsSync(source) && !forced) {
+if (hostedBook) {
+  if (!existsSync(hostedBook)) {
+    console.error(`FACTORY_BOARD_BOOK points at ${hostedBook}, which does not exist`);
+    process.exit(1);
+  }
+  const database = JSON.parse(readFileSync(hostedBook, 'utf8'));
+  writeFileSync(target, JSON.stringify({ source: 'hosted', database }));
+  console.log(`game database: the hosted book from ${hostedBook}`);
+} else if (existsSync(source) && !forced) {
   const database = JSON.parse(readFileSync(source, 'utf8'));
   writeFileSync(target, JSON.stringify({ source: 'extracted', database }));
   console.log('game database synced');
